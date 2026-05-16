@@ -789,14 +789,42 @@ ${ST.magTab==="stock"?`
 </div>`
 
 :ST.magTab==="aging"?`
-<div class="kg k4 fi" style="margin-bottom:14px">
-  ${[["U","🔴 Urgente",">5 anni","gro"],["A","🟠 Alta","3–5 anni","gam"],["M","🟡 Media","2–3 anni","gvi"],["O","✅ OK","<2 anni","gem"]].map(([k,lbl,sub,gc])=>`
-  <div class="g kc" style="cursor:pointer;border:0.5px solid ${ST.agPri===k?"rgba(255,255,255,.3)":""}" onclick="ST.agPri=ST.agPri==='${k}'?'all':'${k}';ST.agPage=0;renderPage()">
-    <div class="kl">${lbl}</div>
-    <div class="kv ${gc}">${fmt(agSummary.stats[k].v)}</div>
-    <div class="ks">${fmtN(agSummary.stats[k].n)} ref. · ${fmtN(agSummary.stats[k].pz)} pz · ${sub}</div>
-  </div>`).join("")}
+${(()=>{
+  const s=agSummary.stats;
+  const totV=s.U.v+s.A.v+s.M.v+s.O.v;
+  const totPz=s.U.pz+s.A.pz+s.M.pz+s.O.pz;
+  const totN=s.U.n+s.A.n+s.M.n+s.O.n;
+  const critV=s.U.v+s.A.v, critPz=s.U.pz+s.A.pz;
+  const pctV=totV>0?Math.round(critV/totV*100):0;
+  const pctPz=totPz>0?Math.round(critPz/totPz*100):0;
+  return`
+<div class="kg k4 fi" style="margin-bottom:10px">
+  <div class="g kc"><div class="ki">💶</div><div class="kl">Valore totale immobilizzato</div><div class="kv gcy">${fmt(totV)}</div><div class="ks">${fmtN(totN)} ref.</div></div>
+  <div class="g kc"><div class="ki">👓</div><div class="kl">Pezzi totali in aging</div><div class="kv gvi">${fmtN(totPz)}</div><div class="ks">${fmtN(totN)} referenze</div></div>
+  <div class="g kc" style="border-left:3px solid rgba(251,113,133,.4)"><div class="kl">Da smaltire urgente/alta (€)</div><div class="kv gro">${fmt(critV)}</div><div class="ks">${pctV}% del valore totale</div></div>
+  <div class="g kc" style="border-left:3px solid rgba(251,191,36,.4)"><div class="kl">Da smaltire urgente/alta (pz)</div><div class="kv gam">${fmtN(critPz)}</div><div class="ks">${pctPz}% dei pezzi totali</div></div>
 </div>
+<div class="kg k4 fi" style="margin-bottom:14px">
+  ${[["U","🔴 Urgente",">5 anni","gro","rgba(251,113,133,.35)"],["A","🟠 Alta","3–5 anni","gam","rgba(251,191,36,.35)"],["M","🟡 Media","2–3 anni","gvi","rgba(167,139,250,.35)"],["O","✅ OK","<2 anni","gem","rgba(52,211,153,.35)"]].map(([k,lbl,sub,gc,bc])=>{
+    const pzPct=totPz>0?Math.round(s[k].pz/totPz*100):0;
+    const vPct=totV>0?Math.round(s[k].v/totV*100):0;
+    return`<div class="g kc" style="cursor:pointer;border-left:3px solid ${bc}${ST.agPri===k?";border-color:rgba(255,255,255,.3)":""}" onclick="ST.agPri=ST.agPri==='${k}'?'all':'${k}';ST.agPage=0;renderPage()">
+    <div class="kl">${lbl} · ${sub}</div>
+    <div style="display:flex;align-items:baseline;gap:14px;margin-top:2px">
+      <div><div style="font-size:10px;color:var(--d);margin-bottom:2px">Valore</div><div class="kv ${gc}" style="font-size:18px">${fmt(s[k].v)}</div></div>
+      <div><div style="font-size:10px;color:var(--d);margin-bottom:2px">Pezzi</div><div class="kv" style="font-size:18px;font-weight:700">${fmtN(s[k].pz)}</div></div>
+    </div>
+    <div class="ks" style="margin-top:6px">${fmtN(s[k].n)} ref.</div>
+    <div style="margin-top:8px;display:flex;gap:4px;align-items:center">
+      <div style="flex:1;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:${bc.replace('.35)','.8)')};width:${vPct}%"></div></div>
+      <span style="font-size:10px;color:var(--d);min-width:28px;text-align:right">${vPct}% €</span>
+    </div>
+    <div style="margin-top:4px;display:flex;gap:4px;align-items:center">
+      <div style="flex:1;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:${bc.replace('.35)','.5)')};width:${pzPct}%"></div></div>
+      <span style="font-size:10px;color:var(--d);min-width:28px;text-align:right">${pzPct}% pz</span>
+    </div>
+  </div>`;}).join("")}
+</div>`;})()}
 <div class="g2 fi">
   <div class="g card">
     <div class="ch"><div class="ct"><span class="dot dro"></span>Valore immobilizzato per anno acquisto</div></div>
@@ -833,7 +861,7 @@ ${ST.magTab==="stock"?`
       <td style="font-weight:500">${r.m}</td>
       <td style="font-size:12px;color:var(--m)">${r.mod}</td>
       <td><span class="pill ${r.cat==="M"?"pvi":"pam"}">${r.cat==="M"?"Vista":"Sole"}</span></td>
-      <td class="mn${r.pri!=="O"&&r.pri!=="N"?" mn-hi":""}">${r.dLabel||"—"}</td>
+      <td class="mn${r.pri!=="O"&&r.pri!=="N"?" mn-hi":""}">${r.d?r.d.slice(8,10)+"/"+r.d.slice(5,7)+"/"+r.d.slice(0,4):"—"}</td>
       <td class="mn" style="font-weight:600;color:${r.pri==="U"?"var(--ro)":r.pri==="A"?"var(--am)":r.pri==="M"?"var(--vi)":"var(--em)"}">${r.mesi===null?"—":r.mesi}</td>
       <td class="mn">${r.q}</td>
       <td class="mn mn-gr">${fmt(r.v)}</td>
