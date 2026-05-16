@@ -484,7 +484,7 @@ function buildAgingSummary(rows){
 // ═══ STATE ══════════════════════════════════════════════════════════════════
 const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:CY,selMese:CM,
   magTab:"stock",magBrand:"all",magSed:"all",magCat:"all",magForn:"all",magDateFrom:"",magDateTo:"",magFocus:"all",magSearch:"",magSort:"v",magAsc:false,magPage:0,
-  agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,
+  agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:""};
 let charts={};
 const PER=30;
@@ -827,11 +827,23 @@ ${(()=>{
 </div>`;})()}
 <div class="g2 fi">
   <div class="g card">
-    <div class="ch"><div class="ct"><span class="dot dro"></span>Valore immobilizzato per anno acquisto</div></div>
+    <div class="ch">
+      <div class="ct"><span class="dot dro"></span>${ST.agChartMode==="v"?"Valore immobilizzato per anno":"Pezzi in magazzino per anno"}</div>
+      <div class="tpill">
+        <button class="tp${ST.agChartMode==="v"?" on":""}" onclick="ST.agChartMode='v';renderPage()">€ Euro</button>
+        <button class="tp${ST.agChartMode==="pz"?" on":""}" onclick="ST.agChartMode='pz';renderPage()">Pezzi</button>
+      </div>
+    </div>
     <div class="cw"><canvas id="ch_aging"></canvas></div>
   </div>
   <div class="g card">
-    <div class="ch"><div class="ct"><span class="dot dam"></span>Distribuzione priorità</div></div>
+    <div class="ch">
+      <div class="ct"><span class="dot dam"></span>Distribuzione priorità</div>
+      <div class="tpill">
+        <button class="tp${ST.agChartMode==="v"?" on":""}" onclick="ST.agChartMode='v';renderPage()">€ Euro</button>
+        <button class="tp${ST.agChartMode==="pz"?" on":""}" onclick="ST.agChartMode='pz';renderPage()">Pezzi</button>
+      </div>
+    </div>
     <div class="cw"><canvas id="ch_aging_pri"></canvas></div>
   </div>
 </div>
@@ -995,10 +1007,15 @@ function initCharts(){
       const anni=Object.keys(ag.byAnno).sort();
       const agColors=anni.map(y=>{const n=parseInt(y);return n<2020?"rgba(251,113,133,.6)":n<2023?"rgba(251,191,36,.6)":n<2024?"rgba(167,139,250,.5)":"rgba(52,211,153,.5)";});
       const agBorder=anni.map(y=>{const n=parseInt(y);return n<2020?"#fb7185":n<2023?"#fbbf24":n<2024?"#a78bfa":"#34d399";});
-      mkChart("ch_aging","bar",anni,[{data:anni.map(y=>ag.byAnno[y].v),backgroundColor:agColors,borderColor:agBorder,borderWidth:1.5,borderRadius:4}],CO);
+      const agMode=ST.agChartMode==="pz";
+      const agData=anni.map(y=>agMode?ag.byAnno[y].pz:ag.byAnno[y].v);
+      const agOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins?.tooltip,callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}},scales:{...CO.scales,y:{...CO.scales?.y,ticks:{...CO.scales?.y?.ticks,callback:v=>agMode?v+" pz":"€ "+Math.round(v).toLocaleString("it-IT")}}}};
+      mkChart("ch_aging","bar",anni,[{data:agData,backgroundColor:agColors,borderColor:agBorder,borderWidth:1.5,borderRadius:4}],agOpts);
       // Donut priorità
       const stats=ag.stats;
-      mkChart("ch_aging_pri","doughnut",["🔴 Urgente (>5 anni)","🟠 Alta (3-5 anni)","🟡 Media (2-3 anni)","✅ OK (<2 anni)"],[{data:[stats.U.v,stats.A.v,stats.M.v,stats.O.v],backgroundColor:["rgba(251,113,133,.6)","rgba(251,191,36,.55)","rgba(167,139,250,.5)","rgba(52,211,153,.45)"],borderWidth:0,hoverOffset:6}],coDon);
+      const priData=agMode?[stats.U.pz,stats.A.pz,stats.M.pz,stats.O.pz]:[stats.U.v,stats.A.v,stats.M.v,stats.O.v];
+      const priOpts={...coDon,plugins:{...coDon.plugins,tooltip:{callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}}};
+      mkChart("ch_aging_pri","doughnut",["🔴 Urgente (>5 anni)","🟠 Alta (3-5 anni)","🟡 Media (2-3 anni)","✅ OK (<2 anni)"],[{data:priData,backgroundColor:["rgba(251,113,133,.6)","rgba(251,191,36,.55)","rgba(167,139,250,.5)","rgba(52,211,153,.45)"],borderWidth:0,hoverOffset:6}],priOpts);
     }
   }
 
