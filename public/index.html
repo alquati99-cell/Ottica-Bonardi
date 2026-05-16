@@ -303,8 +303,9 @@ function processUpload(raw, name){
     const qty = parseFloat(String(r['Quantità magazzino']||r['Quantita magazzino']||0).replace(',','.')) || 0;
     const val = parseFloat(String(r['Valore magazzino']||0).replace(',','.')) || 0;
     const cos = parseFloat(String(r['Costo medio']||0).replace(',','.')) || 0;
-    let dt = r['Data ult. acq']||r['Data ult acq']||r['Data ultimo acquisto']||'';
+    let dt = r['Data entrata magazzino']||r['Data entrata']||r['Data Entrata']||r['Data ult. acq']||r['Data ult acq']||r['Data ultimo acquisto']||r['DataEntrata']||r['data_entrata']||'';
     if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
+    else if(typeof dt === 'number') dt = excelSerialToISO(dt);
     else if(typeof dt === 'string') dt = normalizeDateValue(dt);
     const cat = tp.toLowerCase().includes('vista') ? 'M' : 'S';
     const key = `${fil}|${mar}|${mod}|${cat}|${forn}`;
@@ -387,11 +388,28 @@ const MARCHI_ALL=()=>[...new Set(curMAG().rows.map(r=>r.m))].sort();
 function cleanSupplierName(v){
   return String(v||'').replace(/\s+/g,' ').trim();
 }
+function excelSerialToISO(n){
+  if(!n||n<25569||n>60000) return '';
+  const d=new Date(Math.round((n-25569)*86400000));
+  return isNaN(d.getTime())?'':d.toISOString().slice(0,10);
+}
 function normalizeDateValue(v){
   if(!v) return '';
   const s=String(v).trim();
-  const m=s.match(/(\d{4})-(\d{2})(?:-(\d{2}))?/);
-  return m ? `${m[1]}-${m[2]}${m[3]?`-${m[3]}`:''}` : '';
+  // yyyy-mm-dd già corretto
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // formato italiano dd/mm/yyyy o dd-mm-yyyy o dd.mm.yyyy
+  const mIT=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if(mIT) return `${mIT[3]}-${mIT[2].padStart(2,'0')}-${mIT[1].padStart(2,'0')}`;
+  // formato corto dd/mm/yy
+  const mIT2=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+  if(mIT2){const yr=parseInt(mIT2[3])+(parseInt(mIT2[3])<=30?2000:1900);return `${yr}-${mIT2[2].padStart(2,'0')}-${mIT2[1].padStart(2,'0')}`;}
+  // serial number Excel come stringa
+  if(/^\d+(\.\d*)?$/.test(s)){const iso=excelSerialToISO(parseFloat(s));if(iso)return iso;}
+  // yyyy-mm senza giorno
+  const mYM=s.match(/^(\d{4})-(\d{2})$/);
+  if(mYM) return `${mYM[1]}-${mYM[2]}-01`;
+  return '';
 }
 function monthKey(v){
   const s=normalizeDateValue(v);
@@ -423,8 +441,12 @@ function applySharedMagFilters(rows){
   const fromIdx=monthIndex(ST.magDateFrom),toIdx=monthIndex(ST.magDateTo);
   if(fromIdx!==null)r=r.filter(x=>{const idx=monthIndex(x.dMonth||x.d);return idx!==null&&idx>=fromIdx;});
   if(toIdx!==null)r=r.filter(x=>{const idx=monthIndex(x.dMonth||x.d);return idx!==null&&idx<=toIdx;});
-  if(ST.magFocus==="12")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=12);
+  if(ST.magFocus==="3")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=3);
+  else if(ST.magFocus==="6")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=6);
+  else if(ST.magFocus==="12")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=12);
   else if(ST.magFocus==="24")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=24);
+  else if(ST.magFocus==="36")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=36);
+  else if(ST.magFocus==="60")r=r.filter(x=>typeof x.mesi==="number"&&x.mesi>=60);
   else if(ST.magFocus==="missing")r=r.filter(x=>!x.dMonth);
   return r;
 }
@@ -606,9 +628,14 @@ function rMag(){
   const pA=kA.reduce((a,r)=>a+r.q,0),pB=kB.reduce((a,r)=>a+r.q,0);
   const bf=ST.magBrand!=="all";
   const supplierAgg=buildSupplierAgg(rows);
+  const stale3=rows.filter(r=>typeof r.mesi==="number"&&r.mesi>=3);
+  const stale6=rows.filter(r=>typeof r.mesi==="number"&&r.mesi>=6);
   const stale12=rows.filter(r=>typeof r.mesi==="number"&&r.mesi>=12);
   const stale24=rows.filter(r=>typeof r.mesi==="number"&&r.mesi>=24);
+  const stale36=rows.filter(r=>typeof r.mesi==="number"&&r.mesi>=36);
+  const stale60=rows.filter(r=>typeof r.mesi==="number"&&r.mesi>=60);
   const missingDates=rows.filter(r=>!r.dMonth).length;
+  const oldestRow=rows.filter(r=>r.mesi!==null).sort((a,b)=>b.mesi-a.mesi)[0];
   const latestMonth=rows.reduce((acc,r)=>r.dMonth&&(!acc||r.dMonth>acc)?r.dMonth:acc,'');
 
   // Grafici
@@ -642,8 +669,12 @@ function rMag(){
   if(ST.magForn!=="all")activeFilters.push(`Fornitore: ${ST.magForn}`);
   if(ST.magDateFrom)activeFilters.push(`Ult. acq da ${ST.magDateFrom}`);
   if(ST.magDateTo)activeFilters.push(`Ult. acq a ${ST.magDateTo}`);
+  if(ST.magFocus==="3")activeFilters.push("Fermi 3m+");
+  if(ST.magFocus==="6")activeFilters.push("Fermi 6m+");
   if(ST.magFocus==="12")activeFilters.push("Fermi 12m+");
   if(ST.magFocus==="24")activeFilters.push("Fermi 24m+");
+  if(ST.magFocus==="36")activeFilters.push("Fermi 36m+");
+  if(ST.magFocus==="60")activeFilters.push("Fermi 60m+");
   if(ST.magFocus==="missing")activeFilters.push("Senza data");
 
   const th=(col,lbl,extra="")=>`<th onclick="magSort('${col}')" class="${ST.magSort===col?'sorted':''}" style="${extra}">${lbl}${ST.magSort===col?(ST.magAsc?' ↑':' ↓'):''}</th>`;
@@ -667,16 +698,22 @@ function rMag(){
       <option value="M"${ST.magCat==="M"?" selected":""}>Montature vista</option>
       <option value="S"${ST.magCat==="S"?" selected":""}>Occhiali sole</option>
     </select>
-    <input class="sel monthpick" type="month" value="${ST.magDateFrom}" onchange="setMagDateFrom(this.value)" title="Ultimo acquisto da">
-    <input class="sel monthpick" type="month" value="${ST.magDateTo}" onchange="setMagDateTo(this.value)" title="Ultimo acquisto a">
+    <input class="sel monthpick" type="month" value="${ST.magDateFrom}" onchange="setMagDateFrom(this.value)" title="Acq. da data">
+    <input class="sel monthpick" type="month" value="${ST.magDateTo}" onchange="setMagDateTo(this.value)" title="Acq. fino a data">
   </div>
 </div>
-<div class="quickbar fi">
-  <button class="qbtn${ST.magFocus==="all"?" on":""}" onclick="setMagFocus('all')">Tutto</button>
-  <button class="qbtn${ST.magFocus==="12"?" on":""}" onclick="setMagFocus('12')">Fermi 12m+ · ${fmtN(stale12.length)}</button>
-  <button class="qbtn${ST.magFocus==="24"?" on":""}" onclick="setMagFocus('24')">Fermi 24m+ · ${fmtN(stale24.length)}</button>
+<div class="quickbar fi" style="flex-wrap:wrap;gap:6px">
+  <span style="font-size:11px;color:var(--d);align-self:center;margin-right:2px">In magazzino da:</span>
+  <button class="qbtn${ST.magFocus==="all"?" on":""}" onclick="setMagFocus('all')">Tutti</button>
+  <button class="qbtn${ST.magFocus==="3"?" on":""}" onclick="setMagFocus('3')">3m+ · ${fmtN(stale3.length)}</button>
+  <button class="qbtn${ST.magFocus==="6"?" on":""}" onclick="setMagFocus('6')">6m+ · ${fmtN(stale6.length)}</button>
+  <button class="qbtn${ST.magFocus==="12"?" on":""}" onclick="setMagFocus('12')">12m+ · ${fmtN(stale12.length)}</button>
+  <button class="qbtn${ST.magFocus==="24"?" on":""}" onclick="setMagFocus('24')">24m+ · ${fmtN(stale24.length)}</button>
+  <button class="qbtn${ST.magFocus==="36"?" on":""}" onclick="setMagFocus('36')">36m+ · ${fmtN(stale36.length)}</button>
+  <button class="qbtn${ST.magFocus==="60"?" on":""}" onclick="setMagFocus('60')">60m+ · ${fmtN(stale60.length)}</button>
   <button class="qbtn${ST.magFocus==="missing"?" on":""}" onclick="setMagFocus('missing')">Senza data · ${fmtN(missingDates)}</button>
-  <span style="margin-left:auto;font-size:12px;color:var(--m)">${latestMonth?`ultimo acquisto più recente ${latestMonth}`:"date acquisto non disponibili"}</span>
+  <span style="margin-left:auto;font-size:11px;color:var(--m);align-self:center">${oldestRow?`⚠ Più vecchio: <b>${oldestRow.m} ${oldestRow.mod}</b> · ${oldestRow.mesi}m`:(latestMonth?`Ult. acq ${latestMonth}`:"date non disponibili")}</span>
+  <button class="qbtn${ST.magSort==="mesi"&&!ST.magAsc?" on":""}" onclick="ST.magSort='mesi';ST.magAsc=false;ST.magTab='stock';renderPage()" title="Mostra prima gli occhiali più vecchi">📅 Più vecchi</button>
 </div>
 ${activeFilters.length?`<div class="filter-pills fi">${activeFilters.map(f=>`<span class="fp">${f}</span>`).join("")}<button class="pbtn" onclick="resetMagFilters()">Azzera filtri</button></div>`:""}
 <div class="kg k4 fi">
@@ -710,7 +747,7 @@ ${activeFilters.length?`<div class="filter-pills fi">${activeFilters.map(f=>`<sp
   ${UPLOAD_NAME
     ?`<div class="upload-icon">✅</div><div class="upload-title">File caricato: ${UPLOAD_NAME}</div><div class="upload-sub">Clicca o trascina un nuovo file per aggiornare</div>`
     :`<div class="upload-icon">📂</div><div class="upload-title">Carica inventario Excel</div><div class="upload-sub">Clicca o trascina il file .xlsx qui</div>`}
-  <div class="upload-spec">Colonne attese: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Costo medio · Quantità magazzino · Valore magazzino · Data ult. acq</div>
+  <div class="upload-spec">Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino (o "Data ult. acq") — date accettate: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd</div>
 </div>
 
 <div class="tabs">
@@ -738,8 +775,8 @@ ${ST.magTab==="stock"?`
       <td class="mn">${r.q}</td>
       <td class="mn mn-gr">${fmt(r.v)}</td>
       <td class="mn">${fmt(r.c)}</td>
-      <td class="mn${r.pri!=="O"&&r.pri!=="N"?" mn-hi":""}">${r.dLabel||"—"}</td>
-      <td><span class="pill${r.pri==="U"?" pri-U":r.pri==="A"?" pri-A":r.pri==="M"?" pri-M":r.pri==="N"?" pri-N":" pri-O"}">${r.mesi===null?"—":r.mesi+"m"}</span></td>
+      <td class="mn${r.pri!=="O"&&r.pri!=="N"?" mn-hi":""}">${r.d?r.d.slice(8,10)+"/"+r.d.slice(5,7)+"/"+r.d.slice(0,4):"—"}</td>
+      <td><span class="pill${r.pri==="U"?" pri-U":r.pri==="A"?" pri-A":r.pri==="M"?" pri-M":r.pri==="N"?" pri-N":" pri-O"}">${r.mesi===null?"—":r.mesi>=12?Math.floor(r.mesi/12)+"a "+(r.mesi%12)+"m":r.mesi+"m"}</span></td>
     </tr>`;
   }).join("")}</tbody>
 </table>
