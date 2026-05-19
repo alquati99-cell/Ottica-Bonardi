@@ -701,16 +701,36 @@ function rOv(){
   const acqCY=hasAcq?(LIVE_ACQ.byAnno[String(CY)]||{val:0,pz:0}):{val:0,pz:0};
   const acqPY=hasAcq?(LIVE_ACQ.byAnno[String(CY-1)]||{val:0,pz:0}):{val:0,pz:0};
   const dAcq=acqPY.val>0?dLabel(acqCY.val,acqPY.val):null;
+  // Filtro overview su righe vendite
+  let ovRows=hasVend?LIVE_VEND.rows:[];
+  if(ST.ovFil!=='all') ovRows=ovRows.filter(r=>r.fil===ST.ovFil);
+  if(ST.ovTp==='FR') ovRows=ovRows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
+  else if(ST.ovTp==='LE') ovRows=ovRows.filter(r=>r.tp.startsWith('Lenti'));
+  const ovKpi=vendKPI(ovRows);
+  // Brand top da righe filtrate
+  const ovBrands=brandBreakdown(ovRows,5);
+  // Filiale breakdown da righe filtrate
+  const ovFilA=ovRows.filter(r=>r.fil==='A'), ovFilB=ovRows.filter(r=>r.fil==='B');
+  const ovFilPzA=ovFilA.reduce((a,r)=>a+r.pz,0), ovFilPzB=ovFilB.reduce((a,r)=>a+r.pz,0);
+  const ovFilPzTot=ovFilPzA+ovFilPzB||1;
   window.__ov={hasAcq,hasVend};
   const noDataBanner=(!hasVend&&!hasAcq)?`<div style="background:rgba(34,211,238,.06);border:0.5px solid rgba(34,211,238,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--m);display:flex;align-items:center;gap:10px"><span style="font-size:16px">💡</span>Carica i file Excel dalla sezione <b style="color:var(--cy);cursor:pointer" onclick="nav('dati')">Carica dati</b> per vedere KPI reali di vendite e acquisti.</div>`:"";
+  const tpBtn=(v,lbl)=>`<button class="tp${ST.ovTp===v?' on':''}" onclick="ST.ovTp='${v}';renderPage()">${lbl}</button>`;
+  const filBtn=(v,lbl)=>`<button class="tp${ST.ovFil===v?' on':''}" onclick="ST.ovFil='${v}';renderPage()">${lbl}</button>`;
   return`
-<div class="topbar fi"><div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div></div>
+<div class="topbar fi">
+  <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <div class="tpill" style="gap:0">${tpBtn('all','Tutto')}${tpBtn('FR','Frame')}${tpBtn('LE','Lenti')}</div>
+    <div class="tpill" style="gap:0">${filBtn('all','A+B')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}</div>
+  </div>
+</div>
 ${noDataBanner}
 <div class="kg k4 fi">
-  <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti${hasVend?" (reale)":""}</div><div class="kv gcy">${hasVend?fmtN(LIVE_VEND.totPz):"—"}</div><div class="ks">${hasVend?fmtN(LIVE_VEND.totPzFrame)+" montature · "+fmtN(LIVE_VEND.totPzLenti)+" lenti":"carica vendite.xlsx"}</div></div>
-  <div class="g kc"><div class="ki">🛒</div><div class="kl">Acquistato ${CY}${hasAcq?" (reale)":""}</div><div class="kv gvi">${hasAcq?fmt(acqCY.val):"—"}</div>${dAcq?`<div class="delta ${dAcq.cls}">${dAcq.lbl} vs ${CY-1}</div>`:`<div class="ks">${hasAcq?fmtN(acqCY.pz)+" pz acquistati":"carica acquisti.xlsx"}</div>`}</div>
-  <div class="g kc"><div class="ki">📦</div><div class="kl">Magazzino${UPLOAD_NAME?" (aggiornato)":""}</div><div class="kv gam">${fmt(valMagTot)}</div><div class="ks">${fmtN(pzMagTot)} pz totali A+B</div></div>
-  <div class="g kc"><div class="ki">👥</div><div class="kl">Clienti unici${hasVend?" (reale)":""}</div><div class="kv gro">${hasVend?fmtN(LIVE_VEND.clienti):"—"}</div><div class="ks">${hasVend?"da storico vendite":"carica vendite.xlsx"}</div></div>
+  <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti${hasVend?' (reale)':''}</div><div class="kv gcy">${hasVend?fmtN(ovKpi.totPz):'—'}</div><div class="ks">${hasVend?(ST.ovTp==='FR'?'solo montature+sole':ST.ovTp==='LE'?'solo lenti':'tutte le categorie'):'carica vendite.xlsx'}</div></div>
+  <div class="g kc"><div class="ki">💰</div><div class="kl">Fatturato listino frame${hasVend?' (reale)':''}</div><div class="kv gem">${hasVend?fmt(ovKpi.totVal):'—'}</div><div class="ks">${hasVend?'montature + occhiali sole':'carica vendite.xlsx'}</div></div>
+  <div class="g kc"><div class="ki">📈</div><div class="kl">Margine stimato frame${hasVend?' (reale)':''}</div><div class="kv gam">${hasVend?fmt(ovKpi.marg):'—'}</div><div class="ks">${hasVend?ovKpi.pctM+'% dove acq>0':'carica vendite.xlsx'}</div></div>
+  <div class="g kc"><div class="ki">🛒</div><div class="kl">Acquistato ${CY}${hasAcq?' (reale)':''}</div><div class="kv gvi">${hasAcq?fmt(acqCY.val):'—'}</div>${dAcq?`<div class="delta ${dAcq.cls}">${dAcq.lbl} vs ${CY-1}</div>`:`<div class="ks">${hasAcq?fmtN(acqCY.pz)+' pz acquistati':'carica acquisti.xlsx'}</div>`}</div>
 </div>
 ${hasAcq?`
 <div class="g card fi" style="margin-bottom:12px">
@@ -722,15 +742,15 @@ ${hasAcq?`
   <div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend storico</div>
 </div>`}
 <div class="g2 fi">
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Acquisti per filiale (€)${hasAcq?"":""}</div></div>
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Acquisti per filiale (€)</div></div>
     ${hasAcq?(()=>{const fa=LIVE_ACQ.byFiliale;const tot=fa.A.val+fa.B.val||1;return`
       <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.val/tot*100)}%"></div></div><div class="sv">${fmt(fa.A.val)}</div><div class="sp2">${Math.round(fa.A.val/tot*100)}%</div></div>
       <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.val/tot*100)}%"></div></div><div class="sv">${fmt(fa.B.val)}</div><div class="sp2">${Math.round(fa.B.val/tot*100)}%</div></div>`
     })():`<div style="color:var(--d);font-size:12px;padding:12px 0">Carica acquisti.xlsx</div>`}
-    ${hasVend?`<div style="margin-top:10px;border-top:0.5px solid var(--b);padding-top:10px"><div class="ct" style="margin-bottom:8px"><span class="dot dem"></span>Vendite per filiale (pz)</div>${(()=>{const fv=LIVE_VEND.byFiliale;const tot=fv.A.pz+fv.B.pz||1;return`<div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fv.A.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fv.A.pz)} pz</div><div class="sp2">${Math.round(fv.A.pz/tot*100)}%</div></div><div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fv.B.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fv.B.pz)} pz</div><div class="sp2">${Math.round(fv.B.pz/tot*100)}%</div></div>`;})()}</div>`:""}
+    ${hasVend?`<div style="margin-top:10px;border-top:0.5px solid var(--b);padding-top:10px"><div class="ct" style="margin-bottom:8px"><span class="dot dem"></span>Vendite per filiale (pz)</div><div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(ovFilPzA/ovFilPzTot*100)}%"></div></div><div class="sv">${fmtN(ovFilPzA)} pz</div><div class="sp2">${Math.round(ovFilPzA/ovFilPzTot*100)}%</div></div><div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(ovFilPzB/ovFilPzTot*100)}%"></div></div><div class="sv">${fmtN(ovFilPzB)} pz</div><div class="sp2">${Math.round(ovFilPzB/ovFilPzTot*100)}%</div></div></div>`:''}
   </div>
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dem"></span>${hasVend?"Top brand vendite (valore listino)":"Top brand magazzino"}</div></div>
-    ${hasVend?LIVE_VEND.byBrand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${LIVE_VEND.byBrand[0].val>0?Math.round(b.val/LIVE_VEND.byBrand[0].val*100):0}%"></div></div><div class="pv">${fmt(b.val)}</div></div>`).join(""):curMAG().brand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${curMAG().brand[0].v>0?Math.round(b.v/curMAG().brand[0].v*100):0}%"></div></div><div class="pv">${fmt(b.v)}</div></div>`).join("")}
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dem"></span>${hasVend?'Top brand vendite (valore listino)':'Top brand magazzino'}</div></div>
+    ${hasVend&&ovBrands.length>0?ovBrands.map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${ovBrands[0].val>0?Math.round(b.val/ovBrands[0].val*100):0}%"></div></div><div class="pv">${fmt(b.val)}</div></div>`).join(""):hasVend?`<div style="color:var(--d);font-size:12px;padding:8px 0">Nessun dato frame per il filtro selezionato</div>`:curMAG().brand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${curMAG().brand[0].v>0?Math.round(b.v/curMAG().brand[0].v*100):0}%"></div></div><div class="pv">${fmt(b.v)}</div></div>`).join("")}
   </div>
 </div>`;
 }
@@ -747,53 +767,84 @@ function rVend(){
   <button class="pbtn active" style="font-size:13px;padding:9px 20px" onclick="nav('dati')">Vai a Carica dati →</button>
 </div>`;
   }
-  const v=LIVE_VEND;
-  const topBrands=v.byBrand.slice(0,8);
-  const maxBV=topBrands[0]?.val||1;
-  // Mix tipo prodotto semplificato
-  const tipoMap={'Montature vista':'Montature','Occhiali sole':'Sole','Lenti monofocali':'Mono','Lenti progressive':'Prog.','Lenti bifocali':'Bifoc.','Lenti occupazionali':'Occup.','Lenti a supporto accomodativo':'Acc.','Lenti a profondità di campo':'PDC'};
-  const tipoDisp=v.byTipo.filter(t=>t.pz>0).slice(0,8);
-  window.__vend={topBrands,tipoDisp};
+  // Dati filtrati
+  const fRows=filtVendRows();
+  const kpi=vendKPI(fRows);
+  const brands=brandBreakdown(fRows,10);
+  const tipoDisp=tipoBreakdown(fRows).slice(0,8);
+  // Filiale breakdown filtrata
+  const rA=fRows.filter(r=>r.fil==='A'), rB=fRows.filter(r=>r.fil==='B');
+  const pzA=rA.reduce((a,r)=>a+r.pz,0), pzB=rB.reduce((a,r)=>a+r.pz,0);
+  const pzTot=pzA+pzB||1;
+  // Operatori da righe filtrate
+  const opMap={};
+  fRows.forEach(r=>{if(!r.op)return;if(!opMap[r.op])opMap[r.op]=0;opMap[r.op]+=r.pz;});
+  const byOp=Object.entries(opMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,pz])=>({n,pz:Math.round(pz)}));
+  // Filtri attivi
+  const anyFilter=ST.vendFil!=='all'||ST.vendTp!=='all'||ST.vendMar!=='all';
+  const allMarchi=LIVE_VEND.allMarchi;
+  // Stacked bar data
+  window.__vend={brands,tipoDisp};
+  const tpBtn=(v,lbl)=>`<button class="tp${ST.vendTp===v?' on':''}" onclick="ST.vendTp='${v}';ST.vendMar='all';renderPage()">${lbl}</button>`;
+  const filBtn=(v,lbl)=>`<button class="tp${ST.vendFil===v?' on':''}" onclick="ST.vendFil='${v}';renderPage()">${lbl}</button>`;
   return`
 <div class="topbar fi">
   <div class="page-title">Vendite <span class="pt-badge">📂 ${UPLOAD_NAME_VEND}</span></div>
 </div>
+<div class="controls fi" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+  <div class="tpill" style="gap:0">${tpBtn('all','Tutto')}${tpBtn('MV','Vista')}${tpBtn('OS','Sole')}${tpBtn('FR','Frame')}${tpBtn('LE','Lenti')}</div>
+  <div class="tpill" style="gap:0">${filBtn('all','A+B')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}</div>
+  <select class="sel sel-brand" onchange="ST.vendMar=this.value;renderPage()">
+    <option value="all"${ST.vendMar==='all'?' selected':''}>— Tutti i marchi —</option>
+    ${allMarchi.map(m=>`<option value="${m}"${ST.vendMar===m?' selected':''}>${m}</option>`).join('')}
+  </select>
+  ${anyFilter?`<button class="pbtn" style="border-color:rgba(251,113,133,.4);color:var(--ro)" onclick="ST.vendFil='all';ST.vendTp='all';ST.vendMar='all';renderPage()">✕ Reset filtri</button>`:''}
+</div>
 <div class="kg k4 fi">
-  <div class="g kc"><div class="ki">🏷</div><div class="kl">Totale pezzi venduti</div><div class="kv gcy">${fmtN(v.totPz)}</div><div class="ks">solo operazioni VEN</div></div>
-  <div class="g kc"><div class="ki">👓</div><div class="kl">Montature + Sole</div><div class="kv gem">${fmtN(v.totPzFrame)}</div><div class="ks">valore listino ${fmt(v.totVal)}</div></div>
-  <div class="g kc"><div class="ki">🔬</div><div class="kl">Lenti</div><div class="kv gam">${fmtN(v.totPzLenti)}</div><div class="ks">${v.totPz>0?Math.round(v.totPzLenti/v.totPz*100):0}% del totale venduto</div></div>
-  <div class="g kc"><div class="ki">👥</div><div class="kl">Clienti unici</div><div class="kv gro">${fmtN(v.clienti)}</div><div class="ks">da Codice cliente</div></div>
+  <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti</div><div class="kv gcy">${fmtN(kpi.totPz)}</div><div class="ks">operazioni VEN filtrate</div></div>
+  <div class="g kc"><div class="ki">💰</div><div class="kl">Fatturato listino</div><div class="kv gem">${fmt(kpi.totVal)}</div><div class="ks">solo montature+sole</div></div>
+  <div class="g kc"><div class="ki">📈</div><div class="kl">Margine stimato</div><div class="kv gam">${fmt(kpi.marg)}</div><div class="ks">${kpi.pctM}% solo frame con acq>0</div></div>
+  <div class="g kc"><div class="ki">👥</div><div class="kl">Clienti unici</div><div class="kv gro">${fmtN(kpi.clienti)}</div><div class="ks">da Codice cliente</div></div>
 </div>
 <div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dcy"></span>Top brand — valore listino (montature + sole)</div><div style="font-size:11px;color:var(--m)">${topBrands.length} marchi mostrati</div></div>
-  <div style="padding:8px 0">
-    ${topBrands.map((b,i)=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:5px 0">
-      <div style="width:22px;font-family:'DM Mono',monospace;font-size:11px;color:var(--d);text-align:right;flex-shrink:0">${String(i+1).padStart(2,'0')}</div>
-      <div style="width:160px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.n}</div>
-      <div style="flex:1;background:rgba(255,255,255,.05);border-radius:4px;height:10px;overflow:hidden">
-        <div style="height:100%;width:${Math.round(b.val/maxBV*100)}%;background:linear-gradient(90deg,#22d3ee,#34d399);border-radius:4px"></div>
-      </div>
-      <div style="width:80px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--em)">${fmt(b.val)}</div>
-      <div style="width:50px;text-align:right;font-size:11px;color:var(--d)">${fmtN(b.pz)} pz</div>
-    </div>`).join("")}
+  <div class="ch"><div class="ct"><span class="dot dcy"></span>Top brand — valore listino (montature + sole)</div><div style="font-size:11px;color:var(--m)">${brands.length} marchi</div></div>
+  ${brands.length>0?`
+  <div style="padding:4px 0">
+    <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:0 10px;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--d);padding:0 0 6px;border-bottom:0.5px solid rgba(255,255,255,.05)">
+      <span style="width:22px"></span><span>Marchio</span><span style="text-align:right;min-width:110px">Fatturato / Margine</span><span style="min-width:38px;text-align:right">Pz</span>
+    </div>
+    ${brands.map((b,i)=>{
+      const totBarW=b.val>0?100:0;
+      const acqW=b.val>0?Math.round(b.acq/b.val*100):0;
+      const margW=b.val>0?Math.round((b.val-b.acq>0?b.val-b.acq:0)/b.val*100):0;
+      return`<div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:0 10px;align-items:center;padding:6px 0;border-bottom:0.5px solid rgba(255,255,255,.03)">
+        <div style="width:22px;font-family:'DM Mono',monospace;font-size:11px;color:var(--d);text-align:right">${String(i+1).padStart(2,'0')}</div>
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px">${b.n}</div>
+          <div class="marg-bar"><div class="marg-fill-c" style="width:${acqW}%"></div><div class="marg-fill-m" style="width:${margW}%"></div></div>
+        </div>
+        <div style="text-align:right;min-width:110px">
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--em)">${fmt(b.val)}</div>
+          <div style="font-size:11px;color:var(--d)">${b.acq>0?`+${fmt(b.marg)} (${b.pctM}%)`:'—'}</div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--m);min-width:38px;text-align:right">${fmtN(b.pz)}</div>
+      </div>`;
+    }).join('')}
   </div>
+  <div style="margin-top:12px"><div class="cw cw-lg"><canvas id="ch_vbrand"></canvas></div></div>`
+  :`<div style="padding:20px 0;text-align:center;color:var(--d);font-size:13px">Nessun dato frame per i filtri selezionati</div>`}
 </div>
 <div class="g2 fi">
   <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Mix tipo prodotto (pezzi)</div></div><div class="cw cw-sm"><canvas id="ch_vcat"></canvas></div></div>
   <div class="g card">
     <div class="ch"><div class="ct"><span class="dot dem"></span>Performance per sede</div></div>
-    ${(()=>{const fa=v.byFiliale;const tot=fa.A.pz+fa.B.pz||1;const totV=fa.A.val+fa.B.val||1;return`
     <div style="font-size:11px;color:var(--d);margin-bottom:8px">Pezzi venduti</div>
-    <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fa.A.pz)} pz</div><div class="sp2">${Math.round(fa.A.pz/tot*100)}%</div></div>
-    <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fa.B.pz)} pz</div><div class="sp2">${Math.round(fa.B.pz/tot*100)}%</div></div>
-    <div style="font-size:11px;color:var(--d);margin:12px 0 8px">Valore listino</div>
-    <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.val/totV*100)}%"></div></div><div class="sv">${fmt(fa.A.val)}</div><div class="sp2">${Math.round(fa.A.val/totV*100)}%</div></div>
-    <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.val/totV*100)}%"></div></div><div class="sv">${fmt(fa.B.val)}</div><div class="sp2">${Math.round(fa.B.val/totV*100)}%</div></div>`;})()}
-    <div style="border-top:0.5px solid var(--b);margin-top:12px;padding-top:12px">
+    <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(pzA/pzTot*100)}%"></div></div><div class="sv">${fmtN(pzA)} pz</div><div class="sp2">${Math.round(pzA/pzTot*100)}%</div></div>
+    <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(pzB/pzTot*100)}%"></div></div><div class="sv">${fmtN(pzB)} pz</div><div class="sp2">${Math.round(pzB/pzTot*100)}%</div></div>
+    ${byOp.length>0?`<div style="border-top:0.5px solid var(--b);margin-top:12px;padding-top:12px">
       <div class="ch" style="margin-bottom:8px"><div class="ct"><span class="dot dvi"></span>Top operatori (pezzi)</div></div>
-      ${v.byOp.slice(0,5).map((o,i)=>`<div class="srow"><div class="slb">${o.n}</div><div class="sbw"><div class="sbar" style="width:${v.byOp[0].pz>0?Math.round(o.pz/v.byOp[0].pz*100):0}%;background:rgba(167,139,250,.5)"></div></div><div class="sv">${fmtN(o.pz)} pz</div></div>`).join("")}
-    </div>
+      ${byOp.map((o,i)=>`<div class="srow"><div class="slb">${o.n}</div><div class="sbw"><div class="sbar" style="width:${byOp[0].pz>0?Math.round(o.pz/byOp[0].pz*100):0}%;background:rgba(167,139,250,.5)"></div></div><div class="sv">${fmtN(o.pz)} pz</div></div>`).join('')}
+    </div>`:''}
   </div>
 </div>`;
 }
@@ -1185,11 +1236,24 @@ function initCharts(){
     mkChart("ch_ov","bar",anni,[{data:anni.map(y=>LIVE_ACQ.byAnno[y].val),backgroundColor:colors,borderColor:borders,borderWidth:1.5,borderRadius:5}],ovOpts);
   }
 
-  // VENDITE — grafico donut tipo prodotto (reale)
-  if(ST.page==="vendite"&&window.__vend&&window.__vend.tipoDisp){
-    const td=window.__vend.tipoDisp.slice(0,7);
-    const tipoColors=["#a78bfa","#22d3ee","#fbbf24","#34d399","#fb7185","rgba(34,211,238,.5)","rgba(251,191,36,.5)"];
-    mkChart("ch_vcat","doughnut",td.map(t=>t.n.replace('Montature vista','Montature').replace('Occhiali sole','Sole').replace('Lenti monofocali','Monofoc.').replace('Lenti progressive','Progress.').replace('Lenti bifocali','Bifoc.').replace('Lenti occupazionali','Occup.').replace('Lenti a supporto accomodativo','Acc.').replace('Lenti a profondità di campo','PDC')),[{data:td.map(t=>t.pz),backgroundColor:tipoColors.slice(0,td.length),borderWidth:0,hoverOffset:6}],{...coDon,plugins:{...coDon.plugins,tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}}});
+  // VENDITE — grafici (tipo prodotto donut + brand stacked bar)
+  if(ST.page==="vendite"&&window.__vend){
+    // Donut tipo prodotto
+    if(window.__vend.tipoDisp&&window.__vend.tipoDisp.length>0){
+      const td=window.__vend.tipoDisp.slice(0,7);
+      const tipoColors=["#a78bfa","#22d3ee","#fbbf24","#34d399","#fb7185","rgba(34,211,238,.5)","rgba(251,191,36,.5)"];
+      mkChart("ch_vcat","doughnut",td.map(t=>t.n.replace('Montature vista','Montature').replace('Occhiali sole','Sole').replace('Lenti monofocali','Monofoc.').replace('Lenti progressive','Progress.').replace('Lenti bifocali','Bifoc.').replace('Lenti occupazionali','Occup.').replace('Lenti a supporto accomodativo','Acc.').replace('Lenti a profondità di campo','PDC')),[{data:td.map(t=>t.pz),backgroundColor:tipoColors.slice(0,td.length),borderWidth:0,hoverOffset:6}],{...coDon,plugins:{...coDon.plugins,tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}}});
+    }
+    // Stacked bar brand (costo + margine)
+    if(window.__vend.brands&&window.__vend.brands.length>0){
+      const brs=window.__vend.brands;
+      const labels=brs.map(b=>b.n.length>14?b.n.slice(0,13)+'…':b.n);
+      const brandOpts={...coLeg,scales:{...coLeg.scales,x:{...coLeg.scales.x,stacked:true},y:{...coLeg.scales.y,stacked:true,ticks:{...coLeg.scales.y.ticks,callback:v=>v===0?'':fmt(v)}}},plugins:{...coLeg.plugins,tooltip:{...CO.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}}};
+      mkChart("ch_vbrand","bar",labels,[
+        {label:"Costo acq.",data:brs.map(b=>b.acq),backgroundColor:"rgba(251,113,133,.3)",borderColor:"#fb7185",borderWidth:1,borderRadius:{topLeft:0,topRight:0,bottomLeft:4,bottomRight:4},stack:"s"},
+        {label:"Margine",data:brs.map(b=>b.marg>0?b.marg:0),backgroundColor:"rgba(52,211,153,.35)",borderColor:"#34d399",borderWidth:1,borderRadius:{topLeft:4,topRight:4,bottomLeft:0,bottomRight:0},stack:"s"}
+      ],brandOpts);
+    }
   }
 
   // MAGAZZINO
