@@ -204,6 +204,7 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="nav('vendite')" id="nb-vendite"><span class="nb-ic">◈</span>Vendite</button>
     <button class="nb" onclick="nav('magazzino')" id="nb-magazzino"><span class="nb-ic">◫</span>Magazzino</button>
     <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span>Clienti</button>
+    <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span>Carica dati</button>
   </div>
   <div class="sb-vista">
     <div class="sb-vista-label">Vista dati</div>
@@ -261,9 +262,14 @@ const CLI=[
 ];
 
 // ═══ LIVE MAG STATE (aggiornato da upload Excel) ═════════════════════════
-let LIVE_MAG = null;  // null = usa MAG default
-let LIVE_AG  = null;  // null = usa AG default
+let LIVE_MAG = null;
+let LIVE_AG  = null;
+let LIVE_VEND = null;
+let LIVE_ACQ  = null;
 let UPLOAD_NAME = null;
+let UPLOAD_NAME_SHORT = '';
+let UPLOAD_NAME_VEND = null;
+let UPLOAD_NAME_ACQ  = null;
 
 function curMAG(){ return LIVE_MAG || MAG; }
 function curAG(){ return LIVE_AG || AG; }
@@ -375,6 +381,98 @@ function processUpload(raw, name){
   UPLOAD_NAME = name;
   UPLOAD_NAME_SHORT = name.length>30 ? name.slice(0,27)+'…' : name;
   Object.assign(ST,{magPage:0,agPage:0,magBrand:'all',magSed:'all',magCat:'all',magForn:'all',magDateFrom:'',magDateTo:'',magFocus:'all',magSearch:'',agPri:'all',agSed:'all',agSearch:''});
+  renderPage();
+}
+
+// ═══ VENDITE PARSER ═════════════════════════════════════════════════════════
+function parseVendite(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, {raw:true});
+      if(!raw.length) throw new Error("File vuoto");
+      processVendite(raw, file.name);
+    } catch(err){ alert("Errore lettura vendite: " + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function processVendite(raw, name){
+  const rows = raw.filter(r => (r['Tipo operazione']||'').trim() === 'VEN');
+  const byTipo={}, byBrand={}, byOp={};
+  const clienti = new Set();
+  let totPzFrame=0, totValFrame=0, totPzLenti=0;
+  let pzA=0, valA=0, pzB=0, valB=0;
+  rows.forEach(r => {
+    const tp  = (r['Tipo Prodotto']||'').trim();
+    const mar = (r['Marchio']||'').trim();
+    const op  = (r['Operatore']||'').trim();
+    const fil = (r['Filiale']||'').trim().toUpperCase();
+    const pz  = parseFloat(r['Quantità']||1) || 1;
+    const val = parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0) || 0;
+    const cli = (r['Codice cliente']||'').trim();
+    if(cli) clienti.add(cli);
+    if(!byTipo[tp]) byTipo[tp]={pz:0,val:0};
+    byTipo[tp].pz+=pz; byTipo[tp].val+=val;
+    const isFrame = tp==='Montature vista'||tp==='Occhiali sole';
+    const isLenti = tp.startsWith('Lenti');
+    if(isFrame){ if(!byBrand[mar]) byBrand[mar]={pz:0,val:0}; byBrand[mar].pz+=pz; byBrand[mar].val+=val; totPzFrame+=pz; totValFrame+=val; }
+    if(isLenti) totPzLenti+=pz;
+    if(op){ if(!byOp[op]) byOp[op]=0; byOp[op]+=pz; }
+    if(fil==='A'){ pzA+=pz; valA+=val; } else { pzB+=pz; valB+=val; }
+  });
+  LIVE_VEND = {
+    totPz: rows.length, totPzFrame, totPzLenti, totVal: Math.round(totValFrame),
+    clienti: clienti.size,
+    byTipo: Object.entries(byTipo).sort((a,b)=>b[1].pz-a[1].pz).map(([n,v])=>({n,pz:v.pz,val:Math.round(v.val)})),
+    byBrand: Object.entries(byBrand).sort((a,b)=>b[1].val-a[1].val).slice(0,12).map(([n,v])=>({n,pz:v.pz,val:Math.round(v.val)})),
+    byOp: Object.entries(byOp).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([n,pz])=>({n,pz})),
+    byFiliale: {A:{pz:Math.round(pzA),val:Math.round(valA)},B:{pz:Math.round(pzB),val:Math.round(valB)}}
+  };
+  UPLOAD_NAME_VEND = name.length>30 ? name.slice(0,27)+'…' : name;
+  renderPage();
+}
+
+// ═══ ACQUISTI PARSER ════════════════════════════════════════════════════════
+function parseAcquisti(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd'});
+      if(!raw.length) throw new Error("File vuoto");
+      processAcquisti(raw, file.name);
+    } catch(err){ alert("Errore lettura acquisti: " + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function processAcquisti(raw, name){
+  const byAnno={}, byTipo={};
+  let totPz=0, totVal=0, pzA=0, valA=0, pzB=0, valB=0;
+  raw.forEach(r => {
+    let dt = r['Data movimento'];
+    if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
+    else if(typeof dt === 'string') dt = normalizeDateValue(dt);
+    const yr = dt ? dt.slice(0,4) : null;
+    const tp = (r['Tipo Prodotto']||'').trim();
+    const fil= (r['Filiale']||'').trim().toUpperCase();
+    const pz = parseFloat(String(r['Quantità']||0).replace(',','.')) || 0;
+    const val= parseFloat(String(r['ValoreAcq']||0).replace(',','.')) || 0;
+    if(yr){ if(!byAnno[yr]) byAnno[yr]={pz:0,val:0,refs:0}; byAnno[yr].pz+=pz; byAnno[yr].val+=val; byAnno[yr].refs++; }
+    if(tp){ if(!byTipo[tp]) byTipo[tp]={pz:0,val:0}; byTipo[tp].pz+=pz; byTipo[tp].val+=val; }
+    totPz+=pz; totVal+=val;
+    if(fil==='A'){ pzA+=pz; valA+=val; } else if(fil==='B'){ pzB+=pz; valB+=val; }
+  });
+  Object.keys(byAnno).forEach(k=>{ byAnno[k].val=Math.round(byAnno[k].val); byAnno[k].pz=Math.round(byAnno[k].pz); });
+  LIVE_ACQ = {
+    totPz: Math.round(totPz), totVal: Math.round(totVal),
+    byAnno,
+    byTipo: Object.entries(byTipo).sort((a,b)=>b[1].val-a[1].val).map(([n,v])=>({n,pz:Math.round(v.pz),val:Math.round(v.val)})),
+    byFiliale: {A:{pz:Math.round(pzA),val:Math.round(valA)},B:{pz:Math.round(pzB),val:Math.round(valB)}}
+  };
+  UPLOAD_NAME_ACQ = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
 }
 
@@ -516,6 +614,7 @@ function renderPage(){
   else if(ST.page==="vendite")r.innerHTML=rVend();
   else if(ST.page==="magazzino")r.innerHTML=rMag();
   else if(ST.page==="clienti")r.innerHTML=rCli();
+  else if(ST.page==="dati")r.innerHTML=rDati();
   setTimeout(initCharts,60);
 }
 
@@ -545,73 +644,107 @@ function splitBar(){
 
 // ═══ OVERVIEW ═══════════════════════════════════════════════════════════════
 function rOv(){
-  const vM=filtY(CY,CM),vPM=filtY(CM===0?CY-1:CY,CM===0?11:CM-1),vYTD=filtY(CY,-1),vPYTD=filtY(CY-1,-1);
-  const fM=fatt(applySedeF(vM)),fPM=fatt(applySedeF(vPM)),fYTD=fatt(applySedeF(vYTD)),fPYTD=fatt(applySedeF(vPYTD));
-  const dMOM=dLabel(fM,fPM),dYTD=dLabel(fYTD,fPYTD);
-  const mag=curMAG();const valMagTot=mag.kpi.A.valore+mag.kpi.B.valore;
-  const m12=Array.from({length:12},(_,i)=>{const d=new Date(CY,CM-11+i,1);return{yr:d.getFullYear(),me:d.getMonth(),lbl:MESI[d.getMonth()]};});
-  window.__ov={m12,tab:ST.ovTab};
+  const mag=curMAG();
+  const valMagTot=mag.kpi.A.valore+mag.kpi.B.valore;
+  const pzMagTot=mag.kpi.A.pezzi+mag.kpi.B.pezzi;
+  const hasVend=!!LIVE_VEND, hasAcq=!!LIVE_ACQ;
+  // KPI acquisti anno corrente vs precedente
+  const acqCY=hasAcq?(LIVE_ACQ.byAnno[String(CY)]||{val:0,pz:0}):{val:0,pz:0};
+  const acqPY=hasAcq?(LIVE_ACQ.byAnno[String(CY-1)]||{val:0,pz:0}):{val:0,pz:0};
+  const dAcq=acqPY.val>0?dLabel(acqCY.val,acqPY.val):null;
+  window.__ov={hasAcq,hasVend};
+  const noDataBanner=(!hasVend&&!hasAcq)?`<div style="background:rgba(34,211,238,.06);border:0.5px solid rgba(34,211,238,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--m);display:flex;align-items:center;gap:10px"><span style="font-size:16px">💡</span>Carica i file Excel dalla sezione <b style="color:var(--cy);cursor:pointer" onclick="nav('dati')">Carica dati</b> per vedere KPI reali di vendite e acquisti.</div>`:"";
   return`
-<div class="topbar fi"><div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
-  <div class="tpill"><button class="tp${ST.ovTab==="trend"?" on":""}" onclick="ST.ovTab='trend';renderPage()">Trend 12M</button><button class="tp${ST.ovTab==="mom"?" on":""}" onclick="ST.ovTab='mom';renderPage()">MoM</button><button class="tp${ST.ovTab==="yoy"?" on":""}" onclick="ST.ovTab='yoy';renderPage()">YoY</button></div>
-</div>
-${splitBar()}
+<div class="topbar fi"><div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div></div>
+${noDataBanner}
 <div class="kg k4 fi">
-  <div class="g kc"><div class="ki">💶</div><div class="kl">Fatturato ${MESI[CM]}</div>${kpiVal(vM,"gcy")}${dMOM?`<div class="delta ${dMOM.cls}">${dMOM.lbl} vs ${MESI[CM===0?11:CM-1]}</div>`:""}</div>
-  <div class="g kc"><div class="ki">📅</div><div class="kl">YTD ${CY}</div>${kpiVal(vYTD,"gvi")}${dYTD?`<div class="delta ${dYTD.cls}">${dYTD.lbl} vs YTD ${CY-1}</div>`:""}</div>
-  <div class="g kc"><div class="ki">📦</div><div class="kl">Magazzino${UPLOAD_NAME?" (aggiornato)":""}</div><div class="kv gam">${fmt(valMagTot)}</div><div class="ks">${fmtN(mag.kpi.A.pezzi+mag.kpi.B.pezzi)} pz totali A+B</div></div>
-  <div class="g kc"><div class="ki">🏪</div><div class="kl">Sedi attive</div><div class="kv gro">2</div><div class="ks">Sede C in apertura</div></div>
+  <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti${hasVend?" (reale)":""}</div><div class="kv gcy">${hasVend?fmtN(LIVE_VEND.totPz):"—"}</div><div class="ks">${hasVend?fmtN(LIVE_VEND.totPzFrame)+" montature · "+fmtN(LIVE_VEND.totPzLenti)+" lenti":"carica vendite.xlsx"}</div></div>
+  <div class="g kc"><div class="ki">🛒</div><div class="kl">Acquistato ${CY}${hasAcq?" (reale)":""}</div><div class="kv gvi">${hasAcq?fmt(acqCY.val):"—"}</div>${dAcq?`<div class="delta ${dAcq.cls}">${dAcq.lbl} vs ${CY-1}</div>`:`<div class="ks">${hasAcq?fmtN(acqCY.pz)+" pz acquistati":"carica acquisti.xlsx"}</div>`}</div>
+  <div class="g kc"><div class="ki">📦</div><div class="kl">Magazzino${UPLOAD_NAME?" (aggiornato)":""}</div><div class="kv gam">${fmt(valMagTot)}</div><div class="ks">${fmtN(pzMagTot)} pz totali A+B</div></div>
+  <div class="g kc"><div class="ki">👥</div><div class="kl">Clienti unici${hasVend?" (reale)":""}</div><div class="kv gro">${hasVend?fmtN(LIVE_VEND.clienti):"—"}</div><div class="ks">${hasVend?"da storico vendite":"carica vendite.xlsx"}</div></div>
 </div>
+${hasAcq?`
 <div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dcy"></span>${ST.ovTab==="trend"?"Trend 12 mesi":ST.ovTab==="mom"?"Confronto MoM":"Anno vs Anno"}</div></div>
+  <div class="ch"><div class="ct"><span class="dot dcy"></span>Valore acquistato per anno (€)</div><div style="font-size:11px;color:var(--m)">da acquisti.xlsx · ${fmtN(LIVE_ACQ.totPz)} pz totali</div></div>
   <div class="cw cw-lg"><canvas id="ch_ov"></canvas></div>
-</div>
+</div>`:`
+<div class="g card fi" style="margin-bottom:12px">
+  <div class="ch"><div class="ct"><span class="dot dcy"></span>Valore acquistato per anno</div></div>
+  <div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend storico</div>
+</div>`}
 <div class="g2 fi">
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Performance sedi — ${MESI[CM]}</div></div>
-    ${(()=>{const bs=BK.map(k=>fatt(vM.filter(v=>v.sede===k)));const tot=bs.reduce((a,b)=>a+b,0);return BK.map((k,i)=>`<div class="srow"><div class="slb">${SEDI_LBL[i]}</div><div class="sbw"><div class="sbar s${i+1}c" style="width:${tot>0?Math.round(bs[i]/tot*100):0}%"></div></div><div class="sv">${fmt(bs[i])}</div><div class="sp2">${tot>0?Math.round(bs[i]/tot*100):0}%</div></div>`).join("");})()}
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Acquisti per filiale (€)${hasAcq?"":""}</div></div>
+    ${hasAcq?(()=>{const fa=LIVE_ACQ.byFiliale;const tot=fa.A.val+fa.B.val||1;return`
+      <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.val/tot*100)}%"></div></div><div class="sv">${fmt(fa.A.val)}</div><div class="sp2">${Math.round(fa.A.val/tot*100)}%</div></div>
+      <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.val/tot*100)}%"></div></div><div class="sv">${fmt(fa.B.val)}</div><div class="sp2">${Math.round(fa.B.val/tot*100)}%</div></div>`
+    })():`<div style="color:var(--d);font-size:12px;padding:12px 0">Carica acquisti.xlsx</div>`}
+    ${hasVend?`<div style="margin-top:10px;border-top:0.5px solid var(--b);padding-top:10px"><div class="ct" style="margin-bottom:8px"><span class="dot dem"></span>Vendite per filiale (pz)</div>${(()=>{const fv=LIVE_VEND.byFiliale;const tot=fv.A.pz+fv.B.pz||1;return`<div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fv.A.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fv.A.pz)} pz</div><div class="sp2">${Math.round(fv.A.pz/tot*100)}%</div></div><div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fv.B.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fv.B.pz)} pz</div><div class="sp2">${Math.round(fv.B.pz/tot*100)}%</div></div>`;})()}</div>`:""}
   </div>
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dem"></span>Top brand magazzino</div></div>
-    ${curMAG().brand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${curMAG().brand[0].v>0?Math.round(b.v/curMAG().brand[0].v*100):0}%"></div></div><div class="pv">${fmt(b.v)}</div></div>`).join("")}
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dem"></span>${hasVend?"Top brand vendite (valore listino)":"Top brand magazzino"}</div></div>
+    ${hasVend?LIVE_VEND.byBrand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${LIVE_VEND.byBrand[0].val>0?Math.round(b.val/LIVE_VEND.byBrand[0].val*100):0}%"></div></div><div class="pv">${fmt(b.val)}</div></div>`).join(""):curMAG().brand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${curMAG().brand[0].v>0?Math.round(b.v/curMAG().brand[0].v*100):0}%"></div></div><div class="pv">${fmt(b.v)}</div></div>`).join("")}
   </div>
 </div>`;
 }
 
 // ═══ VENDITE ════════════════════════════════════════════════════════════════
 function rVend(){
-  const annoOpts=Array.from({length:3},(_,i)=>CY-i);
-  const meseOpts=[{v:-1,l:"Tutto l'anno"},...MESI.map((m,i)=>({v:i,l:m}))];
-  let vF=applySedeF(filtY(ST.selAnno,ST.selMese));
-  const fF=fatt(vF),fP=fatt(applySedeF(filtY(ST.selAnno,ST.selMese===0?11:ST.selMese-1)));
-  const fY=fatt(applySedeF(filtY(ST.selAnno-1,ST.selMese)));
-  const dP=dLabel(fF,fP),dY=dLabel(fF,fY);
-  const m12=Array.from({length:12},(_,i)=>{const d=new Date(CY,CM-11+i,1);return{yr:d.getFullYear(),me:d.getMonth(),lbl:MESI[d.getMonth()]};});
-  window.__vend={m12,tab:ST.vendTab};
+  if(!LIVE_VEND){
+    return`
+<div class="topbar fi"><div class="page-title">Vendite</div></div>
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:320px;gap:16px;text-align:center">
+  <div style="font-size:48px">📊</div>
+  <div style="font-size:17px;font-weight:600;color:var(--t)">Nessun file vendite caricato</div>
+  <div style="font-size:13px;color:var(--m);max-width:420px">Carica il file <b>vendite.xlsx</b> dalla sezione "Carica dati" per visualizzare analisi su ${fmtN(33850)}+ transazioni reali.</div>
+  <button class="pbtn active" style="font-size:13px;padding:9px 20px" onclick="nav('dati')">Vai a Carica dati →</button>
+</div>`;
+  }
+  const v=LIVE_VEND;
+  const topBrands=v.byBrand.slice(0,8);
+  const maxBV=topBrands[0]?.val||1;
+  // Mix tipo prodotto semplificato
+  const tipoMap={'Montature vista':'Montature','Occhiali sole':'Sole','Lenti monofocali':'Mono','Lenti progressive':'Prog.','Lenti bifocali':'Bifoc.','Lenti occupazionali':'Occup.','Lenti a supporto accomodativo':'Acc.','Lenti a profondità di campo':'PDC'};
+  const tipoDisp=v.byTipo.filter(t=>t.pz>0).slice(0,8);
+  window.__vend={topBrands,tipoDisp};
   return`
-<div class="topbar fi"><div class="page-title">Vendite</div>
-  <div class="controls">
-    <select class="sel" onchange="ST.selAnno=parseInt(this.value);renderPage()">${annoOpts.map(y=>`<option value="${y}"${ST.selAnno===y?" selected":""}>${y}</option>`).join("")}</select>
-    <select class="sel" onchange="ST.selMese=parseInt(this.value);renderPage()">${meseOpts.map(m=>`<option value="${m.v}"${ST.selMese===m.v?" selected":""}>${m.l}</option>`).join("")}</select>
-    <div class="tpill"><button class="tp${ST.vendTab==="trend"?" on":""}" onclick="ST.vendTab='trend';renderPage()">Trend 12M</button><button class="tp${ST.vendTab==="mom"?" on":""}" onclick="ST.vendTab='mom';renderPage()">MoM</button><button class="tp${ST.vendTab==="yoy"?" on":""}" onclick="ST.vendTab='yoy';renderPage()">YoY</button></div>
-  </div>
+<div class="topbar fi">
+  <div class="page-title">Vendite <span class="pt-badge">📂 ${UPLOAD_NAME_VEND}</span></div>
 </div>
-${splitBar()}
 <div class="kg k4 fi">
-  <div class="g kc"><div class="kl">Fatturato periodo</div>${kpiVal(filtY(ST.selAnno,ST.selMese),"gcy")}${dP?`<div class="delta ${dP.cls}">${dP.lbl} vs periodo prec.</div>`:""}</div>
-  <div class="g kc"><div class="kl">YoY ${ST.selAnno-1}</div>${kpiVal(filtY(ST.selAnno-1,ST.selMese),"gvi")}${dY?`<div class="delta ${dY.cls}">${dY.lbl}</div>`:""}</div>
-  <div class="g kc"><div class="kl">Vendite</div><div class="kv gem">${vF.length}</div></div>
-  <div class="g kc"><div class="kl">Scontrino medio</div><div class="kv gam">${fmt(vF.length?fF/vF.length:0)}</div></div>
+  <div class="g kc"><div class="ki">🏷</div><div class="kl">Totale pezzi venduti</div><div class="kv gcy">${fmtN(v.totPz)}</div><div class="ks">solo operazioni VEN</div></div>
+  <div class="g kc"><div class="ki">👓</div><div class="kl">Montature + Sole</div><div class="kv gem">${fmtN(v.totPzFrame)}</div><div class="ks">valore listino ${fmt(v.totVal)}</div></div>
+  <div class="g kc"><div class="ki">🔬</div><div class="kl">Lenti</div><div class="kv gam">${fmtN(v.totPzLenti)}</div><div class="ks">${v.totPz>0?Math.round(v.totPzLenti/v.totPz*100):0}% del totale venduto</div></div>
+  <div class="g kc"><div class="ki">👥</div><div class="kl">Clienti unici</div><div class="kv gro">${fmtN(v.clienti)}</div><div class="ks">da Codice cliente</div></div>
 </div>
 <div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dcy"></span>Andamento fatturato</div></div>
-  <div class="cw cw-lg"><canvas id="ch_vend"></canvas></div>
+  <div class="ch"><div class="ct"><span class="dot dcy"></span>Top brand — valore listino (montature + sole)</div><div style="font-size:11px;color:var(--m)">${topBrands.length} marchi mostrati</div></div>
+  <div style="padding:8px 0">
+    ${topBrands.map((b,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:5px 0">
+      <div style="width:22px;font-family:'DM Mono',monospace;font-size:11px;color:var(--d);text-align:right;flex-shrink:0">${String(i+1).padStart(2,'0')}</div>
+      <div style="width:160px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.n}</div>
+      <div style="flex:1;background:rgba(255,255,255,.05);border-radius:4px;height:10px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(b.val/maxBV*100)}%;background:linear-gradient(90deg,#22d3ee,#34d399);border-radius:4px"></div>
+      </div>
+      <div style="width:80px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--em)">${fmt(b.val)}</div>
+      <div style="width:50px;text-align:right;font-size:11px;color:var(--d)">${fmtN(b.pz)} pz</div>
+    </div>`).join("")}
+  </div>
 </div>
 <div class="g2 fi">
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Mix categorie</div></div><div class="cw cw-sm"><canvas id="ch_vcat"></canvas></div></div>
-  <div class="g tw">
-    <div class="th2"><div class="ct"><span class="dot dem"></span>Ultime vendite</div></div>
-    <table><thead><tr><th>Data</th><th>Sede</th><th>Cat.</th><th>Tot.</th><th>Pag.</th></tr></thead>
-    <tbody>${vF.slice(0,14).map(v=>`<tr><td class="mn">${v.data.slice(5).split("-").reverse().join("/")}</td><td><span class="pill ${v.sede==="B1"?"pcy":v.sede==="B2"?"pem":"pam"}">${SEDI_LBL[BK.indexOf(v.sede)]}</span></td><td style="font-size:12px;color:var(--m)">${v.cat}</td><td class="mn mn-gr">${fmt(v.tot)}</td><td style="font-size:11px;color:var(--m)">${v.pag}</td></tr>`).join("")}</tbody>
-    </table>
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Mix tipo prodotto (pezzi)</div></div><div class="cw cw-sm"><canvas id="ch_vcat"></canvas></div></div>
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dem"></span>Performance per sede</div></div>
+    ${(()=>{const fa=v.byFiliale;const tot=fa.A.pz+fa.B.pz||1;const totV=fa.A.val+fa.B.val||1;return`
+    <div style="font-size:11px;color:var(--d);margin-bottom:8px">Pezzi venduti</div>
+    <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fa.A.pz)} pz</div><div class="sp2">${Math.round(fa.A.pz/tot*100)}%</div></div>
+    <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.pz/tot*100)}%"></div></div><div class="sv">${fmtN(fa.B.pz)} pz</div><div class="sp2">${Math.round(fa.B.pz/tot*100)}%</div></div>
+    <div style="font-size:11px;color:var(--d);margin:12px 0 8px">Valore listino</div>
+    <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.val/totV*100)}%"></div></div><div class="sv">${fmt(fa.A.val)}</div><div class="sp2">${Math.round(fa.A.val/totV*100)}%</div></div>
+    <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.val/totV*100)}%"></div></div><div class="sv">${fmt(fa.B.val)}</div><div class="sp2">${Math.round(fa.B.val/totV*100)}%</div></div>`;})()}
+    <div style="border-top:0.5px solid var(--b);margin-top:12px;padding-top:12px">
+      <div class="ch" style="margin-bottom:8px"><div class="ct"><span class="dot dvi"></span>Top operatori (pezzi)</div></div>
+      ${v.byOp.slice(0,5).map((o,i)=>`<div class="srow"><div class="slb">${o.n}</div><div class="sbw"><div class="sbar" style="width:${v.byOp[0].pz>0?Math.round(o.pz/v.byOp[0].pz*100):0}%;background:rgba(167,139,250,.5)"></div></div><div class="sv">${fmtN(o.pz)} pz</div></div>`).join("")}
+    </div>
   </div>
 </div>`;
 }
@@ -622,6 +755,46 @@ function magFilter(){
   if(ST.magSed!=="all")r=r.filter(x=>x.f===ST.magSed);
   if(ST.magSearch){const s=ST.magSearch.toLowerCase();r=r.filter(x=>x.m.toLowerCase().includes(s)||x.mod.toLowerCase().includes(s)||x.forn.toLowerCase().includes(s)||(x.bc&&x.bc.toLowerCase().includes(s)));}
   return r;
+}
+
+// ═══ CARICA DATI ════════════════════════════════════════════════════════════
+function rDati(){
+  const mkZone=(id,title,icon,desc,loaded,loadedName,parseFunc,spec)=>`
+  <div class="g card" style="flex:1;min-width:240px">
+    <div class="ch"><div class="ct"><span style="font-size:16px">${icon}</span>${title}</div>${loaded?`<span style="font-size:11px;color:var(--em)">✅ caricato</span>`:`<span style="font-size:11px;color:var(--d)">non caricato</span>`}</div>
+    <div style="font-size:12px;color:var(--m);margin-bottom:12px">${desc}</div>
+    <div class="upload-zone${loaded?" file-loaded":""}" style="min-height:120px"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="event.preventDefault();this.classList.remove('drag');if(event.dataTransfer.files[0])${parseFunc}(event.dataTransfer.files[0])">
+      <input type="file" accept=".xlsx,.xls" onchange="if(this.files[0])${parseFunc}(this.files[0])">
+      ${loaded
+        ?`<div class="upload-icon" style="font-size:20px">✅</div><div class="upload-title" style="font-size:13px">${loadedName}</div><div class="upload-sub">Clicca o trascina per aggiornare</div>`
+        :`<div class="upload-icon" style="font-size:24px">📂</div><div class="upload-title" style="font-size:13px">Carica ${title}</div><div class="upload-sub">Clicca o trascina il file .xlsx</div>`}
+      <div class="upload-spec">${spec}</div>
+    </div>
+  </div>`;
+  return`
+<div class="topbar fi"><div class="page-title">Carica dati <span class="pt-badge">3 file Excel</span></div></div>
+<div style="background:rgba(255,255,255,.03);border:0.5px solid var(--b);border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--m)">
+  Carica i tre file Excel per abilitare tutte le analisi della dashboard. I dati vengono elaborati localmente nel browser — nessun upload su server.
+</div>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+  ${mkZone("mag","Magazzino","📦","Stock, valore, anzianità per sede e brand",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"","parseExcel","Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino")}
+  ${mkZone("vend","Vendite","◈","Pezzi venduti, top brand, operatori, clienti",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"","parseVendite","Colonne: Tipo Prodotto · Marchio · Modello · Codice a barre · Filiale · Operatore · Codice cliente · Tipo operazione · Prezzo consigliato · Quantità")}
+  ${mkZone("acq","Acquisti","🛒","Trend storico 2020–${CY}, valore per anno e filiale",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"","parseAcquisti","Colonne: Filiale · Tipo Prodotto · Marchio · Modello · Codice a barre · Data movimento · Quantità · ValoreAcq")}
+</div>
+<div style="margin-top:20px;background:rgba(255,255,255,.03);border:0.5px solid var(--b);border-radius:var(--r);padding:14px 16px">
+  <div style="font-size:13px;font-weight:600;margin-bottom:10px">Stato file caricati</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    ${[["📦 Magazzino",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"non caricato"],["◈ Vendite",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"non caricato"],["🛒 Acquisti",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"non caricato"]].map(([lbl,ok,name])=>`
+    <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+      <span style="width:100px;color:var(--m)">${lbl}</span>
+      <span style="color:${ok?"var(--em)":"var(--d)"}">${ok?"✅":"⚪"}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${ok?"var(--t)":"var(--d)"}">${name}</span>
+    </div>`).join("")}
+  </div>
+</div>`;
 }
 
 function rMag(){
@@ -954,44 +1127,20 @@ ${splitBar()}
 function initCharts(){
   if(!window.Chart)return;
 
-  // OVERVIEW
-  if(ST.page==="overview"&&window.__ov){
-    const m12=window.__ov.m12,tab=window.__ov.tab;
-    if(tab==="trend"){
-      if(ST.sedeMode==="split"){
-        mkChart("ch_ov","line",m12.map(m=>m.lbl),BK.map((k,i)=>({label:SEDI_LBL[i],data:m12.map(m=>fatt(filtY(m.yr,m.me).filter(v=>v.sede===k))),borderColor:SC[k][0],backgroundColor:SC[k][1].replace("18)","07)"),fill:true,tension:.42,pointRadius:3,pointBorderColor:"transparent",pointBackgroundColor:SC[k][0],borderWidth:2})),coLeg);
-      } else {
-        const bkF=ST.sedeMode==="agg"?null:ST.sedeMode;
-        mkChart("ch_ov","line",m12.map(m=>m.lbl),[{data:m12.map(m=>{let v=filtY(m.yr,m.me);if(bkF)v=v.filter(x=>x.sede===bkF);return fatt(v);}),borderColor:"#22d3ee",backgroundColor:"rgba(34,211,238,.07)",fill:true,tension:.42,pointRadius:3,pointBorderColor:"transparent",pointBackgroundColor:"#22d3ee",borderWidth:2}],CO);
-      }
-    } else if(tab==="mom"){
-      const cats=["Montature","Lenti Vista","Occhiali Sole","Lenti Contatto"];
-      mkChart("ch_ov","bar",cats,[{label:MESI[CM],data:cats.map(c=>fatt(applySedeF(filtY(CY,CM)).filter(v=>v.cat===c))),backgroundColor:"rgba(34,211,238,.2)",borderColor:"#22d3ee",borderWidth:1.5,borderRadius:5},{label:MESI[CM===0?11:CM-1],data:cats.map(c=>fatt(applySedeF(filtY(CM===0?CY-1:CY,CM===0?11:CM-1)).filter(v=>v.cat===c))),backgroundColor:"rgba(167,139,250,.15)",borderColor:"rgba(167,139,250,.6)",borderWidth:1.5,borderRadius:5}],coLeg);
-    } else {
-      const m6=Array.from({length:6},(_,i)=>{const d=new Date(CY,CM-5+i,1);return{yr:d.getFullYear(),me:d.getMonth(),lbl:MESI[d.getMonth()]};});
-      mkChart("ch_ov","bar",m6.map(m=>m.lbl+" "+m.yr),[{label:String(CY),data:m6.map(m=>fatt(applySedeF(filtY(m.yr,m.me)))),backgroundColor:"rgba(52,211,153,.2)",borderColor:"#34d399",borderWidth:1.5,borderRadius:5},{label:String(CY-1),data:m6.map(m=>fatt(applySedeF(filtY(m.yr-1,m.me)))),backgroundColor:"rgba(251,191,36,.15)",borderColor:"rgba(251,191,36,.6)",borderWidth:1.5,borderRadius:5}],coLeg);
-    }
+  // OVERVIEW — grafico acquisti per anno (reale)
+  if(ST.page==="overview"&&window.__ov&&window.__ov.hasAcq&&LIVE_ACQ){
+    const anni=Object.keys(LIVE_ACQ.byAnno).sort();
+    const colors=anni.map(y=>{const n=parseInt(y);return n===CY?"rgba(34,211,238,.35)":n===CY-1?"rgba(52,211,153,.25)":"rgba(167,139,250,.2)";});
+    const borders=anni.map(y=>{const n=parseInt(y);return n===CY?"#22d3ee":n===CY-1?"#34d399":"#a78bfa";});
+    const ovOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins.tooltip,callbacks:{label:ctx=>` ${fmt(ctx.raw)}`}}},scales:{...CO.scales,y:{...CO.scales.y,ticks:{...CO.scales.y.ticks,callback:v=>v===0?'':fmt(v)}}}};
+    mkChart("ch_ov","bar",anni,[{data:anni.map(y=>LIVE_ACQ.byAnno[y].val),backgroundColor:colors,borderColor:borders,borderWidth:1.5,borderRadius:5}],ovOpts);
   }
 
-  // VENDITE
-  if(ST.page==="vendite"&&window.__vend){
-    const m12=window.__vend.m12,tab=window.__vend.tab;
-    const bkF=ST.sedeMode==="agg"||ST.sedeMode==="split"?null:ST.sedeMode;
-    if(tab==="trend"){
-      if(ST.sedeMode==="split"){
-        mkChart("ch_vend","line",m12.map(m=>m.lbl),BK.map((k,i)=>({label:SEDI_LBL[i],data:m12.map(m=>fatt(filtY(m.yr,m.me).filter(v=>v.sede===k))),borderColor:SC[k][0],backgroundColor:SC[k][1].replace("18)","07)"),fill:true,tension:.4,pointRadius:3,pointBorderColor:"transparent",pointBackgroundColor:SC[k][0],borderWidth:2})),coLeg);
-      } else {
-        mkChart("ch_vend","line",m12.map(m=>m.lbl),[{data:m12.map(m=>{let v=filtY(m.yr,m.me);if(bkF)v=v.filter(x=>x.sede===bkF);return fatt(v);}),borderColor:"#22d3ee",backgroundColor:"rgba(34,211,238,.07)",fill:true,tension:.4,pointRadius:3,pointBorderColor:"transparent",pointBackgroundColor:"#22d3ee",borderWidth:2}],CO);
-      }
-    } else {
-      const m6=Array.from({length:6},(_,i)=>{const d=new Date(CY,CM-5+i,1);return{yr:d.getFullYear(),me:d.getMonth(),lbl:MESI[d.getMonth()]};});
-      const isYOY=tab==="yoy";
-      const cur=m6.map(m=>{let v=filtY(m.yr,m.me);if(bkF)v=v.filter(x=>x.sede===bkF);return fatt(v);});
-      const prv=m6.map(m=>{let v=filtY(isYOY?m.yr-1:m.yr,isYOY?m.me:m.me===0?11:m.me-1);if(bkF)v=v.filter(x=>x.sede===bkF);return fatt(v);});
-      mkChart("ch_vend","bar",m6.map(m=>m.lbl),[{label:isYOY?String(CY):"Corrente",data:cur,backgroundColor:"rgba(34,211,238,.2)",borderColor:"#22d3ee",borderWidth:1.5,borderRadius:5},{label:isYOY?String(CY-1):"Precedente",data:prv,backgroundColor:"rgba(167,139,250,.15)",borderColor:"rgba(167,139,250,.6)",borderWidth:1.5,borderRadius:5}],coLeg);
-    }
-    const byCat=["Montature","Lenti Vista","Occhiali Sole","Lenti Contatto","Accessori"].map(c=>fatt(applySedeF(filtY(ST.selAnno,ST.selMese)).filter(v=>v.cat===c)));
-    mkChart("ch_vcat","doughnut",["Montature","Lenti Vista","Occhiali Sole","Lenti Contatto","Accessori"],[{data:byCat,backgroundColor:["#a78bfa","#22d3ee","#fbbf24","#34d399","rgba(255,255,255,.12)"],borderWidth:0,hoverOffset:6}],coDon);
+  // VENDITE — grafico donut tipo prodotto (reale)
+  if(ST.page==="vendite"&&window.__vend&&window.__vend.tipoDisp){
+    const td=window.__vend.tipoDisp.slice(0,7);
+    const tipoColors=["#a78bfa","#22d3ee","#fbbf24","#34d399","#fb7185","rgba(34,211,238,.5)","rgba(251,191,36,.5)"];
+    mkChart("ch_vcat","doughnut",td.map(t=>t.n.replace('Montature vista','Montature').replace('Occhiali sole','Sole').replace('Lenti monofocali','Monofoc.').replace('Lenti progressive','Progress.').replace('Lenti bifocali','Bifoc.').replace('Lenti occupazionali','Occup.').replace('Lenti a supporto accomodativo','Acc.').replace('Lenti a profondità di campo','PDC')),[{data:td.map(t=>t.pz),backgroundColor:tipoColors.slice(0,td.length),borderWidth:0,hoverOffset:6}],{...coDon,plugins:{...coDon.plugins,tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}}});
   }
 
   // MAGAZZINO
