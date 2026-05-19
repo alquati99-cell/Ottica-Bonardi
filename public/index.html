@@ -184,6 +184,9 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
 .row-U:hover td,.row-A:hover td,.row-M:hover td{filter:brightness(1.15)}
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.marg-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.06)}
+.marg-fill-c{background:rgba(251,113,133,.5)}
+.marg-fill-m{background:rgba(52,211,153,.5)}
 .fi{animation:fi .45s ease both}
 @keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -400,38 +403,82 @@ function parseVendite(file){
 }
 function processVendite(raw, name){
   const rows = raw.filter(r => (r['Tipo operazione']||'').trim() === 'VEN');
-  const byTipo={}, byBrand={}, byOp={};
-  const clienti = new Set();
-  let totPzFrame=0, totValFrame=0, totPzLenti=0;
-  let pzA=0, valA=0, pzB=0, valB=0;
-  rows.forEach(r => {
-    const tp  = (r['Tipo Prodotto']||'').trim();
-    const mar = (r['Marchio']||'').trim();
-    const op  = (r['Operatore']||'').trim();
-    const fil = (r['Filiale']||'').trim().toUpperCase();
-    const pz  = parseFloat(r['Quantità']||1) || 1;
-    const val = parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0) || 0;
-    const cli = (r['Codice cliente']||'').trim();
-    if(cli) clienti.add(cli);
-    if(!byTipo[tp]) byTipo[tp]={pz:0,val:0};
-    byTipo[tp].pz+=pz; byTipo[tp].val+=val;
-    const isFrame = tp==='Montature vista'||tp==='Occhiali sole';
-    const isLenti = tp.startsWith('Lenti');
-    if(isFrame){ if(!byBrand[mar]) byBrand[mar]={pz:0,val:0}; byBrand[mar].pz+=pz; byBrand[mar].val+=val; totPzFrame+=pz; totValFrame+=val; }
-    if(isLenti) totPzLenti+=pz;
-    if(op){ if(!byOp[op]) byOp[op]=0; byOp[op]+=pz; }
-    if(fil==='A'){ pzA+=pz; valA+=val; } else { pzB+=pz; valB+=val; }
-  });
+
+  // Righe compatte per filtri dinamici
+  const compactRows = rows.map(r => ({
+    tp:  (r['Tipo Prodotto']||'').trim(),
+    mar: (r['Marchio']||'').trim(),
+    fil: (r['Filiale']||'').trim().toUpperCase(),
+    op:  (r['Operatore']||'').trim(),
+    pz:  parseFloat(r['Quantità']||1)||1,
+    val: parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0)||0,
+    acq: parseFloat(r['Prezzo acquisto']||0)||0,
+    cli: (r['Codice cliente']||'').trim()
+  }));
+
+  const clienti = new Set(compactRows.map(r=>r.cli).filter(Boolean));
+  const allMarchi = [...new Set(compactRows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').map(r=>r.mar).filter(Boolean))].sort();
+  const allTipi   = [...new Set(compactRows.map(r=>r.tp).filter(Boolean))].sort();
+
   LIVE_VEND = {
-    totPz: rows.length, totPzFrame, totPzLenti, totVal: Math.round(totValFrame),
+    rows: compactRows,
     clienti: clienti.size,
-    byTipo: Object.entries(byTipo).sort((a,b)=>b[1].pz-a[1].pz).map(([n,v])=>({n,pz:v.pz,val:Math.round(v.val)})),
-    byBrand: Object.entries(byBrand).sort((a,b)=>b[1].val-a[1].val).slice(0,12).map(([n,v])=>({n,pz:v.pz,val:Math.round(v.val)})),
-    byOp: Object.entries(byOp).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([n,pz])=>({n,pz})),
-    byFiliale: {A:{pz:Math.round(pzA),val:Math.round(valA)},B:{pz:Math.round(pzB),val:Math.round(valB)}}
+    allMarchi,
+    allTipi
   };
   UPLOAD_NAME_VEND = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
+}
+
+function filtVendRows(){
+  if(!LIVE_VEND) return [];
+  let r = LIVE_VEND.rows;
+  if(ST.vendFil!=='all')  r = r.filter(x=>x.fil===ST.vendFil);
+  if(ST.vendTp==='MV')    r = r.filter(x=>x.tp==='Montature vista');
+  else if(ST.vendTp==='OS') r = r.filter(x=>x.tp==='Occhiali sole');
+  else if(ST.vendTp==='FR') r = r.filter(x=>x.tp==='Montature vista'||x.tp==='Occhiali sole');
+  else if(ST.vendTp==='LE') r = r.filter(x=>x.tp.startsWith('Lenti'));
+  else if(ST.vendTp!=='all') r = r.filter(x=>x.tp===ST.vendTp);
+  if(ST.vendMar!=='all')  r = r.filter(x=>x.mar===ST.vendMar);
+  return r;
+}
+
+function vendKPI(rows){
+  const totPz  = rows.reduce((a,r)=>a+r.pz,0);
+  // Margine attendibile solo per frame (val>0 AND acq>0)
+  const frRows = rows.filter(r=>(r.tp==='Montature vista'||r.tp==='Occhiali sole')&&r.val>0&&r.acq>0);
+  const totVal = frRows.reduce((a,r)=>a+r.val,0);
+  const totAcq = frRows.reduce((a,r)=>a+r.acq,0);
+  const marg   = totVal - totAcq;
+  const pctM   = totVal>0 ? marg/totVal*100 : 0;
+  // Fatturato listino totale frame (anche senza acquisto)
+  const totValAll = rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').reduce((a,r)=>a+r.val,0);
+  const clienti = new Set(rows.map(r=>r.cli).filter(Boolean)).size;
+  return {totPz:Math.round(totPz), totVal:Math.round(totValAll), marg:Math.round(marg), pctM:Math.round(pctM), clienti};
+}
+
+function brandBreakdown(rows, n=10){
+  const m={};
+  rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').forEach(r=>{
+    if(!r.mar) return;
+    if(!m[r.mar]) m[r.mar]={pz:0,val:0,acq:0};
+    m[r.mar].pz+=r.pz; m[r.mar].val+=r.val; m[r.mar].acq+=r.acq;
+  });
+  return Object.entries(m).sort((a,b)=>b[1].val-a[1].val).slice(0,n).map(([nm,v])=>({
+    n:nm, pz:Math.round(v.pz), val:Math.round(v.val), acq:Math.round(v.acq),
+    marg:Math.round(v.val-v.acq), pctM:v.val>0?Math.round((v.val-v.acq)/v.val*100):0
+  }));
+}
+
+function tipoBreakdown(rows){
+  const m={};
+  rows.forEach(r=>{
+    const k=r.tp||'Altro';
+    if(!m[k]) m[k]={pz:0,val:0};
+    m[k].pz+=r.pz;
+    if(r.tp==='Montature vista'||r.tp==='Occhiali sole') m[k].val+=r.val;
+  });
+  return Object.entries(m).sort((a,b)=>b[1].pz-a[1].pz).map(([n,v])=>({n,pz:Math.round(v.pz),val:Math.round(v.val)}));
 }
 
 // ═══ ACQUISTI PARSER ════════════════════════════════════════════════════════
@@ -587,7 +634,9 @@ function buildAgingSummary(rows){
 const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:CY,selMese:CM,
   magTab:"stock",magBrand:"all",magSed:"all",magCat:"all",magForn:"all",magDateFrom:"",magDateTo:"",magFocus:"all",magSearch:"",magSort:"v",magAsc:false,magPage:0,
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
-  cliSearch:""};
+  cliSearch:"",
+  vendFil:"all",vendTp:"all",vendMar:"all",
+  ovFil:"all",ovTp:"all"};
 let charts={};
 const PER=30;
 
