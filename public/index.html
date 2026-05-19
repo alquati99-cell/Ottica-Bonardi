@@ -101,6 +101,8 @@ td{padding:9px 12px;border-bottom:0.5px solid rgba(255,255,255,.04);vertical-ali
 tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:rgba(255,255,255,.025)}
 .mn{font-family:'DM Mono',monospace;font-size:12px}
+.bc-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.03em;color:var(--cy);cursor:pointer;padding:2px 6px;border-radius:6px;border:0.5px solid rgba(34,211,238,.25);background:rgba(34,211,238,.06);transition:background .15s}
+.bc-tag:hover{background:rgba(34,211,238,.14)}
 .mn-hi{color:var(--am);font-weight:500}.mn-lo{color:var(--d)}.mn-gr{color:var(--em);font-weight:500}.mn-ro{color:var(--ro);font-weight:500}
 .pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:500;white-space:nowrap}
 .pcy{background:rgba(34,211,238,.1);color:var(--cy);border:0.5px solid rgba(34,211,238,.2)}
@@ -300,6 +302,7 @@ function processUpload(raw, name){
     const mod = String(r['Modello']||r['modello']||'').trim();
     const tp  = String(r['Tipo prodotto']||'').trim();
     const forn= cleanSupplierName(r['Fornitore']||'');
+    const bc  = String(r['Codice a barre']||r['Barcode']||r['EAN']||r['GTIN']||r['barcode']||r['ean']||'').trim();
     const qty = parseFloat(String(r['Quantità magazzino']||r['Quantita magazzino']||0).replace(',','.')) || 0;
     const val = parseFloat(String(r['Valore magazzino']||0).replace(',','.')) || 0;
     const cos = parseFloat(String(r['Costo medio']||0).replace(',','.')) || 0;
@@ -308,8 +311,9 @@ function processUpload(raw, name){
     else if(typeof dt === 'number') dt = excelSerialToISO(dt);
     else if(typeof dt === 'string') dt = normalizeDateValue(dt);
     const cat = tp.toLowerCase().includes('vista') ? 'M' : 'S';
-    const key = `${fil}|${mar}|${mod}|${cat}|${forn}`;
-    if(!agg[key]) agg[key]={f:fil,m:mar.slice(0,22),mod:mod.slice(0,18),cat,forn:forn||'Senza fornitore',q:0,v:0,c:0,cn:0,d:'',mesi:0,anno:0,pri:'O'};
+    // Se barcode presente lo usa come chiave univoca (1 SKU = 1 riga per filiale)
+    const key = bc ? `${bc}|${fil}` : `${fil}|${mar}|${mod}|${cat}|${forn}`;
+    if(!agg[key]) agg[key]={f:fil,m:mar.slice(0,22),mod:mod.slice(0,18),cat,forn:forn||'Senza fornitore',bc,q:0,v:0,c:0,cn:0,d:'',mesi:0,anno:0,pri:'O'};
     agg[key].q += qty; agg[key].v += val; agg[key].c += cos; agg[key].cn++;
     if(dt && (!agg[key].d || dt > agg[key].d)) agg[key].d = dt;
   });
@@ -616,7 +620,7 @@ ${splitBar()}
 function magFilter(){
   let r=applySharedMagFilters(curMAG().rows.map(enrichMagRow));
   if(ST.magSed!=="all")r=r.filter(x=>x.f===ST.magSed);
-  if(ST.magSearch){const s=ST.magSearch.toLowerCase();r=r.filter(x=>x.m.toLowerCase().includes(s)||x.mod.toLowerCase().includes(s)||x.forn.toLowerCase().includes(s));}
+  if(ST.magSearch){const s=ST.magSearch.toLowerCase();r=r.filter(x=>x.m.toLowerCase().includes(s)||x.mod.toLowerCase().includes(s)||x.forn.toLowerCase().includes(s)||(x.bc&&x.bc.toLowerCase().includes(s)));}
   return r;
 }
 
@@ -644,7 +648,7 @@ function rMag(){
   rows.forEach(r=>{const k=r.cat==="M"?"Montature":"Sole";if(r.f==="A")catA[k]=(catA[k]||0)+r.v;else catB[k]=(catB[k]||0)+r.v;});
   let agPool=baseRows.filter(r=>r.anno>0);
   if(ST.agSed!=="all")agPool=agPool.filter(r=>r.f===ST.agSed);
-  if(ST.agSearch){const s=ST.agSearch.toLowerCase();agPool=agPool.filter(r=>r.m.toLowerCase().includes(s)||r.mod.toLowerCase().includes(s)||r.forn.toLowerCase().includes(s));}
+  if(ST.agSearch){const s=ST.agSearch.toLowerCase();agPool=agPool.filter(r=>r.m.toLowerCase().includes(s)||r.mod.toLowerCase().includes(s)||r.forn.toLowerCase().includes(s)||(r.bc&&r.bc.toLowerCase().includes(s)));}
   const agSummary=buildAgingSummary(agPool);
   window.__mag={rows,topBrand,catA,catB,bf,aging:agSummary};
 
@@ -747,7 +751,7 @@ ${activeFilters.length?`<div class="filter-pills fi">${activeFilters.map(f=>`<sp
   ${UPLOAD_NAME
     ?`<div class="upload-icon">✅</div><div class="upload-title">File caricato: ${UPLOAD_NAME}</div><div class="upload-sub">Clicca o trascina un nuovo file per aggiornare</div>`
     :`<div class="upload-icon">📂</div><div class="upload-title">Carica inventario Excel</div><div class="upload-sub">Clicca o trascina il file .xlsx qui</div>`}
-  <div class="upload-spec">Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino (o "Data ult. acq") — date accettate: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd</div>
+  <div class="upload-spec">Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre (o EAN/Barcode) · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino (o "Data ult. acq") — date accettate: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd</div>
 </div>
 
 <div class="tabs">
@@ -758,13 +762,13 @@ ${activeFilters.length?`<div class="filter-pills fi">${activeFilters.map(f=>`<sp
 
 ${ST.magTab==="stock"?`
 <div class="abar">
-  <input class="srch" placeholder="Cerca modello / fornitore…" value="${ST.magSearch}" oninput="ST.magSearch=this.value;ST.magPage=0;renderPage()">
+  <input class="srch" placeholder="Cerca modello / fornitore / barcode…" value="${ST.magSearch}" oninput="ST.magSearch=this.value;ST.magPage=0;renderPage()">
   <span style="margin-left:auto;font-size:12px;color:var(--m)">${fmtN(totR)} ref. · ${fmt(vA+vB)}</span>
 </div>
 <div class="g tw fi">
 <table>
-  <thead><tr>${th("f","Sede")}${th("m","Marchio")}${th("mod","Modello")}${th("cat","Cat.")}${th("forn","Fornitore")}${th("q","Qty")}${th("v","Valore")}${th("c","Costo")}${th("d","Ult.acq")}${th("mesi","Anzianità")}</tr></thead>
-  <tbody>${pageR.length===0?`<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--d)">Nessun prodotto</td></tr>`:pageR.map(r=>{
+  <thead><tr>${th("f","Sede")}${th("m","Marchio")}${th("mod","Modello")}${th("cat","Cat.")}${th("forn","Fornitore")}${th("bc","Barcode","font-size:11px")}${th("q","Qty")}${th("v","Valore")}${th("c","Costo")}${th("d","Ult.acq")}${th("mesi","Anzianità")}</tr></thead>
+  <tbody>${pageR.length===0?`<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--d)">Nessun prodotto</td></tr>`:pageR.map(r=>{
     const priCls=r.pri==="U"?"row-U":r.pri==="A"?"row-A":r.pri==="M"?"row-M":"";
     return`<tr class="${priCls}">
       <td><span class="pill ${r.f==="A"?"pcy":"pem"}">${r.f}</span></td>
@@ -772,6 +776,7 @@ ${ST.magTab==="stock"?`
       <td style="font-size:12px;color:var(--m)">${r.mod}</td>
       <td><span class="pill ${r.cat==="M"?"pvi":"pam"}">${r.cat==="M"?"Vista":"Sole"}</span></td>
       <td style="font-size:11px;color:var(--d)">${r.forn}</td>
+      <td class="mn" style="font-size:11px">${r.bc?`<span class="bc-tag" onclick="navigator.clipboard.writeText('${r.bc}')" title="Clicca per copiare">${r.bc}</span>`:'<span style="color:var(--d)">—</span>'}</td>
       <td class="mn">${r.q}</td>
       <td class="mn mn-gr">${fmt(r.v)}</td>
       <td class="mn">${fmt(r.c)}</td>
