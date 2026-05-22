@@ -909,10 +909,13 @@ ${noDataBanner}
 <!-- Trend chart -->
 <div class="g card fi" style="margin-bottom:12px">
   <div class="ch">
-    <div class="ct"><span class="dot" style="background:var(--ac)"></span>Trend acquisti — ${ST.ovTrendStep==='A'?'per anno':ST.ovTrendStep==='M'?'ultimi 24 mesi':ST.ovTrendStep==='W'?'ultime 52 settimane':'ultimi 90 giorni'}</div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <div class="ct"><span class="dot" style="background:var(--ac)"></span>Trend vendite — ${ST.ovTrendStep==='A'?'per anno':ST.ovTrendStep==='M'?'ultimi 24 mesi':ST.ovTrendStep==='W'?'ultime 52 settimane':'ultimi 90 giorni'}</div>
+      ${hasAcq&&!hasVend?`<div style="font-size:10px;color:var(--d)">⚠ vendite.xlsx senza date · proxy: acquisti</div>`:''}
+    </div>
     <div class="tpill" style="gap:0">${stepBtn('A','Anno')}${stepBtn('M','Mese')}${stepBtn('W','Settimana')}${stepBtn('D','Giorno')}</div>
   </div>
-  ${hasAcq?`<div class="cw cw-lg"><canvas id="ch_ov_trend"></canvas></div>`:`<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend</div>`}
+  ${hasAcq?`<div class="cw cw-lg"><canvas id="ch_ov_trend"></canvas></div>`:`<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend vendite</div>`}
 </div>
 
 <!-- Bottom row -->
@@ -1436,7 +1439,7 @@ ${splitBar()}
 function initCharts(){
   if(!window.Chart)return;
 
-  // OVERVIEW — trend chart with step selector
+  // OVERVIEW — trend vendite (proxy: acquisti finché vendite.xlsx non ha date)
   if(ST.page==="overview"&&window.__ov&&window.__ov.hasAcq&&LIVE_ACQ){
     const step=window.__ov.trendStep||'M';
     const td=acqTrend(step);
