@@ -13,19 +13,52 @@
 body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;overflow-x:hidden}
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 80% 50% at 15% 10%,rgba(232,184,75,.04) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 85% 90%,rgba(77,184,204,.03) 0%,transparent 50%)}
 .bg::after{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");background-size:200px 200px;opacity:.6}
-.shell{display:flex;min-height:100vh;position:relative;z-index:1}
-.sb{width:214px;flex-shrink:0;border-right:0.5px solid rgba(255,255,255,.06);display:flex;flex-direction:column;backdrop-filter:blur(24px);background:rgba(7,9,15,.85);position:sticky;top:0;height:100vh;overflow:hidden}
-.sb-logo{padding:20px 20px 18px;border-bottom:0.5px solid var(--b)}
-.sb-icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--ac),rgba(232,184,75,.6));display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:9px;box-shadow:0 0 20px rgba(232,184,75,.2)}
-.sb-logo h1{font-size:13px;font-weight:600}
-.sb-logo p{font-size:10px;color:var(--m);margin-top:1px}
-.nb{display:flex;align-items:center;gap:9px;padding:9px 20px;background:none;border:none;cursor:pointer;color:var(--m);font-size:13px;font-family:'Sora',sans-serif;width:100%;text-align:left;transition:all .15s ease;position:relative}
-.nb:hover{color:var(--t);background:rgba(255,255,255,.03)}
+html{scroll-behavior:smooth}
+.shell{display:flex;min-height:100dvh;position:relative;z-index:1}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+.sb{width:214px;flex-shrink:0;display:flex;flex-direction:column;background:rgba(7,9,15,.92);backdrop-filter:blur(32px);position:sticky;top:0;height:100dvh;overflow:hidden;transition:width cubic-bezier(.32,.72,0,1) .4s;border-right:0.5px solid rgba(255,255,255,.07);will-change:width}
+.sb.collapsed{width:60px}
+.sb-logo{padding:18px 16px 16px;border-bottom:0.5px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;position:relative;min-height:72px}
+.sb-icon{width:34px;height:34px;flex-shrink:0;border-radius:10px;background:linear-gradient(135deg,var(--ac),rgba(232,184,75,.55));display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 16px rgba(232,184,75,.25),inset 0 1px 0 rgba(255,255,255,.15);transition:transform .2s cubic-bezier(.32,.72,0,1)}
+.sb-icon:hover{transform:scale(1.07)}
+.sb-text{overflow:hidden;transition:opacity .25s ease,transform .25s ease}
+.sb.collapsed .sb-text{opacity:0;transform:translateX(-8px);pointer-events:none}
+.sb-logo h1{font-size:13px;font-weight:600;white-space:nowrap}
+.sb-logo p{font-size:10px;color:var(--m);margin-top:1px;white-space:nowrap}
+
+/* hamburger toggle */
+.sb-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:rgba(255,255,255,.06);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4.5px;transition:background .2s,right .4s cubic-bezier(.32,.72,0,1);z-index:2}
+.sb-toggle:hover{background:rgba(232,184,75,.15)}
+.sb.collapsed .sb-toggle{right:50%;transform:translate(50%,-50%)}
+.hb{width:13px;height:1.5px;background:var(--m);border-radius:2px;transition:all .35s cubic-bezier(.32,.72,0,1);transform-origin:center}
+.sb.collapsed .hb:nth-child(1){transform:rotate(45deg) translate(4.2px,4.2px)}
+.sb.collapsed .hb:nth-child(2){opacity:0;transform:scaleX(0)}
+.sb.collapsed .hb:nth-child(3){transform:rotate(-45deg) translate(4.2px,-4.2px)}
+
+/* nav buttons */
+.nb{display:flex;align-items:center;gap:10px;padding:9px 20px;background:none;border:none;cursor:pointer;color:var(--m);font-size:13px;font-family:'Sora',sans-serif;width:100%;text-align:left;transition:color .2s,background .2s;position:relative;white-space:nowrap}
+.nb:hover{color:var(--t);background:rgba(255,255,255,.04)}
 .nb.active{color:var(--ac);font-weight:500}
-.nb.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:linear-gradient(180deg,var(--ac),rgba(232,184,75,.4));border-radius:0 2px 2px 0}
-.nb-ic{font-size:14px;width:16px;text-align:center;flex-shrink:0}
-.sb-nav{padding:10px 0;flex:1}
-.sb-vista{padding:14px 16px 20px;border-top:0.5px solid var(--b);margin-top:auto}
+.nb.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:linear-gradient(180deg,var(--ac),rgba(232,184,75,.3));border-radius:0 2px 2px 0}
+.nb-ic{font-size:15px;width:18px;text-align:center;flex-shrink:0;transition:transform .2s cubic-bezier(.32,.72,0,1)}
+.nb:hover .nb-ic{transform:scale(1.15)}
+.nb-label{transition:opacity .2s ease,transform .2s ease}
+.sb.collapsed .nb-label{opacity:0;transform:translateX(-6px);pointer-events:none}
+.sb.collapsed .nb{justify-content:center;padding:10px 0}
+
+/* stagger reveal on expand */
+.sb:not(.collapsed) .nb{animation:nbReveal .35s cubic-bezier(.32,.72,0,1) both}
+.sb:not(.collapsed) .nb:nth-child(1){animation-delay:.04s}
+.sb:not(.collapsed) .nb:nth-child(2){animation-delay:.08s}
+.sb:not(.collapsed) .nb:nth-child(3){animation-delay:.12s}
+.sb:not(.collapsed) .nb:nth-child(4){animation-delay:.16s}
+.sb:not(.collapsed) .nb:nth-child(5){animation-delay:.20s}
+@keyframes nbReveal{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+
+.sb-nav{padding:10px 0;flex:1;overflow:hidden}
+.sb-vista{padding:12px 14px 18px;border-top:0.5px solid rgba(255,255,255,.06);margin-top:auto;overflow:hidden;transition:opacity .25s ease}
+.sb.collapsed .sb-vista{opacity:0;pointer-events:none}
 .sb-vista-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:10px}
 .sede-pills{display:flex;gap:4px;flex-wrap:wrap}
 .sp{padding:5px 10px;border-radius:8px;border:0.5px solid var(--b);background:none;cursor:pointer;font-size:11px;font-weight:500;font-family:'Sora',sans-serif;color:var(--m);transition:all .15s}
@@ -194,18 +227,20 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
 <body>
 <div class="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
 <div class="shell">
-<nav class="sb">
+<nav class="sb" id="sidebar">
   <div class="sb-logo">
     <div class="sb-icon">👁</div>
-    <h1>Ottica Bonardi</h1>
-    <p>3 sedi · Cremona</p>
+    <div class="sb-text"><h1>Ottica Bonardi</h1><p>3 sedi · Cremona</p></div>
+    <button class="sb-toggle" onclick="toggleSidebar()" title="Comprimi menu">
+      <span class="hb"></span><span class="hb"></span><span class="hb"></span>
+    </button>
   </div>
   <div class="sb-nav">
-    <button class="nb active" onclick="nav('overview')" id="nb-overview"><span class="nb-ic">⬡</span>Overview</button>
-    <button class="nb" onclick="nav('vendite')" id="nb-vendite"><span class="nb-ic">◈</span>Vendite</button>
-    <button class="nb" onclick="nav('magazzino')" id="nb-magazzino"><span class="nb-ic">◫</span>Magazzino</button>
-    <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span>Clienti</button>
-    <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span>Carica dati</button>
+    <button class="nb active" onclick="nav('overview')" id="nb-overview"><span class="nb-ic">⬡</span><span class="nb-label">Overview</span></button>
+    <button class="nb" onclick="nav('vendite')" id="nb-vendite"><span class="nb-ic">◈</span><span class="nb-label">Vendite</span></button>
+    <button class="nb" onclick="nav('magazzino')" id="nb-magazzino"><span class="nb-ic">◫</span><span class="nb-label">Magazzino</span></button>
+    <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span><span class="nb-label">Clienti</span></button>
+    <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span><span class="nb-label">Carica dati</span></button>
   </div>
   <div class="sb-vista">
     <div class="sb-vista-label">Vista dati</div>
@@ -639,6 +674,14 @@ let charts={};
 const PER=30;
 
 function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy();}catch{}});charts={};}
+
+// ═══ SIDEBAR TOGGLE ══════════════════════════════════════════════════════════
+function toggleSidebar(){
+  const sb=document.getElementById("sidebar");
+  sb.classList.toggle("collapsed");
+  const btn=sb.querySelector(".sb-toggle");
+  btn.title=sb.classList.contains("collapsed")?"Espandi menu":"Comprimi menu";
+}
 
 // ═══ NAVIGATION ═════════════════════════════════════════════════════════════
 function nav(p){
@@ -1228,8 +1271,8 @@ function initCharts(){
   // OVERVIEW — grafico acquisti per anno (reale)
   if(ST.page==="overview"&&window.__ov&&window.__ov.hasAcq&&LIVE_ACQ){
     const anni=Object.keys(LIVE_ACQ.byAnno).sort();
-    const colors=anni.map(y=>{const n=parseInt(y);return n===CY?"rgba(34,211,238,.35)":n===CY-1?"rgba(52,211,153,.25)":"rgba(167,139,250,.2)";});
-    const borders=anni.map(y=>{const n=parseInt(y);return n===CY?"#22d3ee":n===CY-1?"#34d399":"#a78bfa";});
+    const colors=anni.map(y=>{const n=parseInt(y);return n===CY?"rgba(232,184,75,.5)":n===CY-1?"rgba(232,184,75,.28)":"rgba(232,184,75,.14)";});
+    const borders=anni.map(y=>{const n=parseInt(y);return n===CY?"#e8b84b":n===CY-1?"rgba(232,184,75,.7)":"rgba(232,184,75,.4)";});
     const ovOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins.tooltip,callbacks:{label:ctx=>` ${fmt(ctx.raw)}`}}},scales:{...CO.scales,y:{...CO.scales.y,ticks:{...CO.scales.y.ticks,callback:v=>v===0?'':fmt(v)}}}};
     mkChart("ch_ov","bar",anni,[{data:anni.map(y=>LIVE_ACQ.byAnno[y].val),backgroundColor:colors,borderColor:borders,borderWidth:1.5,borderRadius:5}],ovOpts);
   }
@@ -1239,7 +1282,7 @@ function initCharts(){
     // Donut tipo prodotto
     if(window.__vend.tipoDisp&&window.__vend.tipoDisp.length>0){
       const td=window.__vend.tipoDisp.slice(0,7);
-      const tipoColors=["#a78bfa","#22d3ee","#fbbf24","#34d399","#fb7185","rgba(34,211,238,.5)","rgba(251,191,36,.5)"];
+      const tipoColors=["#e8b84b","rgba(232,184,75,.65)","rgba(201,149,74,.8)","rgba(232,184,75,.4)","rgba(201,149,74,.5)","rgba(232,184,75,.25)","rgba(201,149,74,.3)"];
       mkChart("ch_vcat","doughnut",td.map(t=>t.n.replace('Montature vista','Montature').replace('Occhiali sole','Sole').replace('Lenti monofocali','Monofoc.').replace('Lenti progressive','Progress.').replace('Lenti bifocali','Bifoc.').replace('Lenti occupazionali','Occup.').replace('Lenti a supporto accomodativo','Acc.').replace('Lenti a profondità di campo','PDC')),[{data:td.map(t=>t.pz),backgroundColor:tipoColors.slice(0,td.length),borderWidth:0,hoverOffset:6}],{...coDon,plugins:{...coDon.plugins,tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}}});
     }
     // Stacked bar brand (costo + margine)
@@ -1248,8 +1291,8 @@ function initCharts(){
       const labels=brs.map(b=>b.n.length>14?b.n.slice(0,13)+'…':b.n);
       const brandOpts={...coLeg,scales:{...coLeg.scales,x:{...coLeg.scales.x,stacked:true},y:{...coLeg.scales.y,stacked:true,ticks:{...coLeg.scales.y.ticks,callback:v=>v===0?'':fmt(v)}}},plugins:{...coLeg.plugins,tooltip:{...CO.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}}};
       mkChart("ch_vbrand","bar",labels,[
-        {label:"Costo acq.",data:brs.map(b=>b.acq),backgroundColor:"rgba(251,113,133,.3)",borderColor:"#fb7185",borderWidth:1,borderRadius:{topLeft:0,topRight:0,bottomLeft:4,bottomRight:4},stack:"s"},
-        {label:"Margine",data:brs.map(b=>b.marg>0?b.marg:0),backgroundColor:"rgba(52,211,153,.35)",borderColor:"#34d399",borderWidth:1,borderRadius:{topLeft:4,topRight:4,bottomLeft:0,bottomRight:0},stack:"s"}
+        {label:"Costo acq.",data:brs.map(b=>b.acq),backgroundColor:"rgba(201,149,74,.25)",borderColor:"rgba(201,149,74,.7)",borderWidth:1,borderRadius:{topLeft:0,topRight:0,bottomLeft:4,bottomRight:4},stack:"s"},
+        {label:"Margine",data:brs.map(b=>b.marg>0?b.marg:0),backgroundColor:"rgba(232,184,75,.35)",borderColor:"#e8b84b",borderWidth:1,borderRadius:{topLeft:4,topRight:4,bottomLeft:0,bottomRight:0},stack:"s"}
       ],brandOpts);
     }
   }
@@ -1260,18 +1303,20 @@ function initCharts(){
     // Grafico 1
     if(mg.bf){
       const byMod=Object.entries(mg.rows.reduce((o,r)=>{o[r.mod]=(o[r.mod]||0)+r.v;return o;},{})).sort((a,b)=>b[1]-a[1]).slice(0,10);
-      mkChart("ch_mag1","bar",byMod.map(x=>x[0].slice(0,14)),[{data:byMod.map(x=>x[1]),backgroundColor:"rgba(167,139,250,.2)",borderColor:"#a78bfa",borderWidth:1.5,borderRadius:4}],CO);
+      mkChart("ch_mag1","bar",byMod.map(x=>x[0].slice(0,14)),[{data:byMod.map(x=>x[1]),backgroundColor:"rgba(232,184,75,.2)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4}],CO);
     } else {
-      mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:["rgba(34,211,238,.2)","rgba(167,139,250,.2)","rgba(52,211,153,.2)","rgba(251,191,36,.2)","rgba(251,113,133,.2)","rgba(34,211,238,.15)","rgba(167,139,250,.15)","rgba(52,211,153,.15)","rgba(251,191,36,.15)","rgba(251,113,133,.15)"],borderColor:["#22d3ee","#a78bfa","#34d399","#fbbf24","#fb7185","#22d3ee","#a78bfa","#34d399","#fbbf24","#fb7185"],borderWidth:1.5,borderRadius:4}],CO);
+      const magBrandAlphas=["rgba(232,184,75,.5)","rgba(232,184,75,.4)","rgba(201,149,74,.5)","rgba(232,184,75,.3)","rgba(201,149,74,.4)","rgba(232,184,75,.25)","rgba(201,149,74,.3)","rgba(232,184,75,.2)","rgba(201,149,74,.25)","rgba(232,184,75,.15)"];
+      const magBrandBorder=["#e8b84b","#e8b84b","rgba(201,149,74,.9)","rgba(232,184,75,.7)","rgba(201,149,74,.7)","rgba(232,184,75,.6)","rgba(201,149,74,.6)","rgba(232,184,75,.5)","rgba(201,149,74,.5)","rgba(232,184,75,.4)"];
+      mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:magBrandAlphas,borderColor:magBrandBorder,borderWidth:1.5,borderRadius:4}],CO);
     }
     // Grafico 2 categorie
-    mkChart("ch_mag2","doughnut",["A · Montature","A · Sole","B · Montature","B · Sole"],[{data:[mg.catA["Montature"]||0,mg.catA["Sole"]||0,mg.catB["Montature"]||0,mg.catB["Sole"]||0],backgroundColor:["#22d3ee","rgba(34,211,238,.4)","#34d399","rgba(52,211,153,.4)"],borderWidth:0,hoverOffset:6}],coDon);
+    mkChart("ch_mag2","doughnut",["A · Montature","A · Sole","B · Montature","B · Sole"],[{data:[mg.catA["Montature"]||0,mg.catA["Sole"]||0,mg.catB["Montature"]||0,mg.catB["Sole"]||0],backgroundColor:["#e8b84b","rgba(232,184,75,.5)","rgba(201,149,74,.8)","rgba(201,149,74,.4)"],borderWidth:0,hoverOffset:6}],coDon);
     // Grafici aging
     if(ST.magTab==="aging"){
       const ag=mg.aging||{byAnno:{},stats:{U:{v:0},A:{v:0},M:{v:0},O:{v:0}}};
       const anni=Object.keys(ag.byAnno).sort();
-      const agColors=anni.map(y=>{const n=parseInt(y);return n<2020?"rgba(251,113,133,.6)":n<2023?"rgba(251,191,36,.6)":n<2024?"rgba(167,139,250,.5)":"rgba(52,211,153,.5)";});
-      const agBorder=anni.map(y=>{const n=parseInt(y);return n<2020?"#fb7185":n<2023?"#fbbf24":n<2024?"#a78bfa":"#34d399";});
+      const agColors=anni.map(y=>{const n=parseInt(y);return n<2020?"rgba(192,90,110,.55)":n<2023?"rgba(201,149,74,.55)":n<2024?"rgba(232,184,75,.4)":"rgba(232,184,75,.65)";});
+      const agBorder=anni.map(y=>{const n=parseInt(y);return n<2020?"#c05a6e":n<2023?"rgba(201,149,74,.9)":n<2024?"rgba(232,184,75,.7)":"#e8b84b";});
       const agMode=ST.agChartMode==="pz";
       const agData=anni.map(y=>agMode?ag.byAnno[y].pz:ag.byAnno[y].v);
       const agOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins?.tooltip,callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}},scales:{...CO.scales,y:{...CO.scales?.y,ticks:{...CO.scales?.y?.ticks,callback:v=>agMode?v+" pz":"€ "+Math.round(v).toLocaleString("it-IT")}}}};
@@ -1280,7 +1325,7 @@ function initCharts(){
       const stats=ag.stats;
       const priData=agMode?[stats.U.pz,stats.A.pz,stats.M.pz,stats.O.pz]:[stats.U.v,stats.A.v,stats.M.v,stats.O.v];
       const priOpts={...coDon,plugins:{...coDon.plugins,tooltip:{callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}}};
-      mkChart("ch_aging_pri","doughnut",["🔴 Urgente (>5 anni)","🟠 Alta (3-5 anni)","🟡 Media (2-3 anni)","✅ OK (<2 anni)"],[{data:priData,backgroundColor:["rgba(251,113,133,.6)","rgba(251,191,36,.55)","rgba(167,139,250,.5)","rgba(52,211,153,.45)"],borderWidth:0,hoverOffset:6}],priOpts);
+      mkChart("ch_aging_pri","doughnut",["Urgente (>5 anni)","Alta (3-5 anni)","Media (2-3 anni)","OK (<2 anni)"],[{data:priData,backgroundColor:["rgba(192,90,110,.6)","rgba(201,149,74,.55)","rgba(232,184,75,.45)","rgba(232,184,75,.7)"],borderWidth:0,hoverOffset:6}],priOpts);
     }
   }
 
