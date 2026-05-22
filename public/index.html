@@ -531,11 +531,13 @@ function parseAcquisti(file){
 function processAcquisti(raw, name){
   const byAnno={}, byTipo={};
   let totPz=0, totVal=0, pzA=0, valA=0, pzB=0, valB=0;
+  const rows=[];
   raw.forEach(r => {
     let dt = r['Data movimento'];
     if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
     else if(typeof dt === 'string') dt = normalizeDateValue(dt);
     const yr = dt ? dt.slice(0,4) : null;
+    const mo = dt ? parseInt(dt.slice(5,7)) : null;
     const tp = (r['Tipo Prodotto']||'').trim();
     const fil= (r['Filiale']||'').trim().toUpperCase();
     const pz = parseFloat(String(r['Quantità']||0).replace(',','.')) || 0;
@@ -544,11 +546,12 @@ function processAcquisti(raw, name){
     if(tp){ if(!byTipo[tp]) byTipo[tp]={pz:0,val:0}; byTipo[tp].pz+=pz; byTipo[tp].val+=val; }
     totPz+=pz; totVal+=val;
     if(fil==='A'){ pzA+=pz; valA+=val; } else if(fil==='B'){ pzB+=pz; valB+=val; }
+    if(dt && yr) rows.push({dt, yr:parseInt(yr), mo, pz, val, fil, tp});
   });
   Object.keys(byAnno).forEach(k=>{ byAnno[k].val=Math.round(byAnno[k].val); byAnno[k].pz=Math.round(byAnno[k].pz); });
   LIVE_ACQ = {
     totPz: Math.round(totPz), totVal: Math.round(totVal),
-    byAnno,
+    byAnno, rows,
     byTipo: Object.entries(byTipo).sort((a,b)=>b[1].val-a[1].val).map(([n,v])=>({n,pz:Math.round(v.pz),val:Math.round(v.val)})),
     byFiliale: {A:{pz:Math.round(pzA),val:Math.round(valA)},B:{pz:Math.round(pzB),val:Math.round(valB)}}
   };
@@ -562,6 +565,87 @@ const fmtN=n=>Math.round(n).toLocaleString("it-IT");
 const fatt=arr=>arr.reduce((a,v)=>a+v.tot,0);
 const filtY=(yr,me)=>ALL_V.filter(v=>v.anno===yr&&(me===-1||v.mese===me));
 const dLabel=(c,p)=>{if(!p)return null;const d=Math.round((c-p)/p*100);return{d,cls:d>=0?"up":"dn",lbl:(d>=0?"↑":"↓")+Math.abs(d)+"%"};};
+
+// ── DATE / KPI HELPERS ────────────────────────────────────────────────────────
+function toISO(d){return d.toISOString().slice(0,10);}
+function acqRange(rows,from,to){let val=0,pz=0;for(const r of rows){if(r.dt>=from&&r.dt<=to){val+=r.val;pz+=r.pz;}}return{val:Math.round(val),pz:Math.round(pz)};}
+function isoWeekKey(dtStr){
+  const d=new Date(dtStr);d.setHours(0,0,0,0);
+  const dow=d.getDay()||7;d.setDate(d.getDate()-dow+1);
+  const y=d.getFullYear();
+  const jan4=new Date(y,0,4);const startW1=new Date(jan4);startW1.setDate(jan4.getDate()-(jan4.getDay()||7)+1);
+  const wn=Math.round((d-startW1)/604800000)+1;
+  return `${y}-W${String(wn).padStart(2,'0')}`;
+}
+function acqKPIs(){
+  if(!LIVE_ACQ||!LIVE_ACQ.rows) return null;
+  const rows=LIVE_ACQ.rows;
+  const now=new Date();
+  const today=toISO(now);
+  const moNum=CM+1; // 1-indexed
+  const moStr=String(moNum).padStart(2,'0');
+  const daysInMoCY=new Date(CY,moNum,0).getDate();
+  const daysInMoPY=new Date(CY-1,moNum,0).getDate();
+  // YTD
+  const ytdFrom=`${CY}-01-01`;
+  const ytdToPY=`${CY-1}-${today.slice(5)}`;
+  const ytd=acqRange(rows,ytdFrom,today);
+  const ytdPY=acqRange(rows,`${CY-1}-01-01`,ytdToPY);
+  // Month
+  const moFrom=`${CY}-${moStr}-01`;
+  const moFromPY=`${CY-1}-${moStr}-01`;
+  const mo=acqRange(rows,moFrom,today);
+  const moPY=acqRange(rows,moFromPY,`${CY-1}-${moStr}-${String(daysInMoPY).padStart(2,'0')}`);
+  // Week
+  const dow=now.getDay()||7;
+  const monThis=new Date(now);monThis.setDate(now.getDate()-dow+1);monThis.setHours(0,0,0,0);
+  const monPrev=new Date(monThis);monPrev.setDate(monThis.getDate()-7);
+  const sunPrev=new Date(monThis);sunPrev.setDate(monThis.getDate()-1);
+  const wk=acqRange(rows,toISO(monThis),today);
+  const wkPrev=acqRange(rows,toISO(monPrev),toISO(sunPrev));
+  const daysLeft=daysInMoCY-now.getDate();
+  return{ytd,ytdPY,mo,moPY,wk,wkPrev,daysLeft,moNum,moStr,moFrom,today};
+}
+function acqTrend(step){
+  if(!LIVE_ACQ||!LIVE_ACQ.rows) return{labels:[],vals:[],pzs:[]};
+  const rows=LIVE_ACQ.rows;
+  const agg={};
+  const now=new Date();
+  if(step==='A'){
+    rows.forEach(r=>{const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  if(step==='M'){
+    const cut=new Date(now);cut.setMonth(cut.getMonth()-23);cut.setDate(1);
+    const cutStr=toISO(cut).slice(0,7);
+    rows.forEach(r=>{const k=r.dt.slice(0,7);if(k<cutStr)return;if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys.map(k=>{const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  if(step==='W'){
+    const cut=new Date(now);cut.setDate(cut.getDate()-7*51);
+    const cutStr=toISO(cut);
+    rows.forEach(r=>{if(r.dt<cutStr)return;const k=isoWeekKey(r.dt);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys.map(k=>k.replace(/(\d{4})-W/,'W')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  if(step==='D'){
+    const cut=new Date(now);cut.setDate(cut.getDate()-89);
+    const cutStr=toISO(cut);
+    rows.forEach(r=>{if(r.dt<cutStr)return;if(!agg[r.dt])agg[r.dt]={val:0,pz:0};agg[r.dt].val+=r.val;agg[r.dt].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys.map(k=>k.slice(5).replace('-','/')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  return{labels:[],vals:[],pzs:[]};
+}
+function getObjTarget(type){return parseInt(localStorage.getItem(`ob_${type}_${CY}_${CM}`)||'0')||0;}
+function setObjTarget(type,val){localStorage.setItem(`ob_${type}_${CY}_${CM}`,String(parseInt(val)||0));renderPage();}
+function promptTarget(type,label){
+  const cur=getObjTarget(type);
+  const v=prompt(`Obiettivo ${label} per ${MESI[CM]} ${CY}:`,cur||'');
+  if(v!==null)setObjTarget(type,v);
+}
 const SC={B1:["#22d3ee","rgba(34,211,238,.18)"],B2:["#34d399","rgba(52,211,153,.18)"],B3:["#fbbf24","rgba(251,191,36,.18)"]};
 const PRI_LABEL={U:"🔴 Urgente",A:"🟠 Alta",M:"🟡 Media",O:"✅ OK",N:"⚪ Senza data"};
 const PRI_SUB={U:"oltre 5 anni",A:"3–5 anni",M:"2–3 anni",O:"ultimi 24 mesi",N:"data mancante"};
@@ -669,7 +753,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",
   vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all"};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M"};
 let charts={};
 const PER=30;
 
@@ -737,61 +821,145 @@ function rOv(){
   const mag=curMAG();
   const valMagTot=mag.kpi.A.valore+mag.kpi.B.valore;
   const pzMagTot=mag.kpi.A.pezzi+mag.kpi.B.pezzi;
-  const hasVend=!!LIVE_VEND, hasAcq=!!LIVE_ACQ;
-  // KPI acquisti anno corrente vs precedente
-  const acqCY=hasAcq?(LIVE_ACQ.byAnno[String(CY)]||{val:0,pz:0}):{val:0,pz:0};
-  const acqPY=hasAcq?(LIVE_ACQ.byAnno[String(CY-1)]||{val:0,pz:0}):{val:0,pz:0};
-  const dAcq=acqPY.val>0?dLabel(acqCY.val,acqPY.val):null;
-  // Filtro overview su righe vendite
-  let ovRows=hasVend?LIVE_VEND.rows:[];
-  if(ST.ovFil!=='all') ovRows=ovRows.filter(r=>r.fil===ST.ovFil);
-  if(ST.ovTp==='FR') ovRows=ovRows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
-  else if(ST.ovTp==='LE') ovRows=ovRows.filter(r=>r.tp.startsWith('Lenti'));
-  const ovKpi=vendKPI(ovRows);
-  // Brand top da righe filtrate
-  const ovBrands=brandBreakdown(ovRows,5);
-  // Filiale breakdown da righe filtrate
-  const ovFilA=ovRows.filter(r=>r.fil==='A'), ovFilB=ovRows.filter(r=>r.fil==='B');
-  const ovFilPzA=ovFilA.reduce((a,r)=>a+r.pz,0), ovFilPzB=ovFilB.reduce((a,r)=>a+r.pz,0);
-  const ovFilPzTot=ovFilPzA+ovFilPzB||1;
-  window.__ov={hasAcq,hasVend};
-  const noDataBanner=(!hasVend&&!hasAcq)?`<div style="background:rgba(34,211,238,.06);border:0.5px solid rgba(34,211,238,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--m);display:flex;align-items:center;gap:10px"><span style="font-size:16px">💡</span>Carica i file Excel dalla sezione <b style="color:var(--cy);cursor:pointer" onclick="nav('dati')">Carica dati</b> per vedere KPI reali di vendite e acquisti.</div>`:"";
-  const tpBtn=(v,lbl)=>`<button class="tp${ST.ovTp===v?' on':''}" onclick="ST.ovTp='${v}';renderPage()">${lbl}</button>`;
-  const filBtn=(v,lbl)=>`<button class="tp${ST.ovFil===v?' on':''}" onclick="ST.ovFil='${v}';renderPage()">${lbl}</button>`;
+  const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
+  const hasVend=!!LIVE_VEND;
+  const kpis=hasAcq?acqKPIs():null;
+  window.__ov={hasAcq,hasVend,trendStep:ST.ovTrendStep};
+
+  const noDataBanner=(!hasVend&&!hasAcq)?`<div style="background:rgba(232,184,75,.06);border:0.5px solid rgba(232,184,75,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--m);display:flex;align-items:center;gap:10px"><span style="font-size:16px">💡</span>Carica i file Excel dalla sezione <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b> per vedere KPI reali.</div>`:"";
+
+  // Delta helpers
+  const kpiDelta=(c,p,suffix)=>{
+    if(!c||!p)return`<div class="ks" style="color:var(--d)">nessun dato anno prec.</div>`;
+    const d=dLabel(c,p);
+    return`<div class="delta ${d.cls}">${d.lbl} vs ${CY-1}${suffix||''}</div>`;
+  };
+
+  // Box 1: YTD
+  const ytdVal=kpis?kpis.ytd.val:0;
+  const ytdPYVal=kpis?kpis.ytdPY.val:0;
+  const ytdPz=kpis?kpis.ytd.pz:0;
+  const ytdPYPz=kpis?kpis.ytdPY.pz:0;
+
+  // Box 2: Mese corrente
+  const moVal=kpis?kpis.mo.val:0;
+  const moPYVal=kpis?kpis.moPY.val:0;
+  const moPz=kpis?kpis.mo.pz:0;
+  const moPYPz=kpis?kpis.moPY.pz:0;
+
+  // Box 3: Settimana
+  const wkVal=kpis?kpis.wk.val:0;
+  const wkPrevVal=kpis?kpis.wkPrev.val:0;
+  const wkPz=kpis?kpis.wk.pz:0;
+  const wkPrevPz=kpis?kpis.wkPrev.pz:0;
+
+  // Obiettivi
+  const obVal=getObjTarget('val');
+  const obPz=getObjTarget('pz');
+  const gapVal=obVal>0?obVal-moVal:null;
+  const gapPz=obPz>0?obPz-moPz:null;
+  const daysLeft=kpis?kpis.daysLeft:0;
+  const dailyNeed=gapVal!==null&&daysLeft>0?Math.round(gapVal/daysLeft):null;
+
+  const stepBtn=(v,lbl)=>`<button class="tp${ST.ovTrendStep===v?' on':''}" onclick="ST.ovTrendStep='${v}';renderPage()">${lbl}</button>`;
+
+  const kpiBox=(label,val,pz,delta,sub)=>`
+<div class="g kc" style="display:flex;flex-direction:column;gap:6px">
+  <div class="kl" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">${label}</div>
+  <div class="kv" style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${hasAcq?fmt(val):'—'}</div>
+  <div style="font-size:13px;color:var(--m)">${hasAcq?fmtN(pz)+' pz':'—'}</div>
+  ${hasAcq?delta:`<div class="ks">carica acquisti.xlsx</div>`}
+  ${sub?`<div style="font-size:10px;color:var(--d);margin-top:2px">${sub}</div>`:''}
+</div>`;
+
   return`
 <div class="topbar fi">
   <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <div class="tpill" style="gap:0">${tpBtn('all','Tutto')}${tpBtn('FR','Frame')}${tpBtn('LE','Lenti')}</div>
-    <div class="tpill" style="gap:0">${filBtn('all','A+B')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}</div>
-  </div>
 </div>
 ${noDataBanner}
-<div class="kg k4 fi">
-  <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti${hasVend?' (reale)':''}</div><div class="kv gcy">${hasVend?fmtN(ovKpi.totPz):'—'}</div><div class="ks">${hasVend?(ST.ovTp==='FR'?'solo montature+sole':ST.ovTp==='LE'?'solo lenti':'tutte le categorie'):'carica vendite.xlsx'}</div></div>
-  <div class="g kc"><div class="ki">💰</div><div class="kl">Fatturato listino frame${hasVend?' (reale)':''}</div><div class="kv gem">${hasVend?fmt(ovKpi.totVal):'—'}</div><div class="ks">${hasVend?'montature + occhiali sole':'carica vendite.xlsx'}</div></div>
-  <div class="g kc"><div class="ki">📈</div><div class="kl">Margine stimato frame${hasVend?' (reale)':''}</div><div class="kv gam">${hasVend?fmt(ovKpi.marg):'—'}</div><div class="ks">${hasVend?ovKpi.pctM+'% dove acq>0':'carica vendite.xlsx'}</div></div>
-  <div class="g kc"><div class="ki">🛒</div><div class="kl">Acquistato ${CY}${hasAcq?' (reale)':''}</div><div class="kv gvi">${hasAcq?fmt(acqCY.val):'—'}</div>${dAcq?`<div class="delta ${dAcq.cls}">${dAcq.lbl} vs ${CY-1}</div>`:`<div class="ks">${hasAcq?fmtN(acqCY.pz)+' pz acquistati':'carica acquisti.xlsx'}</div>`}</div>
-</div>
-${hasAcq?`
-<div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dcy"></span>Valore acquistato per anno (€)</div><div style="font-size:11px;color:var(--m)">da acquisti.xlsx · ${fmtN(LIVE_ACQ.totPz)} pz totali</div></div>
-  <div class="cw cw-lg"><canvas id="ch_ov"></canvas></div>
-</div>`:`
-<div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dcy"></span>Valore acquistato per anno</div></div>
-  <div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend storico</div>
-</div>`}
-<div class="g2 fi">
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Acquisti per filiale (€)</div></div>
-    ${hasAcq?(()=>{const fa=LIVE_ACQ.byFiliale;const tot=fa.A.val+fa.B.val||1;return`
-      <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(fa.A.val/tot*100)}%"></div></div><div class="sv">${fmt(fa.A.val)}</div><div class="sp2">${Math.round(fa.A.val/tot*100)}%</div></div>
-      <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(fa.B.val/tot*100)}%"></div></div><div class="sv">${fmt(fa.B.val)}</div><div class="sp2">${Math.round(fa.B.val/tot*100)}%</div></div>`
-    })():`<div style="color:var(--d);font-size:12px;padding:12px 0">Carica acquisti.xlsx</div>`}
-    ${hasVend?`<div style="margin-top:10px;border-top:0.5px solid var(--b);padding-top:10px"><div class="ct" style="margin-bottom:8px"><span class="dot dem"></span>Vendite per filiale (pz)</div><div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(ovFilPzA/ovFilPzTot*100)}%"></div></div><div class="sv">${fmtN(ovFilPzA)} pz</div><div class="sp2">${Math.round(ovFilPzA/ovFilPzTot*100)}%</div></div><div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(ovFilPzB/ovFilPzTot*100)}%"></div></div><div class="sv">${fmtN(ovFilPzB)} pz</div><div class="sp2">${Math.round(ovFilPzB/ovFilPzTot*100)}%</div></div></div>`:''}
+
+<!-- 4 KPI boxes -->
+<div class="kg k4 fi" style="margin-bottom:12px">
+  ${kpiBox(
+    'Da inizio anno',
+    ytdVal, ytdPYPz?ytdPz:ytdPz,
+    kpiDelta(ytdVal,ytdPYVal,' stesso periodo'),
+    hasAcq?`periodo: 1 gen – oggi`:''
+  )}
+  ${kpiBox(
+    `${MESI[CM]} ${CY}`,
+    moVal, moPz,
+    kpiDelta(moVal,moPYVal,` vs ${MESI[CM]} ${CY-1}`),
+    hasAcq?`mese corrente`:''
+  )}
+  ${kpiBox(
+    'Settimana corrente',
+    wkVal, wkPz,
+    kpiDelta(wkVal,wkPrevVal,' vs sett. prec.'),
+    hasAcq?`vs settimana precedente`:''
+  )}
+  <div class="g kc" style="display:flex;flex-direction:column;gap:6px">
+    <div class="kl" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
+    <div class="kv" style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
+    <div style="font-size:13px;color:var(--m)">${fmtN(pzMagTot)} pz</div>
+    <div class="ks">Sede A + Sede B</div>
   </div>
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dem"></span>${hasVend?'Top brand vendite (valore listino)':'Top brand magazzino'}</div></div>
-    ${hasVend&&ovBrands.length>0?ovBrands.map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${ovBrands[0].val>0?Math.round(b.val/ovBrands[0].val*100):0}%"></div></div><div class="pv">${fmt(b.val)}</div></div>`).join(""):hasVend?`<div style="color:var(--d);font-size:12px;padding:8px 0">Nessun dato frame per il filtro selezionato</div>`:curMAG().brand.slice(0,5).map((b,i)=>`<div class="prow"><div class="prk">0${i+1}</div><div class="pi"><div class="pn">${b.n}</div></div><div class="pbw"><div class="pbr" style="width:${curMAG().brand[0].v>0?Math.round(b.v/curMAG().brand[0].v*100):0}%"></div></div><div class="pv">${fmt(b.v)}</div></div>`).join("")}
+</div>
+
+<!-- Trend chart -->
+<div class="g card fi" style="margin-bottom:12px">
+  <div class="ch">
+    <div class="ct"><span class="dot" style="background:var(--ac)"></span>Trend acquisti — ${ST.ovTrendStep==='A'?'per anno':ST.ovTrendStep==='M'?'ultimi 24 mesi':ST.ovTrendStep==='W'?'ultime 52 settimane':'ultimi 90 giorni'}</div>
+    <div class="tpill" style="gap:0">${stepBtn('A','Anno')}${stepBtn('M','Mese')}${stepBtn('W','Settimana')}${stepBtn('D','Giorno')}</div>
+  </div>
+  ${hasAcq?`<div class="cw cw-lg"><canvas id="ch_ov_trend"></canvas></div>`:`<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend</div>`}
+</div>
+
+<!-- Bottom row -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="fi">
+  <!-- Left: placeholder -->
+  <div class="g card" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--d);font-size:13px;flex-direction:column;gap:8px">
+    <span style="font-size:28px;opacity:.3">◫</span>
+    <span>sezione in arrivo</span>
+  </div>
+  <!-- Right: 3 stacked boxes -->
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <!-- Box A: mese corrente -->
+    <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">${MESI[CM]} ${CY} · progressivo</div>
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <div style="font-size:20px;font-weight:700;color:var(--t)">${hasAcq?fmt(moVal):'—'}</div>
+        <div style="font-size:13px;color:var(--m)">${hasAcq?fmtN(moPz)+' pz':'—'}</div>
+      </div>
+      ${obVal>0?`<div style="margin-top:6px;height:3px;background:var(--b);border-radius:2px"><div style="height:100%;width:${Math.min(100,Math.round(moVal/obVal*100))}%;background:var(--ac);border-radius:2px;transition:width .4s"></div></div><div style="font-size:10px;color:var(--d);margin-top:4px">${Math.round(moVal/obVal*100)}% dell'obiettivo</div>`:''}
+    </div>
+    <!-- Box B: gap to fill -->
+    <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d)">Gap obiettivo</div>
+        <button onclick="promptTarget('val','fatturato (€)');promptTarget('pz','pezzi')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ obiettivo</button>
+      </div>
+      ${obVal>0||obPz>0?`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div>
+          <div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ raggiunto':fmt(gapVal)):'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div>
+          <div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ raggiunto':fmtN(gapPz)+' pz'):'—'}</div>
+        </div>
+      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun obiettivo impostato · <span style="color:var(--ac);cursor:pointer" onclick="promptTarget('val','fatturato (€)');promptTarget('pz','pezzi')">imposta →</span></div>`}
+    </div>
+    <!-- Box C: giorni a fine mese -->
+    <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fine mese</div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div style="font-size:24px;font-weight:700;color:var(--t)">${daysLeft}</div>
+        <div style="font-size:13px;color:var(--m)">giorni al ${new Date(CY,CM+1,0).getDate()} ${MESI[CM]}</div>
+      </div>
+      ${dailyNeed!==null?`<div style="font-size:12px;color:var(--m);margin-top:4px">ritmo necessario: <b style="color:var(--ac)">${fmt(dailyNeed)}/giorno</b></div>`:''}
+    </div>
   </div>
 </div>`;
 }
@@ -1268,13 +1436,27 @@ ${splitBar()}
 function initCharts(){
   if(!window.Chart)return;
 
-  // OVERVIEW — grafico acquisti per anno (reale)
+  // OVERVIEW — trend chart with step selector
   if(ST.page==="overview"&&window.__ov&&window.__ov.hasAcq&&LIVE_ACQ){
-    const anni=Object.keys(LIVE_ACQ.byAnno).sort();
-    const colors=anni.map(y=>{const n=parseInt(y);return n===CY?"rgba(232,184,75,.5)":n===CY-1?"rgba(232,184,75,.28)":"rgba(232,184,75,.14)";});
-    const borders=anni.map(y=>{const n=parseInt(y);return n===CY?"#e8b84b":n===CY-1?"rgba(232,184,75,.7)":"rgba(232,184,75,.4)";});
-    const ovOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins.tooltip,callbacks:{label:ctx=>` ${fmt(ctx.raw)}`}}},scales:{...CO.scales,y:{...CO.scales.y,ticks:{...CO.scales.y.ticks,callback:v=>v===0?'':fmt(v)}}}};
-    mkChart("ch_ov","bar",anni,[{data:anni.map(y=>LIVE_ACQ.byAnno[y].val),backgroundColor:colors,borderColor:borders,borderWidth:1.5,borderRadius:5}],ovOpts);
+    const step=window.__ov.trendStep||'M';
+    const td=acqTrend(step);
+    const ovOpts={
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:"top",align:"end",labels:{color:"rgba(240,244,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
+        tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
+      },
+      scales:{
+        x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
+        y:{position:"left",grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}},
+        y1:{position:"right",grid:{display:false},ticks:{color:"rgba(232,184,75,.4)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtN(v)+' pz'},border:{display:false}}
+      }
+    };
+    mkChart("ch_ov_trend","bar",td.labels,[
+      {type:"bar",label:"Valore (€)",data:td.vals,backgroundColor:"rgba(232,184,75,.28)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,yAxisID:"y"},
+      {type:"line",label:"Pezzi",data:td.pzs,borderColor:"rgba(201,149,74,.7)",backgroundColor:"transparent",borderWidth:1.5,pointRadius:step==='A'?3:step==='M'?2:1,pointBackgroundColor:"rgba(201,149,74,.8)",tension:0.35,yAxisID:"y1"}
+    ],ovOpts);
   }
 
   // VENDITE — grafici (tipo prodotto donut + brand stacked bar)
