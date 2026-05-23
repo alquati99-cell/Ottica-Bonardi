@@ -425,9 +425,9 @@ function parseVendite(file){
   const reader = new FileReader();
   reader.onload = e => {
     try{
-      const wb = XLSX.read(e.target.result, {type:'array'});
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, {raw:true});
+      const raw = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd'});
       if(!raw.length) throw new Error("File vuoto");
       processVendite(raw, file.name);
     } catch(err){ alert("Errore lettura vendite: " + err.message); }
@@ -441,6 +441,7 @@ function processVendite(raw, name){
   const compactRows = rows.map(r => {
     let dt = r['data di vendita'];
     if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
+    else if(typeof dt === 'number') dt = excelSerialToISO(dt);
     else if(typeof dt === 'string') dt = normalizeDateValue(dt);
     else dt = null;
     // filter out clearly wrong dates (before 2015)
