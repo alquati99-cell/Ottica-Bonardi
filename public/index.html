@@ -624,7 +624,7 @@ function acqKPIs(){
   const daysLeft=daysInMoCY-now.getDate();
   return{ytd,ytdPY,mo,moPY,wk,wkPrev,daysLeft,moNum,moStr,moFrom,today};
 }
-function acqTrend(step){
+function acqTrend(step,range){
   if(!LIVE_ACQ||!LIVE_ACQ.rows) return{labels:[],vals:[],pzs:[]};
   const rows=LIVE_ACQ.rows;
   const agg={};
@@ -635,21 +635,24 @@ function acqTrend(step){
     return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   if(step==='M'){
-    const cut=new Date(now);cut.setMonth(cut.getMonth()-23);cut.setDate(1);
+    const months=range||48;
+    const cut=new Date(now);cut.setMonth(cut.getMonth()-(months-1));cut.setDate(1);
     const cutStr=toISO(cut).slice(0,7);
     rows.forEach(r=>{const k=r.dt.slice(0,7);if(k<cutStr)return;if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
     return{labels:keys.map(k=>{const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   if(step==='W'){
-    const cut=new Date(now);cut.setDate(cut.getDate()-7*51);
+    const weeks=range||52;
+    const cut=new Date(now);cut.setDate(cut.getDate()-7*(weeks-1));
     const cutStr=toISO(cut);
     rows.forEach(r=>{if(r.dt<cutStr)return;const k=isoWeekKey(r.dt);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
     return{labels:keys.map(k=>k.replace(/(\d{4})-W/,'W')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   if(step==='D'){
-    const cut=new Date(now);cut.setDate(cut.getDate()-89);
+    const days=range||90;
+    const cut=new Date(now);cut.setDate(cut.getDate()-(days-1));
     const cutStr=toISO(cut);
     rows.forEach(r=>{if(r.dt<cutStr)return;if(!agg[r.dt])agg[r.dt]={val:0,pz:0};agg[r.dt].val+=r.val;agg[r.dt].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
@@ -673,16 +676,28 @@ function vendKPIs(){
   const ytd=vendRange(frRows,`${CY}-01-01`,today);
   const ytdPY=vendRange(frRows,`${CY-1}-01-01`,`${CY-1}-${today.slice(5)}`);
   const mo=vendRange(frRows,`${CY}-${moStr}-01`,today);
-  const moPY=vendRange(frRows,`${CY-1}-${moStr}-01`,`${CY-1}-${moStr}-${String(daysInMoPY).padStart(2,'0')}`);
+  // pari data: stesso giorno del mese in anno precedente (non mese intero)
+  const todayDay=now.getDate();
+  const moPYDay=String(Math.min(todayDay,daysInMoPY)).padStart(2,'0');
+  const moPY=vendRange(frRows,`${CY-1}-${moStr}-01`,`${CY-1}-${moStr}-${moPYDay}`);
   const dow=now.getDay()||7;
   const monThis=new Date(now);monThis.setDate(now.getDate()-dow+1);monThis.setHours(0,0,0,0);
   const monPrev=new Date(monThis);monPrev.setDate(monThis.getDate()-7);
   const sunPrev=new Date(monThis);sunPrev.setDate(monThis.getDate()-1);
   const wk=vendRange(frRows,toISO(monThis),today);
   const wkPrev=vendRange(frRows,toISO(monPrev),toISO(sunPrev));
-  return{ytd,ytdPY,mo,moPY,wk,wkPrev,daysLeft:daysInMoCY-now.getDate()};
+  // KPI periodo selezionato (box 1)
+  const periodo=ST.ovPeriodo||'YTD';
+  const qRanges={Q1:[`${CY}-01-01`,`${CY}-03-31`],Q2:[`${CY}-04-01`,`${CY}-06-30`],Q3:[`${CY}-07-01`,`${CY}-09-30`],Q4:[`${CY}-10-01`,`${CY}-12-31`]};
+  const qRangesPY={Q1:[`${CY-1}-01-01`,`${CY-1}-03-31`],Q2:[`${CY-1}-04-01`,`${CY-1}-06-30`],Q3:[`${CY-1}-07-01`,`${CY-1}-09-30`],Q4:[`${CY-1}-10-01`,`${CY-1}-12-31`]};
+  let per,perPY,perLabel;
+  if(periodo==='MTD'){per=mo;perPY=moPY;perLabel=`${MESI[CM]} ${CY}`;}
+  else if(qRanges[periodo]){per=vendRange(frRows,...qRanges[periodo]);perPY=vendRange(frRows,...qRangesPY[periodo]);perLabel=periodo;}
+  else if(periodo==='PY'){per=vendRange(frRows,`${CY-1}-01-01`,`${CY-1}-12-31`);perPY=vendRange(frRows,`${CY-2}-01-01`,`${CY-2}-12-31`);perLabel=`${CY-1}`;}
+  else{per=ytd;perPY=ytdPY;perLabel='YTD';}
+  return{ytd,ytdPY,mo,moPY,wk,wkPrev,daysLeft:daysInMoCY-now.getDate(),per,perPY,perLabel};
 }
-function vendTrend(step){
+function vendTrend(step,range){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
   const rows=LIVE_VEND.rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
   const agg={}; const now=new Date();
@@ -692,25 +707,46 @@ function vendTrend(step){
     return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   if(step==='M'){
-    const cut=new Date(now);cut.setMonth(cut.getMonth()-23);cut.setDate(1);
+    const months=range||48;
+    const cut=new Date(now);cut.setMonth(cut.getMonth()-(months-1));cut.setDate(1);
     const cutStr=toISO(cut).slice(0,7);
     rows.forEach(r=>{if(!r.dt)return;const k=r.dt.slice(0,7);if(k<cutStr)return;if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
     return{labels:keys.map(k=>{const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   if(step==='W'){
-    const cut=new Date(now);cut.setDate(cut.getDate()-7*51);const cutStr=toISO(cut);
+    const weeks=range||52;
+    const cut=new Date(now);cut.setDate(cut.getDate()-7*(weeks-1));const cutStr=toISO(cut);
     rows.forEach(r=>{if(!r.dt||r.dt<cutStr)return;const k=isoWeekKey(r.dt);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
     return{labels:keys.map(k=>k.replace(/(\d{4})-W/,'W')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   if(step==='D'){
-    const cut=new Date(now);cut.setDate(cut.getDate()-89);const cutStr=toISO(cut);
+    const days=range||90;
+    const cut=new Date(now);cut.setDate(cut.getDate()-(days-1));const cutStr=toISO(cut);
     rows.forEach(r=>{if(!r.dt||r.dt<cutStr)return;if(!agg[r.dt])agg[r.dt]={val:0,pz:0};agg[r.dt].val+=r.val;agg[r.dt].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
     return{labels:keys.map(k=>k.slice(5).replace('-','/')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
   }
   return null;
+}
+
+// focus su un mese specifico (1-12) → tutti gli anni, solo frame
+function vendFocusMese(mese){
+  if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
+  const rows=LIVE_VEND.rows.filter(r=>(r.tp==='Montature vista'||r.tp==='Occhiali sole')&&r.mo===mese);
+  const agg={};
+  rows.forEach(r=>{if(!r.yr)return;const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+  const keys=Object.keys(agg).sort();
+  return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+}
+function acqFocusMese(mese){
+  if(!LIVE_ACQ||!LIVE_ACQ.rows) return null;
+  const rows=LIVE_ACQ.rows.filter(r=>r.mo===mese);
+  const agg={};
+  rows.forEach(r=>{const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+  const keys=Object.keys(agg).sort();
+  return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
 }
 
 function getObjTarget(type){return parseInt(localStorage.getItem(`ob_${type}_${CY}_${CM}`)||'0')||0;}
@@ -827,7 +863,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",
   vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovShowLenti:false};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD"};
 let charts={};
 const PER=30;
 
@@ -903,12 +939,12 @@ function rOv(){
   const kpis = hasVendDate ? vendKPIs() : (hasAcq ? acqKPIs() : null);
   const usingProxy = !hasVendDate && hasAcq;
 
-  window.__ov={hasAcq,hasVend,hasVendDate,trendStep:ST.ovTrendStep};
+  window.__ov={hasAcq,hasVend,hasVendDate,trendStep:ST.ovTrendStep,trendRange:ST.ovTrendRange,focusMese:ST.ovFocusMese};
 
   const noDataBanner=(!hasVend&&!hasAcq)?`<div style="background:rgba(232,184,75,.06);border:0.5px solid rgba(232,184,75,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--m);display:flex;align-items:center;gap:10px"><span style="font-size:16px">💡</span>Carica i file Excel dalla sezione <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b> per vedere KPI reali.</div>`:"";
 
-  const ytdVal=kpis?kpis.ytd.val:0, ytdPYVal=kpis?kpis.ytdPY.val:0;
-  const ytdPz=kpis?kpis.ytd.pz:0;
+  const perVal=kpis?kpis.per.val:0, perPYVal=kpis?kpis.perPY.val:0;
+  const perPz=kpis?kpis.per.pz:0, perLabel=kpis?kpis.perLabel:'YTD';
   const moVal=kpis?kpis.mo.val:0, moPYVal=kpis?kpis.moPY.val:0;
   const moPz=kpis?kpis.mo.pz:0;
   const wkVal=kpis?kpis.wk.val:0, wkPrevVal=kpis?kpis.wkPrev.val:0;
@@ -919,7 +955,9 @@ function rOv(){
   const daysLeft=kpis?kpis.daysLeft:0;
   const dailyNeed=gapVal!==null&&daysLeft>0?Math.round(gapVal/daysLeft):null;
 
-  const stepBtn=(v,lbl)=>`<button class="tp${ST.ovTrendStep===v?' on':''}" onclick="ST.ovTrendStep='${v}';renderPage()">${lbl}</button>`;
+  const stepBtn=(v,lbl)=>`<button class="tp${ST.ovTrendStep===v?' on':''}" onclick="ST.ovTrendStep='${v}';ST.ovTrendRange=(v==='M'?12:v==='W'?13:v==='D'?30:null);renderPage()">${lbl}</button>`;
+  const rangeBtn=(v,lbl)=>`<button class="tp${ST.ovTrendRange===v?' on':''}" onclick="ST.ovTrendRange=${v===null?'null':v};renderPage()" style="font-size:10px">${lbl}</button>`;
+  const meseBtn=(v,lbl)=>`<button class="tp${ST.ovFocusMese===v?' on':''}" onclick="ST.ovFocusMese=${v};renderPage()" style="font-size:10px;padding:3px 7px">${lbl}</button>`;
 
   const kpiBox=(label,val,pz,deltaTxt,sub)=>`
 <div class="g kc" style="display:flex;flex-direction:column;gap:6px">
@@ -965,20 +1003,33 @@ ${sorted.map(([tp,pz])=>{
   };
 
   return`
-<div class="topbar fi">
+<div class="topbar fi" style="flex-wrap:wrap;gap:8px">
   <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
-  <button class="tp${ST.ovShowLenti?' on':''}" onclick="ST.ovShowLenti=!ST.ovShowLenti;renderPage()" style="margin-left:auto">
-    ◈ Lenti
-  </button>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+    <!-- Selettore periodo globale -->
+    <div style="position:relative;display:inline-block" id="ov-periodo-wrap">
+      <button onclick="document.getElementById('ov-periodo-dd').style.display=document.getElementById('ov-periodo-dd').style.display==='block'?'none':'block'" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.25);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px">
+        <span>📅</span>
+        <span>${ST.ovPeriodo==='YTD'?'Anno corrente (YTD)':ST.ovPeriodo==='MTD'?`${MESI[CM]} ${CY}`:ST.ovPeriodo==='Q1'?'Q1':ST.ovPeriodo==='Q2'?'Q2':ST.ovPeriodo==='Q3'?'Q3':ST.ovPeriodo==='Q4'?'Q4':ST.ovPeriodo==='PY'?`Tutto ${CY-1}`:ST.ovPeriodo}</span>
+        <span style="font-size:8px">▼</span>
+      </button>
+      <div id="ov-periodo-dd" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:#0d1117;border:0.5px solid rgba(255,255,255,.12);border-radius:10px;padding:6px;min-width:180px;z-index:50;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+        ${[['YTD',`Anno corrente (YTD)`],['MTD',`${MESI[CM]} ${CY} (MTD)`],['Q1','Q1 (gen–mar)'],['Q2','Q2 (apr–giu)'],['Q3','Q3 (lug–set)'],['Q4','Q4 (ott–dic)'],['PY',`Tutto ${CY-1}`]].map(([v,l])=>`
+        <button onclick="ST.ovPeriodo='${v}';document.getElementById('ov-periodo-dd').style.display='none';renderPage()" style="display:block;width:100%;text-align:left;background:${ST.ovPeriodo===v?'rgba(232,184,75,.12)':'transparent'};color:${ST.ovPeriodo===v?'var(--ac)':'var(--m)'};border:none;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer">${ST.ovPeriodo===v?'✓ ':''}${l}</button>`).join('')}
+      </div>
+    </div>
+    <button class="tp${ST.ovShowLenti?' on':''}" onclick="ST.ovShowLenti=!ST.ovShowLenti;renderPage()">◈ Lenti</button>
+  </div>
 </div>
+<script>document.addEventListener('click',function(e){const w=document.getElementById('ov-periodo-wrap');const d=document.getElementById('ov-periodo-dd');if(w&&d&&!w.contains(e.target))d.style.display='none';});</script>
 ${noDataBanner}
 ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgba(232,184,75,.15);border-radius:var(--r);padding:7px 14px;margin-bottom:10px;font-size:11px;color:var(--d)">⚠ vendite.xlsx senza date — KPI calcolati su acquisti come proxy</div>`:''}
 
 <!-- 4 KPI boxes: solo Montature + Occhiali sole -->
 <div class="kg k4 fi" style="margin-bottom:12px">
-  ${kpiBox('Da inizio anno · frame',ytdVal,ytdPz,delta(ytdVal,ytdPYVal,' stesso periodo'),'Montature + Occhiali sole')}
-  ${kpiBox(`${MESI[CM]} ${CY} · frame`,moVal,moPz,delta(moVal,moPYVal,` vs ${MESI[CM]} ${CY-1}`),'mese corrente')}
-  ${kpiBox('Settimana · frame',wkVal,wkPz,delta(wkVal,wkPrevVal,' vs sett. prec.'),'vs settimana precedente')}
+  ${kpiBox(`${perLabel} · vista + sole`,perVal,perPz,delta(perVal,perPYVal,' stesso periodo'),'Occhiali vista e sole')}
+  ${kpiBox(`${MESI[CM]} ${CY} · vista + sole`,moVal,moPz,delta(moVal,moPYVal,` vs ${MESI[CM]} ${CY-1}`),'mese corrente')}
+  ${kpiBox('Settimana · vista + sole',wkVal,wkPz,delta(wkVal,wkPrevVal,' vs sett. prec.'),'vs settimana precedente')}
   <div class="g kc" style="display:flex;flex-direction:column;gap:6px">
     <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
     <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
@@ -989,12 +1040,24 @@ ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgb
 
 <!-- Trend chart vendite (frame only) -->
 <div class="g card fi" style="margin-bottom:12px">
-  <div class="ch">
-    <div style="display:flex;flex-direction:column;gap:3px">
-      <div class="ct"><span class="dot" style="background:var(--ac)"></span>Trend vendite frame — ${ST.ovTrendStep==='A'?'per anno':ST.ovTrendStep==='M'?'ultimi 24 mesi':ST.ovTrendStep==='W'?'ultime 52 settimane':'ultimi 90 giorni'}</div>
+  <div class="ch" style="flex-wrap:wrap;gap:8px">
+    <div style="display:flex;flex-direction:column;gap:3px;min-width:160px">
+      <div class="ct"><span class="dot" style="background:var(--ac)"></span>${ST.ovFocusMese!==null?`${MESI[ST.ovFocusMese-1]} · confronto anni`:`Trend occhiali vista e sole`}</div>
       ${usingProxy?`<div style="font-size:10px;color:var(--d)">proxy: acquisti</div>`:''}
     </div>
-    <div class="tpill" style="gap:0">${stepBtn('A','Anno')}${stepBtn('M','Mese')}${stepBtn('W','Settimana')}${stepBtn('D','Giorno')}</div>
+    <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-left:auto">
+      <div style="display:flex;gap:5px;align-items:center">
+        <div class="tpill" style="gap:0">
+          <button class="tp${ST.ovFocusMese===null?' on':''}" onclick="ST.ovFocusMese=null;renderPage()">Trend</button>
+          <button class="tp${ST.ovFocusMese!==null?' on':''}" onclick="if(ST.ovFocusMese===null){ST.ovFocusMese=${CM+1};renderPage();}">Per mese</button>
+        </div>
+        ${ST.ovFocusMese===null?`<div class="tpill" style="gap:0">${stepBtn('A','Anno')}${stepBtn('M','Mese')}${stepBtn('W','Sett.')}${stepBtn('D','Giorno')}</div>`:''}
+      </div>
+      ${ST.ovFocusMese===null&&ST.ovTrendStep==='M'?`<div class="tpill" style="gap:0">${rangeBtn(6,'6m')}${rangeBtn(12,'12m')}${rangeBtn(24,'24m')}${rangeBtn(null,'tutto')}</div>`:''}
+      ${ST.ovFocusMese===null&&ST.ovTrendStep==='W'?`<div class="tpill" style="gap:0">${rangeBtn(13,'13w')}${rangeBtn(26,'26w')}${rangeBtn(52,'52w')}${rangeBtn(null,'tutto')}</div>`:''}
+      ${ST.ovFocusMese===null&&ST.ovTrendStep==='D'?`<div class="tpill" style="gap:0">${rangeBtn(30,'30g')}${rangeBtn(60,'60g')}${rangeBtn(90,'90g')}${rangeBtn(null,'tutto')}</div>`:''}
+      ${ST.ovFocusMese!==null?`<div style="display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end">${MESI.map((m,i)=>meseBtn(i+1,m)).join('')}</div>`:''}
+    </div>
   </div>
   ${(hasVendDate||hasAcq)?`<div class="cw cw-lg"><canvas id="ch_ov_trend"></canvas></div>`:`<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica dati per vedere il trend vendite</div>`}
 </div>
@@ -1008,7 +1071,7 @@ ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgb
   <!-- Right: 3 stacked boxes -->
   <div style="display:flex;flex-direction:column;gap:8px">
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">${MESI[CM]} ${CY} · frame progressivo</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">${MESI[CM]} ${CY} · vista + sole progressivo</div>
       <div style="display:flex;align-items:baseline;gap:12px">
         <div style="font-size:20px;font-weight:700;color:var(--t)">${(hasVendDate||hasAcq)?fmt(moVal):'—'}</div>
         <div style="font-size:13px;color:var(--m)">${(hasVendDate||hasAcq)?fmtN(moPz)+' pz':'—'}</div>
@@ -1018,12 +1081,12 @@ ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgb
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d)">Gap obiettivo</div>
-        <button onclick="promptTarget('val','fatturato frame (€)');promptTarget('pz','pezzi frame')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ obiettivo</button>
+        <button onclick="promptTarget('val','fatturato vista+sole (€)');promptTarget('pz','pezzi vista+sole')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ obiettivo</button>
       </div>
       ${obVal>0||obPz>0?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div><div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ ok':fmt(gapVal)):'—'}</div></div>
         <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div><div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ ok':fmtN(gapPz)+' pz'):'—'}</div></div>
-      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun obiettivo impostato · <span style="color:var(--ac);cursor:pointer" onclick="promptTarget('val','fatturato frame (€)');promptTarget('pz','pezzi frame')">imposta →</span></div>`}
+      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun obiettivo impostato · <span style="color:var(--ac);cursor:pointer" onclick="promptTarget('val','fatturato vista+sole (€)');promptTarget('pz','pezzi vista+sole')">imposta →</span></div>`}
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fine mese</div>
@@ -1085,7 +1148,7 @@ function rVend(){
 <div class="kg k4 fi">
   <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti</div><div class="kv gcy">${fmtN(kpi.totPz)}</div><div class="ks">operazioni VEN filtrate</div></div>
   <div class="g kc"><div class="ki">💰</div><div class="kl">Fatturato listino</div><div class="kv gem">${fmt(kpi.totVal)}</div><div class="ks">solo montature+sole</div></div>
-  <div class="g kc"><div class="ki">📈</div><div class="kl">Margine stimato</div><div class="kv gam">${fmt(kpi.marg)}</div><div class="ks">${kpi.pctM}% solo frame con acq>0</div></div>
+  <div class="g kc"><div class="ki">📈</div><div class="kl">Margine stimato</div><div class="kv gam">${fmt(kpi.marg)}</div><div class="ks">${kpi.pctM}% solo vista+sole con acq>0</div></div>
   <div class="g kc"><div class="ki">👥</div><div class="kl">Clienti unici</div><div class="kv gro">${fmtN(kpi.clienti)}</div><div class="ks">da Codice cliente</div></div>
 </div>
 <div class="g card fi" style="margin-bottom:12px">
@@ -1512,7 +1575,12 @@ function initCharts(){
   // OVERVIEW — trend vendite (reale se hasDate, altrimenti proxy acquisti)
   if(ST.page==="overview"&&window.__ov&&(window.__ov.hasAcq||window.__ov.hasVendDate)){
     const step=window.__ov.trendStep||'M';
-    const td=(window.__ov.hasVendDate?vendTrend(step):null)||acqTrend(step);
+    const range=window.__ov.trendRange||null;
+    const fm=window.__ov.focusMese;
+    const td=fm!=null
+      ?((window.__ov.hasVendDate?vendFocusMese(fm):null)||(window.__ov.hasAcq?acqFocusMese(fm):null))
+      :((window.__ov.hasVendDate?vendTrend(step,range):null)||acqTrend(step,range));
+    if(!td||!td.labels.length) return;
     const ovOpts={
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
