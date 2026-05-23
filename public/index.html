@@ -957,6 +957,11 @@ function rOv(){
   const wkVal=kpis?kpis.wk.val:0, wkPrevVal=kpis?kpis.wkPrev.val:0;
   const wkPz=kpis?kpis.wk.pz:0;
 
+  // KPI anno precedente per settimana
+  const wkPrevPz=kpis?kpis.wkPrev.pz:0;
+  const moPYPz=kpis?kpis.moPY.pz:0;
+  const perPYPz=kpis?kpis.perPY.pz:0;
+
   const obVal=getObjTarget('val'), obPz=getObjTarget('pz');
   const gapVal=obVal>0?obVal-moVal:null, gapPz=obPz>0?obPz-moPz:null;
   const daysLeft=kpis?kpis.daysLeft:0;
@@ -966,20 +971,24 @@ function rOv(){
   const rangeBtn=(v,lbl)=>`<button class="tp${ST.ovTrendRange===v?' on':''}" onclick="ST.ovTrendRange=${v===null?'null':v};renderPage()" style="font-size:10px">${lbl}</button>`;
   const meseBtn=(v,lbl)=>`<button class="tp${ST.ovFocusMese===v?' on':''}" onclick="ST.ovFocusMese=${v};renderPage()" style="font-size:10px;padding:3px 7px">${lbl}</button>`;
 
-  const kpiBox=(label,val,pz,deltaTxt,sub)=>`
-<div class="g kc" style="display:flex;flex-direction:column;gap:6px">
+  // Box KPI con delta € e pz separati + valore anno prec.
+  const kpiBox=(label,val,pz,prevVal,prevPz,prevLabel)=>{
+    const hasData=hasVendDate||hasAcq;
+    const dV=hasData&&prevVal>0?dLabel(val,prevVal):null;
+    const dP=hasData&&prevPz>0?dLabel(pz,prevPz):null;
+    return`<div class="g kc" style="display:flex;flex-direction:column;gap:5px">
   <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">${label}</div>
-  <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${(hasVendDate||hasAcq)?fmt(val):'—'}</div>
-  <div style="font-size:13px;color:var(--m)">${(hasVendDate||hasAcq)?fmtN(pz)+' pz':'—'}</div>
-  ${deltaTxt}
-  ${sub?`<div style="font-size:10px;color:var(--d);margin-top:2px">${sub}</div>`:''}
+  <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${hasData?fmt(val):'—'}</div>
+  <div style="font-size:13px;color:var(--m)">${hasData?fmtN(pz)+' pz':'—'}</div>
+  ${hasData&&prevVal?`<div style="border-top:0.5px solid var(--b);padding-top:6px;margin-top:2px">
+    <div style="font-size:10px;color:var(--d);margin-bottom:4px">vs ${prevLabel}</div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      ${dV?`<span class="delta ${dV.cls}" style="font-size:10px">${dV.lbl} €</span>`:''}
+      ${dP?`<span class="delta ${dP.cls}" style="font-size:10px;background:rgba(77,184,204,.1);border-color:rgba(77,184,204,.25);color:#4db8cc">${dP.lbl} pz</span>`:''}
+    </div>
+    <div style="font-size:10px;color:var(--d);margin-top:4px">${fmt(prevVal)} · ${fmtN(prevPz)} pz</div>
+  </div>`:`<div style="font-size:10px;color:var(--d)">nessun dato anno prec.</div>`}
 </div>`;
-
-  const delta=(c,p,suffix)=>{
-    if(!(hasVendDate||hasAcq)) return`<div style="font-size:11px;color:var(--d)">carica dati</div>`;
-    if(!p) return`<div style="font-size:11px;color:var(--d)">nessun dato anno prec.</div>`;
-    const d=dLabel(c,p);
-    return`<div class="delta ${d.cls}">${d.lbl} vs ${CY-1}${suffix||''}</div>`;
   };
 
   // Lenti panel (pezzi only, no costs)
@@ -1020,7 +1029,7 @@ ${sorted.map(([tp,pz])=>{
         <span>${ST.ovPeriodo==='YTD'?'Anno corrente (YTD)':ST.ovPeriodo==='MTD'?`${MESI[CM]} ${CY}`:ST.ovPeriodo==='Q1'?'Q1':ST.ovPeriodo==='Q2'?'Q2':ST.ovPeriodo==='Q3'?'Q3':ST.ovPeriodo==='Q4'?'Q4':ST.ovPeriodo==='PY'?`Tutto ${CY-1}`:ST.ovPeriodo}</span>
         <span style="font-size:8px">▼</span>
       </button>
-      <div id="ov-periodo-dd" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:#0d1117;border:0.5px solid rgba(255,255,255,.12);border-radius:10px;padding:6px;min-width:180px;z-index:50;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+      <div id="ov-periodo-dd" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:#0d1117;border:0.5px solid rgba(255,255,255,.12);border-radius:10px;padding:6px;min-width:180px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.7)">
         ${[['YTD',`Anno corrente (YTD)`],['MTD',`${MESI[CM]} ${CY} (MTD)`],['Q1','Q1 (gen–mar)'],['Q2','Q2 (apr–giu)'],['Q3','Q3 (lug–set)'],['Q4','Q4 (ott–dic)'],['PY',`Tutto ${CY-1}`]].map(([v,l])=>`
         <button onclick="ST.ovPeriodo='${v}';document.getElementById('ov-periodo-dd').style.display='none';renderPage()" style="display:block;width:100%;text-align:left;background:${ST.ovPeriodo===v?'rgba(232,184,75,.12)':'transparent'};color:${ST.ovPeriodo===v?'var(--ac)':'var(--m)'};border:none;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer">${ST.ovPeriodo===v?'✓ ':''}${l}</button>`).join('')}
       </div>
@@ -1033,9 +1042,9 @@ ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgb
 
 <!-- 4 KPI boxes: solo Montature + Occhiali sole -->
 <div class="kg k4 fi" style="margin-bottom:12px">
-  ${kpiBox(`${perLabel} · vista + sole`,perVal,perPz,delta(perVal,perPYVal,' stesso periodo'),'Occhiali vista e sole')}
-  ${kpiBox(`${MESI[CM]} ${CY} · vista + sole`,moVal,moPz,delta(moVal,moPYVal,` vs ${MESI[CM]} ${CY-1}`),'mese corrente')}
-  ${kpiBox('Settimana · vista + sole',wkVal,wkPz,delta(wkVal,wkPrevVal,' vs sett. prec.'),'vs settimana precedente')}
+  ${kpiBox(`${perLabel} · vista + sole`,perVal,perPz,perPYVal,perPYPz,`stesso periodo ${CY-1}`)}
+  ${kpiBox(`${MESI[CM]} ${CY} · vista + sole`,moVal,moPz,moPYVal,moPYPz,`${MESI[CM]} ${CY-1} pari data`)}
+  ${kpiBox('Settimana · vista + sole',wkVal,wkPz,wkPrevVal,wkPrevPz,'sett. precedente')}
   <div class="g kc" style="display:flex;flex-direction:column;gap:6px">
     <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
     <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
@@ -1597,12 +1606,12 @@ function initCharts(){
       scales:{
         x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
         y:{position:"left",grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}},
-        y1:{position:"right",grid:{display:false},ticks:{color:"rgba(232,184,75,.4)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtN(v)+' pz'},border:{display:false}}
+        y1:{position:"right",grid:{display:false},ticks:{color:"rgba(77,184,204,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtN(v)+' pz'},border:{display:false}}
       }
     };
     mkChart("ch_ov_trend","bar",td.labels,[
-      {type:"bar",label:"Valore (€)",data:td.vals,backgroundColor:"rgba(232,184,75,.28)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,yAxisID:"y"},
-      {type:"line",label:"Pezzi",data:td.pzs,borderColor:"rgba(201,149,74,.7)",backgroundColor:"transparent",borderWidth:1.5,pointRadius:step==='A'?3:step==='M'?2:1,pointBackgroundColor:"rgba(201,149,74,.8)",tension:0.35,yAxisID:"y1"}
+      {type:"bar",label:"Fatturato (€)",data:td.vals,backgroundColor:"rgba(232,184,75,.3)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,yAxisID:"y"},
+      {type:"line",label:"Pezzi",data:td.pzs,borderColor:"#4db8cc",backgroundColor:"rgba(77,184,204,.08)",borderWidth:2,pointRadius:step==='A'?3:step==='M'?2:1,pointBackgroundColor:"#4db8cc",tension:0.4,fill:false,yAxisID:"y1"}
     ],ovOpts);
   }
 
