@@ -1641,10 +1641,13 @@ function initCharts(){
         datalabels:{
           display:ctx=>ctx.datasetIndex===0?showLabels&&ctx.dataset.data[ctx.dataIndex]>0:showPzLabels&&ctx.dataset.data[ctx.dataIndex]>0,
           anchor:ctx=>ctx.datasetIndex===0?'end':'center',
-          align:ctx=>ctx.datasetIndex===0?'end':'bottom',
-          offset:ctx=>ctx.datasetIndex===0?2:6,
-          color:ctx=>ctx.datasetIndex===0?'rgba(232,184,75,.9)':'rgba(77,184,204,.85)',
-          font:ctx=>({family:"'DM Mono',monospace",size:ctx.datasetIndex===0?lblSz:lblSz-1,weight:ctx.datasetIndex===0?'500':'400'}),
+          align:ctx=>ctx.datasetIndex===0?'start':'top',
+          offset:ctx=>ctx.datasetIndex===0?6:5,
+          color:'rgba(232,237,245,.95)',
+          backgroundColor:ctx=>ctx.datasetIndex===0?'rgba(7,9,15,.62)':'rgba(77,184,204,.28)',
+          borderRadius:5,
+          padding:{top:2,bottom:2,left:6,right:6},
+          font:ctx=>({family:"'DM Mono',monospace",size:ctx.datasetIndex===0?12:11,weight:'600'}),
           formatter:(v,ctx)=>ctx.datasetIndex===0?fmtShort(v):fmtShortPz(v)+' pz'
         },
         tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
