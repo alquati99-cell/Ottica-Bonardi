@@ -225,6 +225,8 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
 </style>
 </head>
 <body>
+<!-- Dropdown periodo: fixed, fuori da qualsiasi stacking context -->
+<div id="ov-periodo-dd" style="display:none;position:fixed;background:#0d1117;border:0.5px solid rgba(255,255,255,.12);border-radius:10px;padding:6px;min-width:190px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.8)"></div>
 <div class="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
 <div class="shell">
 <nav class="sb" id="sidebar">
@@ -870,11 +872,25 @@ const PER=30;
 function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy();}catch{}});charts={};}
 
 // ═══ SIDEBAR TOGGLE ══════════════════════════════════════════════════════════
-// chiudi dropdown periodo cliccando fuori
+// Dropdown periodo: fixed, posizionato sotto il bottone via getBoundingClientRect
+function togglePeriodoDD(btn){
+  const dd=document.getElementById('ov-periodo-dd');
+  if(!dd) return;
+  if(dd.style.display==='block'){dd.style.display='none';return;}
+  // Popola il contenuto
+  const opts=[['YTD','Anno corrente (YTD)'],['MTD',MESI[CM]+' '+CY+' (MTD)'],['Q1','Q1 (gen–mar)'],['Q2','Q2 (apr–giu)'],['Q3','Q3 (lug–set)'],['Q4','Q4 (ott–dic)'],['PY','Tutto '+(CY-1)]];
+  dd.innerHTML=opts.map(([v,l])=>`<button onclick="ST.ovPeriodo='${v}';document.getElementById('ov-periodo-dd').style.display='none';renderPage()" style="display:block;width:100%;text-align:left;background:${ST.ovPeriodo===v?'rgba(232,184,75,.12)':'transparent'};color:${ST.ovPeriodo===v?'var(--ac)':'rgba(232,237,245,.6)'};border:none;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer">${ST.ovPeriodo===v?'✓ ':''}${l}</button>`).join('');
+  // Posiziona fixed sotto il bottone
+  const r=btn.getBoundingClientRect();
+  dd.style.top=(r.bottom+6)+'px';
+  dd.style.right=(window.innerWidth-r.right)+'px';
+  dd.style.left='auto';
+  dd.style.display='block';
+}
 document.addEventListener('click',function(e){
-  const w=document.getElementById('ov-periodo-wrap');
   const d=document.getElementById('ov-periodo-dd');
-  if(w&&d&&!w.contains(e.target)) d.style.display='none';
+  const w=document.getElementById('ov-periodo-wrap');
+  if(d&&d.style.display==='block'&&!d.contains(e.target)&&!(w&&w.contains(e.target))) d.style.display='none';
 });
 
 function toggleSidebar(){
@@ -1023,16 +1039,12 @@ ${sorted.map(([tp,pz])=>{
   <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
   <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
     <!-- Selettore periodo globale -->
-    <div style="position:relative;display:inline-block" id="ov-periodo-wrap">
-      <button onclick="document.getElementById('ov-periodo-dd').style.display=document.getElementById('ov-periodo-dd').style.display==='block'?'none':'block'" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.25);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px">
+    <div style="display:inline-block" id="ov-periodo-wrap">
+      <button onclick="togglePeriodoDD(this)" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.25);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px">
         <span>📅</span>
-        <span>${ST.ovPeriodo==='YTD'?'Anno corrente (YTD)':ST.ovPeriodo==='MTD'?`${MESI[CM]} ${CY}`:ST.ovPeriodo==='Q1'?'Q1':ST.ovPeriodo==='Q2'?'Q2':ST.ovPeriodo==='Q3'?'Q3':ST.ovPeriodo==='Q4'?'Q4':ST.ovPeriodo==='PY'?`Tutto ${CY-1}`:ST.ovPeriodo}</span>
+        <span>${ST.ovPeriodo==='YTD'?'Anno corrente (YTD)':ST.ovPeriodo==='MTD'?`${MESI[CM]} ${CY}`:ST.ovPeriodo==='Q1'?'Q1 (gen–mar)':ST.ovPeriodo==='Q2'?'Q2 (apr–giu)':ST.ovPeriodo==='Q3'?'Q3 (lug–set)':ST.ovPeriodo==='Q4'?'Q4 (ott–dic)':ST.ovPeriodo==='PY'?`Tutto ${CY-1}`:ST.ovPeriodo}</span>
         <span style="font-size:8px">▼</span>
       </button>
-      <div id="ov-periodo-dd" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:#0d1117;border:0.5px solid rgba(255,255,255,.12);border-radius:10px;padding:6px;min-width:180px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.7)">
-        ${[['YTD',`Anno corrente (YTD)`],['MTD',`${MESI[CM]} ${CY} (MTD)`],['Q1','Q1 (gen–mar)'],['Q2','Q2 (apr–giu)'],['Q3','Q3 (lug–set)'],['Q4','Q4 (ott–dic)'],['PY',`Tutto ${CY-1}`]].map(([v,l])=>`
-        <button onclick="ST.ovPeriodo='${v}';document.getElementById('ov-periodo-dd').style.display='none';renderPage()" style="display:block;width:100%;text-align:left;background:${ST.ovPeriodo===v?'rgba(232,184,75,.12)':'transparent'};color:${ST.ovPeriodo===v?'var(--ac)':'var(--m)'};border:none;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer">${ST.ovPeriodo===v?'✓ ':''}${l}</button>`).join('')}
-      </div>
     </div>
     <button class="tp${ST.ovShowLenti?' on':''}" onclick="ST.ovShowLenti=!ST.ovShowLenti;renderPage()">◈ Lenti</button>
   </div>
