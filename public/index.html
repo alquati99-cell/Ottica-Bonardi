@@ -700,7 +700,8 @@ function vendKPIs(){
   else if(qRanges[periodo]){per=vendRange(frRows,...qRanges[periodo]);perPY=vendRange(frRows,...qRangesPY[periodo]);perLabel=periodo;}
   else if(periodo==='PY'){per=vendRange(frRows,`${CY-1}-01-01`,`${CY-1}-12-31`);perPY=vendRange(frRows,`${CY-2}-01-01`,`${CY-2}-12-31`);perLabel=`${CY-1}`;}
   else{per=ytd;perPY=ytdPY;perLabel='YTD';}
-  return{ytd,ytdPY,mo,moPY,wk,wkPrev,daysLeft:daysInMoCY-now.getDate(),per,perPY,perLabel};
+  const moFullPY=vendRange(frRows,`${CY-1}-${moStr}-01`,`${CY-1}-${moStr}-${String(daysInMoPY).padStart(2,'0')}`);
+  return{ytd,ytdPY,mo,moPY,moFullPY,wk,wkPrev,daysLeft:daysInMoCY-now.getDate(),per,perPY,perLabel};
 }
 function vendTrend(step,range){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
@@ -868,7 +869,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",
   vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD"};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10};
 let charts={};
 const PER=30;
 
@@ -981,7 +982,15 @@ function rOv(){
   const moPYPz=kpis?kpis.moPY.pz:0;
   const perPYPz=kpis?kpis.perPY.pz:0;
 
-  const obVal=getObjTarget('val'), obPz=getObjTarget('pz');
+  const pct=ST.ovObjPct||10;
+  const moFullPY=kpis?.moFullPY||{val:0,pz:0};
+  const autoObPz=moFullPY.pz>0?Math.round(moFullPY.pz*(1+pct/100)):0;
+  const autoObVal=moFullPY.val>0?Math.round(moFullPY.val*(1+pct/100)):0;
+  const manualObPz=parseInt(localStorage.getItem(`ob_pz_${CY}_${CM}`)||'0')||0;
+  const manualObVal=parseInt(localStorage.getItem(`ob_val_${CY}_${CM}`)||'0')||0;
+  const obPz=manualObPz>0?manualObPz:autoObPz;
+  const obVal=manualObVal>0?manualObVal:autoObVal;
+  const isAutoOb=!manualObPz&&!manualObVal;
   const gapVal=obVal>0?obVal-moVal:null, gapPz=obPz>0?obPz-moPz:null;
   const daysLeft=kpis?kpis.daysLeft:0;
   const dailyNeed=gapVal!==null&&daysLeft>0?Math.round(gapVal/daysLeft):null;
@@ -1109,14 +1118,21 @@ ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgb
       ${obVal>0?`<div style="margin-top:6px;height:3px;background:var(--b);border-radius:2px"><div style="height:100%;width:${Math.min(100,Math.round(moVal/obVal*100))}%;background:var(--ac);border-radius:2px;transition:width .4s"></div></div><div style="font-size:10px;color:var(--d);margin-top:4px">${Math.round(moVal/obVal*100)}% dell'obiettivo</div>`:''}
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d)">Gap obiettivo</div>
-        <button onclick="promptTarget('val','fatturato vista+sole (€)');promptTarget('pz','pezzi vista+sole')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ obiettivo</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d)">Gap obiettivo</div>
+          ${isAutoOb?`<div style="display:flex;gap:3px">${[5,10,20].map(p=>`<button onclick="ST.ovObjPct=${p};renderPage()" style="background:${pct===p?'rgba(232,184,75,.2)':'rgba(255,255,255,.05)'};border:0.5px solid ${pct===p?'rgba(232,184,75,.4)':'rgba(255,255,255,.1)'};color:${pct===p?'var(--ac)':'var(--m)'};border-radius:5px;padding:1px 7px;font-size:10px;cursor:pointer">+${p}%</button>`).join('')}</div>`:''}
+        </div>
+        <div style="display:flex;gap:5px;align-items:center">
+          ${!isAutoOb?`<button onclick="localStorage.removeItem('ob_pz_${CY}_${CM}');localStorage.removeItem('ob_val_${CY}_${CM}');renderPage()" style="background:transparent;border:none;color:var(--d);font-size:10px;cursor:pointer">↺ auto</button>`:''}
+          <button onclick="promptTarget('val','fatturato vista+sole (€)');promptTarget('pz','pezzi vista+sole')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ manuale</button>
+        </div>
       </div>
+      ${isAutoOb&&autoObPz>0?`<div style="font-size:10px;color:var(--d);margin-bottom:6px">base: ${MESI[CM]} ${CY-1} · ${fmtN(moFullPY.pz)} pz · ${fmt(moFullPY.val)}</div>`:''}
       ${obVal>0||obPz>0?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div><div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ ok':fmt(gapVal)):'—'}</div></div>
-        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div><div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ ok':fmtN(gapPz)+' pz'):'—'}</div></div>
-      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun obiettivo impostato · <span style="color:var(--ac);cursor:pointer" onclick="promptTarget('val','fatturato vista+sole (€)');promptTarget('pz','pezzi vista+sole')">imposta →</span></div>`}
+        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div><div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ ok':fmt(gapVal)):'—'}</div><div style="font-size:10px;color:var(--d);margin-top:2px">ob. ${fmt(obVal)}</div></div>
+        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div><div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ ok':fmtN(gapPz)+' pz'):'—'}</div><div style="font-size:10px;color:var(--d);margin-top:2px">ob. ${fmtN(obPz)} pz</div></div>
+      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun dato anno precedente per calcolo automatico</div>`}
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fine mese</div>
@@ -1613,6 +1629,7 @@ function initCharts(){
     if(!td||!td.labels.length) return;
     const ovOpts={
       responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:28,right:8}},
       interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:true,position:"top",align:"end",labels:{color:"rgba(240,244,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
@@ -1626,11 +1643,12 @@ function initCharts(){
       }
     };
     const showLabels=td.labels.length<=24;
+    const lblSz=td.labels.length<=12?10:td.labels.length<=18?9:8;
     mkChart("ch_ov_trend","bar",td.labels,[
       {type:"bar",label:"Fatturato (€)",data:td.vals,backgroundColor:"rgba(232,184,75,.3)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,yAxisID:"y",
-        datalabels:showLabels?{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.85)',font:{family:"'DM Mono',monospace",size:td.labels.length<=12?10:8},formatter:v=>v>0?fmtShort(v):''}:{display:false}},
+        datalabels:showLabels?{display:true,anchor:'end',align:'end',offset:2,color:'rgba(232,184,75,.9)',font:{family:"'DM Mono',monospace",size:lblSz,weight:'500'},formatter:v=>v>0?fmtShort(v):''}:{display:false}},
       {type:"line",label:"Pezzi",data:td.pzs,borderColor:"#4db8cc",backgroundColor:"rgba(77,184,204,.08)",borderWidth:2,pointRadius:step==='A'?3:step==='M'?2:1,pointBackgroundColor:"#4db8cc",tension:0.4,fill:false,yAxisID:"y1",
-        datalabels:(step==='A'||td.labels.length<=12)?{display:true,anchor:'end',align:'bottom',color:'rgba(77,184,204,.85)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>v>0?fmtShortPz(v)+' pz':''}:{display:false}}
+        datalabels:(step==='A'||td.labels.length<=12)?{display:true,anchor:'center',align:'bottom',offset:6,color:'rgba(77,184,204,.85)',font:{family:"'DM Mono',monospace",size:lblSz-1},formatter:v=>v>0?fmtShortPz(v)+' pz':''}:{display:false}}
     ],ovOpts);
   }
 
@@ -1652,8 +1670,8 @@ function initCharts(){
       mkChart("ch_vbrand","bar",labels,[
         {label:"Costo acq.",data:brs.map(b=>b.acq),backgroundColor:"rgba(201,149,74,.25)",borderColor:"rgba(201,149,74,.7)",borderWidth:1,borderRadius:{topLeft:0,topRight:0,bottomLeft:4,bottomRight:4},stack:"s",datalabels:{display:false}},
         {label:"Margine",data:brs.map(b=>b.marg>0?b.marg:0),backgroundColor:"rgba(232,184,75,.35)",borderColor:"#e8b84b",borderWidth:1,borderRadius:{topLeft:4,topRight:4,bottomLeft:0,bottomRight:0},stack:"s",
-          datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.9)',font:{family:"'DM Mono',monospace",size:9},formatter:(v,ctx)=>{const acq=ctx.chart.data.datasets[0].data[ctx.dataIndex]||0;const tot=acq+(v>0?v:0);return tot>0?fmtShort(tot):''}}}
-      ],brandOpts);
+          datalabels:{display:true,anchor:'end',align:'end',offset:2,color:'rgba(232,184,75,.9)',font:{family:"'DM Mono',monospace",size:9},formatter:(v,ctx)=>{const acq=ctx.chart.data.datasets[0].data[ctx.dataIndex]||0;const tot=acq+(v>0?v:0);return tot>0?fmtShort(tot):''}}}
+      ],{...brandOpts,layout:{padding:{top:22}}});
     }
   }
 
@@ -1663,11 +1681,11 @@ function initCharts(){
     // Grafico 1
     if(mg.bf){
       const byMod=Object.entries(mg.rows.reduce((o,r)=>{o[r.mod]=(o[r.mod]||0)+r.v;return o;},{})).sort((a,b)=>b[1]-a[1]).slice(0,10);
-      mkChart("ch_mag1","bar",byMod.map(x=>x[0].slice(0,14)),[{data:byMod.map(x=>x[1]),backgroundColor:"rgba(232,184,75,.2)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.8)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}],CO);
+      mkChart("ch_mag1","bar",byMod.map(x=>x[0].slice(0,14)),[{data:byMod.map(x=>x[1]),backgroundColor:"rgba(232,184,75,.2)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'end',offset:2,color:'rgba(232,184,75,.85)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}],{...CO,layout:{padding:{top:22}}});
     } else {
       const magBrandAlphas=["rgba(232,184,75,.5)","rgba(232,184,75,.4)","rgba(201,149,74,.5)","rgba(232,184,75,.3)","rgba(201,149,74,.4)","rgba(232,184,75,.25)","rgba(201,149,74,.3)","rgba(232,184,75,.2)","rgba(201,149,74,.25)","rgba(232,184,75,.15)"];
       const magBrandBorder=["#e8b84b","#e8b84b","rgba(201,149,74,.9)","rgba(232,184,75,.7)","rgba(201,149,74,.7)","rgba(232,184,75,.6)","rgba(201,149,74,.6)","rgba(232,184,75,.5)","rgba(201,149,74,.5)","rgba(232,184,75,.4)"];
-      mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:magBrandAlphas,borderColor:magBrandBorder,borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.8)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}],CO);
+      mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:magBrandAlphas,borderColor:magBrandBorder,borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'end',offset:2,color:'rgba(232,184,75,.85)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}],{...CO,layout:{padding:{top:22}}});
     }
     // Grafico 2 categorie
     mkChart("ch_mag2","doughnut",["A · Montature","A · Sole","B · Montature","B · Sole"],[{data:[mg.catA["Montature"]||0,mg.catA["Sole"]||0,mg.catB["Montature"]||0,mg.catB["Sole"]||0],backgroundColor:["#e8b84b","rgba(232,184,75,.5)","rgba(201,149,74,.8)","rgba(201,149,74,.4)"],borderWidth:0,hoverOffset:6}],coDon);
@@ -1680,7 +1698,7 @@ function initCharts(){
       const agMode=ST.agChartMode==="pz";
       const agData=anni.map(y=>agMode?ag.byAnno[y].pz:ag.byAnno[y].v);
       const agOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins?.tooltip,callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}},scales:{...CO.scales,y:{...CO.scales?.y,ticks:{...CO.scales?.y?.ticks,callback:v=>agMode?v+" pz":"€ "+Math.round(v).toLocaleString("it-IT")}}}};
-      mkChart("ch_aging","bar",anni,[{data:agData,backgroundColor:agColors,borderColor:agBorder,borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.8)',font:{family:"'DM Mono',monospace",size:10},formatter:v=>agMode?fmtShortPz(v)+' pz':fmtShort(v)}}],agOpts);
+      mkChart("ch_aging","bar",anni,[{data:agData,backgroundColor:agColors,borderColor:agBorder,borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'end',offset:2,color:'rgba(232,184,75,.85)',font:{family:"'DM Mono',monospace",size:10},formatter:v=>agMode?fmtShortPz(v)+' pz':fmtShort(v)}}],{...agOpts,layout:{padding:{top:24}}});
       // Donut priorità
       const stats=ag.stats;
       const priData=agMode?[stats.U.pz,stats.A.pz,stats.M.pz,stats.O.pz]:[stats.U.v,stats.A.v,stats.M.v,stats.O.v];
