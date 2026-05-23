@@ -244,6 +244,7 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="nav('magazzino')" id="nb-magazzino"><span class="nb-ic">◫</span><span class="nb-label">Magazzino</span></button>
     <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span><span class="nb-label">Clienti</span></button>
     <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span><span class="nb-label">Carica dati</span></button>
+    <button class="nb" onclick="nav('lenti')" id="nb-lenti"><span class="nb-ic">🔬</span><span class="nb-label">Lenti</span></button>
   </div>
   <div class="sb-vista">
     <div class="sb-vista-label">Vista dati</div>
@@ -465,6 +466,8 @@ function processVendite(raw, name){
       val: parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0)||0,
       acq: parseFloat(r['Prezzo acquisto']||0)||0,
       cli: (r['Codice cliente']||'').trim(),
+      mod: (r['Modello']||r['Articolo']||r['Descrizione']||'').trim(),
+      diam: (r['Diametro']||r['Diametro mm']||r['Ø']||'').toString().trim(),
       dt, yr, mo
     };
   });
@@ -871,7 +874,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",
   vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10,lentiTab:'kpi',lentiFil:'all',lentiTp:'all'};
 let charts={};
 const PER=30;
 
@@ -928,6 +931,7 @@ function renderPage(){
   else if(ST.page==="magazzino")r.innerHTML=rMag();
   else if(ST.page==="clienti")r.innerHTML=rCli();
   else if(ST.page==="dati")r.innerHTML=rDati();
+  else if(ST.page==="lenti")r.innerHTML=rLenti();
   setTimeout(initCharts,60);
 }
 
@@ -1613,6 +1617,266 @@ ${splitBar()}
     <td class="mn">${c.nAcq}</td><td class="mn mn-gr">${fmt(c.fatt)}</td>
     <td class="mn" style="color:var(--m)">${c.ua?c.ua.slice(0,7):"—"}</td>
   </tr>`;}).join("")}</tbody></table>
+</div>`;
+}
+
+// ═══ LENTI ══════════════════════════════════════════════════════════════════
+function rLenti(){
+  if(!LIVE_VEND){
+    return`<div class="topbar fi"><div class="page-title">Lenti <span class="pt-badge">${CY}</span></div></div>
+<div class="g card fi" style="text-align:center;padding:40px 20px;color:var(--d)">
+  <div style="font-size:32px;margin-bottom:12px">🔬</div>
+  <div style="font-size:14px;margin-bottom:6px;color:var(--m)">Nessun dato disponibile</div>
+  <div style="font-size:12px">Carica <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">vendite.xlsx</b> per vedere l'analisi lenti</div>
+</div>`;
+  }
+  const now=new Date();const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const hasDate=LIVE_VEND.hasDate;
+  const allL=LIVE_VEND.rows.filter(r=>r.tp&&r.tp.startsWith('Lenti'));
+  const rows=ST.lentiFil==='all'?allL:allL.filter(r=>r.fil===ST.lentiFil);
+  const ytdRows=hasDate?rows.filter(r=>r.dt&&r.dt>=`${CY}-01-01`&&r.dt<=today):rows;
+
+  // KPI totali
+  const totPz=ytdRows.reduce((a,r)=>a+r.pz,0);
+  const totVal=ytdRows.reduce((a,r)=>a+r.val,0);
+  const totAcq=ytdRows.reduce((a,r)=>a+r.acq,0);
+  const totMarg=totVal-totAcq;
+  const margPct=totVal>0?Math.round(totMarg/totVal*100):0;
+
+  // Previous year same period
+  const pytdRows=hasDate?rows.filter(r=>r.dt&&r.dt>=`${CY-1}-01-01`&&r.dt<=`${CY-1}-${today.slice(5)}`):[];
+  const pTotPz=pytdRows.reduce((a,r)=>a+r.pz,0);
+  const pTotVal=pytdRows.reduce((a,r)=>a+r.val,0);
+  const pTotMarg=pytdRows.reduce((a,r)=>a+(r.val-r.acq),0);
+
+  const dV=pTotVal>0?Math.round((totVal-pTotVal)/pTotVal*100):null;
+  const dP=pTotPz>0?Math.round((totPz-pTotPz)/pTotPz*100):null;
+  const dM=pTotMarg>0?Math.round((totMarg-pTotMarg)/pTotMarg*100):null;
+  const chip=(v,suffix='')=>v===null?'':`<span class="delta ${v>=0?'up':'dn'}" style="font-size:10px">${v>=0?'↑':'↓'}${Math.abs(v)}%${suffix}</span>`;
+
+  // Per tipo
+  const byTp={};
+  ytdRows.forEach(r=>{
+    const k=r.tp||'Altro';
+    if(!byTp[k])byTp[k]={pz:0,val:0,acq:0};
+    byTp[k].pz+=r.pz;byTp[k].val+=r.val;byTp[k].acq+=r.acq;
+  });
+  const tpSorted=Object.entries(byTp).sort((a,b)=>b[1].pz-a[1].pz);
+  const tpLabels=['Mono','Prog','Bifoc','Occup','Acc.','PDC'];
+  const tpMap={'Lenti monofocali':'Mono','Lenti progressive':'Prog','Lenti bifocali':'Bifoc','Lenti occupazionali':'Occup','Lenti a supporto accomodativo':'Acc.','Lenti a profondità di campo':'PDC'};
+  const shortTp=tp=>tpMap[tp]||tp.replace('Lenti ','').slice(0,6);
+
+  // Per marchio
+  const byMar={};
+  ytdRows.forEach(r=>{
+    const k=r.mar||'N/D';
+    if(!byMar[k])byMar[k]={pz:0,val:0,acq:0};
+    byMar[k].pz+=r.pz;byMar[k].val+=r.val;byMar[k].acq+=r.acq;
+  });
+  const marSorted=Object.entries(byMar).sort((a,b)=>b[1].pz-a[1].pz).slice(0,10);
+
+  // Per diametro (se disponibile)
+  const hasDiam=allL.some(r=>r.diam&&r.diam!=='');
+  const byDiam={};
+  if(hasDiam){
+    ytdRows.forEach(r=>{
+      const k=r.diam||'N/D';
+      if(!byDiam[k])byDiam[k]={pz:0,val:0,acq:0};
+      byDiam[k].pz+=r.pz;byDiam[k].val+=r.val;byDiam[k].acq+=r.acq;
+    });
+  }
+  const diamSorted=Object.entries(byDiam).sort((a,b)=>b[1].pz-a[1].pz);
+
+  // Per operatore
+  const byOp={};
+  ytdRows.forEach(r=>{
+    const k=r.op||'N/D';
+    if(!byOp[k])byOp[k]={pz:0,val:0,acq:0};
+    byOp[k].pz+=r.pz;byOp[k].val+=r.val;byOp[k].acq+=r.acq;
+  });
+  const opSorted=Object.entries(byOp).sort((a,b)=>b[1].pz-a[1].pz).slice(0,8);
+
+  // Per filiale
+  const byFil={A:{pz:0,val:0,acq:0},B:{pz:0,val:0,acq:0}};
+  ytdRows.forEach(r=>{const k=r.fil==='B'?'B':'A';byFil[k].pz+=r.pz;byFil[k].val+=r.val;byFil[k].acq+=r.acq;});
+
+  // Trend mensile
+  const trendAgg={};
+  if(hasDate){
+    const cut=new Date(now);cut.setMonth(cut.getMonth()-11);cut.setDate(1);
+    const cutStr=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,'0')}`;
+    rows.forEach(r=>{
+      if(!r.dt)return;
+      const k=r.dt.slice(0,7);
+      if(k<cutStr)return;
+      if(!trendAgg[k])trendAgg[k]={pz:0,val:0,marg:0};
+      trendAgg[k].pz+=r.pz;trendAgg[k].val+=r.val;trendAgg[k].marg+=(r.val-r.acq);
+    });
+  }
+  const trendKeys=Object.keys(trendAgg).sort();
+  const trendLabels=trendKeys.map(k=>{const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);});
+
+  const filBtn=f=>`<button class="tp${ST.lentiFil===f?' on':''}" onclick="ST.lentiFil='${f}';renderPage()">${f==='all'?'Tutte':f}</button>`;
+
+  // Percentuale tipo su totale
+  const pctTp=tp=>totPz>0?Math.round((byTp[tp]||{pz:0}).pz/totPz*100):0;
+
+  window.__lenti={hasDate,trendKeys,trendLabels,trendAgg,tpSorted,shortTp,marSorted,diamSorted,hasDiam,opSorted};
+
+  return`
+<div class="topbar fi" style="flex-wrap:wrap;gap:8px">
+  <div class="page-title">Lenti <span class="pt-badge">${hasDate?'YTD '+CY:'Totale'}</span></div>
+  <div class="tpill" style="gap:0">${filBtn('all')}${filBtn('A')}${filBtn('B')}</div>
+</div>
+
+<!-- 4 KPI boxes -->
+<div class="kg k4 fi" style="margin-bottom:14px">
+  <div class="g kc">
+    <div class="kl">Pezzi venduti</div>
+    <div class="kv gem">${fmtN(Math.round(totPz))}</div>
+    <div class="ks">lenti totali${hasDate?' YTD':''}</div>
+    ${chip(dP,' pz')}
+  </div>
+  <div class="g kc">
+    <div class="kl">Fatturato lenti</div>
+    <div class="kv gcy">${fmt(totVal)}</div>
+    <div class="ks">${totPz>0?fmt(totVal/totPz)+' / pz':''}</div>
+    ${chip(dV,' €')}
+  </div>
+  <div class="g kc">
+    <div class="kl">Costo acquisto</div>
+    <div class="kv gam">${fmt(totAcq)}</div>
+    <div class="ks">${totPz>0?fmt(totAcq/totPz)+' / pz':''}</div>
+  </div>
+  <div class="g kc">
+    <div class="kl">Margine lordo</div>
+    <div class="kv" style="color:${margPct>=40?'var(--em)':margPct>=20?'var(--am)':'var(--ro)'}">${fmt(totMarg)}</div>
+    <div class="ks" style="color:${margPct>=40?'var(--em)':margPct>=20?'var(--am)':'var(--ro)'}">margine ${margPct}%</div>
+    ${chip(dM,' marg')}
+  </div>
+</div>
+
+<!-- Row 1: tipo breakdown + trend -->
+<div class="g2 fi" style="margin-bottom:14px">
+  <!-- Breakdown per tipo — barre orizzontali + margine -->
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dem"></span>Analisi per tipo lente</div></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${tpSorted.map(([tp,d])=>{
+        const pct=totPz>0?Math.round(d.pz/totPz*100):0;
+        const marg=d.val>0?Math.round((d.val-d.acq)/d.val*100):0;
+        const mc=marg>=40?'var(--em)':marg>=20?'var(--am)':'var(--ro)';
+        return`<div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:500">${tp.replace('Lenti ','')}</span>
+            <div style="display:flex;gap:10px;align-items:baseline">
+              <span style="font-size:11px;color:var(--m)">${fmtN(Math.round(d.pz))} pz · ${pct}%</span>
+              <span style="font-size:11px;color:${mc};font-family:'DM Mono',monospace">marg ${marg}%</span>
+            </div>
+          </div>
+          <div style="height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--em),rgba(48,209,88,.5));border-radius:3px;transition:width .5s ease"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:3px">
+            <span style="font-size:10px;color:var(--d)">${fmt(d.val)} · costo ${fmt(d.acq)}</span>
+            <span style="font-size:10px;color:var(--d)">Ø ${d.pz>0?fmt(d.val/d.pz):'-'}/pz</span>
+          </div>
+        </div>`;
+      }).join('<div style="height:0.5px;background:rgba(255,255,255,.05);margin:2px 0"></div>')}
+    </div>
+  </div>
+
+  <!-- Trend mensile o placeholder -->
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dcy"></span>Trend mensile${hasDate?'':" (carica vendite con date)"}</div></div>
+    ${hasDate&&trendKeys.length?`<div class="cw cw-lg"><canvas id="ch_lenti_trend"></canvas></div>`:`<div style="height:200px;display:flex;align-items:center;justify-content:center;color:var(--d);font-size:13px;flex-direction:column;gap:8px"><span style="font-size:28px;opacity:.3">📅</span><span>Dati senza date</span></div>`}
+  </div>
+</div>
+
+<!-- Row 2: per marchio + per operatore -->
+<div class="g2 fi" style="margin-bottom:14px">
+  <!-- Top marchi lenti -->
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dvi"></span>Top fornitore/marchio</div><div style="font-size:11px;color:var(--d)">${marSorted.length} marchi</div></div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${marSorted.map(([mar,d],i)=>{
+        const pct=totPz>0?Math.round(d.pz/totPz*100):0;
+        const marg=d.val>0?Math.round((d.val-d.acq)/d.val*100):0;
+        return`<div style="display:grid;grid-template-columns:16px 1fr 70px 50px;gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid rgba(255,255,255,.04)">
+          <span style="font-size:10px;color:var(--d);font-family:'DM Mono',monospace">${i+1}</span>
+          <div>
+            <div style="font-size:12px;font-weight:500">${mar}</div>
+            <div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px"><div style="height:100%;width:${pct}%;background:var(--vi);border-radius:2px"></div></div>
+          </div>
+          <span style="font-size:11px;color:var(--m);font-family:'DM Mono',monospace;text-align:right">${fmtN(Math.round(d.pz))} pz</span>
+          <span style="font-size:11px;color:${marg>=40?'var(--em)':marg>=20?'var(--am)':'var(--ro)'};font-family:'DM Mono',monospace;text-align:right">${marg}%</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <!-- Per operatore + per filiale -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Filiale A vs B -->
+    <div class="g card" style="padding:16px 18px">
+      <div class="ch" style="margin-bottom:12px"><div class="ct"><span class="dot dam"></span>Sede A vs Sede B</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${['A','B'].map(f=>{
+          const d=byFil[f];
+          const marg=d.val>0?Math.round((d.val-d.acq)/d.val*100):0;
+          return`<div style="padding:12px;background:rgba(255,255,255,.04);border-radius:12px;border:0.5px solid rgba(255,255,255,.08)">
+            <div style="font-size:10px;color:var(--d);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Sede ${f}</div>
+            <div style="font-size:20px;font-weight:700;letter-spacing:-0.5px">${fmtN(Math.round(d.pz))}</div>
+            <div style="font-size:11px;color:var(--m);margin-top:2px">pz · ${fmt(d.val)}</div>
+            <div style="font-size:11px;color:${marg>=40?'var(--em)':marg>=20?'var(--am)':'var(--ro)'};margin-top:4px">marg ${marg}%</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Top operatori -->
+    <div class="g card" style="padding:16px 18px;flex:1">
+      <div class="ch" style="margin-bottom:10px"><div class="ct"><span class="dot dcy"></span>Per operatore</div></div>
+      ${opSorted.map(([op,d])=>{
+        const pct=totPz>0?Math.round(d.pz/totPz*100):0;
+        return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid rgba(255,255,255,.04)">
+          <div style="font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${op}</div>
+          <div style="width:60px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--cy);border-radius:2px"></div></div>
+          <div style="font-size:11px;color:var(--m);font-family:'DM Mono',monospace;min-width:40px;text-align:right">${fmtN(Math.round(d.pz))} pz</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: diametro (se disponibile) + grafico tipi -->
+<div class="g2 fi">
+  ${hasDiam?`
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dem"></span>Analisi per diametro</div><div style="font-size:11px;color:var(--d)">${diamSorted.length} diametri</div></div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${diamSorted.slice(0,10).map(([d,v])=>{
+        const pct=totPz>0?Math.round(v.pz/totPz*100):0;
+        return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid rgba(255,255,255,.04)">
+          <div style="font-size:12px;font-weight:500;min-width:50px">Ø ${d}</div>
+          <div style="flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--em),var(--cy));border-radius:2px"></div></div>
+          <div style="font-size:11px;color:var(--m);font-family:'DM Mono',monospace;min-width:45px;text-align:right">${fmtN(Math.round(v.pz))} pz</div>
+          <div style="font-size:11px;color:var(--d);font-family:'DM Mono',monospace;min-width:35px;text-align:right">${pct}%</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`:`
+  <div class="g card" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--d)">
+    <div style="font-size:28px;opacity:.3">⌀</div>
+    <div style="font-size:12px;color:var(--m)">Diametro non disponibile</div>
+    <div style="font-size:11px;text-align:center;max-width:220px">Aggiungi colonna "Diametro" nel file vendite.xlsx per vedere questa analisi</div>
+  </div>`}
+
+  <!-- Donut per tipo -->
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dem"></span>Mix tipologia (pezzi)</div></div>
+    <div class="cw"><canvas id="ch_lenti_tipi"></canvas></div>
+  </div>
 </div>`;
 }
 
