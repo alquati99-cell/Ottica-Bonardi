@@ -870,6 +870,13 @@ const PER=30;
 function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy();}catch{}});charts={};}
 
 // ═══ SIDEBAR TOGGLE ══════════════════════════════════════════════════════════
+// chiudi dropdown periodo cliccando fuori
+document.addEventListener('click',function(e){
+  const w=document.getElementById('ov-periodo-wrap');
+  const d=document.getElementById('ov-periodo-dd');
+  if(w&&d&&!w.contains(e.target)) d.style.display='none';
+});
+
 function toggleSidebar(){
   const sb=document.getElementById("sidebar");
   sb.classList.toggle("collapsed");
@@ -1021,7 +1028,6 @@ ${sorted.map(([tp,pz])=>{
     <button class="tp${ST.ovShowLenti?' on':''}" onclick="ST.ovShowLenti=!ST.ovShowLenti;renderPage()">◈ Lenti</button>
   </div>
 </div>
-<script>document.addEventListener('click',function(e){const w=document.getElementById('ov-periodo-wrap');const d=document.getElementById('ov-periodo-dd');if(w&&d&&!w.contains(e.target))d.style.display='none';});</script>
 ${noDataBanner}
 ${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgba(232,184,75,.15);border-radius:var(--r);padding:7px 14px;margin-bottom:10px;font-size:11px;color:var(--d)">⚠ vendite.xlsx senza date — KPI calcolati su acquisti come proxy</div>`:''}
 
