@@ -6,6 +6,7 @@
 <title>Ottica Bonardi — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#07090f;--bg2:#0d1117;--gl:rgba(255,255,255,.04);--b:rgba(255,255,255,.08);--bb:rgba(255,255,255,.18);--t:#e8edf5;--m:rgba(232,237,245,.5);--d:rgba(232,237,245,.22);--ac:#e8b84b;--acl:rgba(232,184,75,.15);--acs:rgba(232,184,75,.08);--cy:#4db8cc;--em:#3db884;--am:#c9954a;--vi:#7c6baa;--ro:#c05a6e;--pri-u:#c05a6e;--pri-a:#c9954a;--pri-m:#7c6baa;--pri-o:#3db884;--r:12px}
@@ -582,6 +583,8 @@ function processAcquisti(raw, name){
 // ═══ HELPERS ════════════════════════════════════════════════════════════════
 const fmt=n=>Math.round(n).toLocaleString("it-IT",{style:"currency",currency:"EUR",minimumFractionDigits:0});
 const fmtN=n=>Math.round(n).toLocaleString("it-IT");
+const fmtShort=n=>{n=Math.round(n);if(n>=1000000)return'€'+(n/1000000).toFixed(1).replace('.',',')+'M';if(n>=1000)return'€'+(n/1000).toFixed(0)+'k';return'€'+n.toLocaleString("it-IT");};
+const fmtShortPz=n=>{n=Math.round(n);if(n>=1000)return(n/1000).toFixed(1).replace('.',',')+'k';return n.toLocaleString("it-IT");}
 const fatt=arr=>arr.reduce((a,v)=>a+v.tot,0);
 const filtY=(yr,me)=>ALL_V.filter(v=>v.anno===yr&&(me===-1||v.mese===me));
 const dLabel=(c,p)=>{if(!p)return null;const d=Math.round((c-p)/p*100);return{d,cls:d>=0?"up":"dn",lbl:(d>=0?"↑":"↓")+Math.abs(d)+"%"};};
@@ -927,10 +930,10 @@ function renderPage(){
 
 // ═══ CHART OPTIONS ══════════════════════════════════════════════════════════
 const CO={responsive:true,maintainAspectRatio:false,
-  plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>" "+fmt(ctx.raw)}}},
+  plugins:{legend:{display:false},datalabels:{display:false},tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>" "+fmt(ctx.raw)}}},
   scales:{x:{grid:{color:"rgba(255,255,255,.04)",drawBorder:false},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10}},border:{display:false}},y:{grid:{color:"rgba(255,255,255,.04)",drawBorder:false},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}}}};
 const coLeg={...CO,plugins:{...CO.plugins,legend:{display:true,position:"top",align:"end",labels:{color:"rgba(240,244,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}}}};
-const coDon={responsive:true,maintainAspectRatio:false,cutout:"65%",plugins:{legend:{display:true,position:"right",labels:{color:"rgba(240,244,255,.45)",font:{family:"'Sora',sans-serif",size:11},boxWidth:7,padding:9,usePointStyle:true}},tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:10,bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)}`}}}};
+const coDon={responsive:true,maintainAspectRatio:false,cutout:"65%",plugins:{legend:{display:true,position:"right",labels:{color:"rgba(240,244,255,.45)",font:{family:"'Sora',sans-serif",size:11},boxWidth:7,padding:9,usePointStyle:true}},datalabels:{display:false},tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:10,bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)}`}}}};
 
 function mkChart(id,type,labels,datasets,opts){const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type,data:{labels,datasets},options:opts||CO});}
 
@@ -1613,6 +1616,7 @@ function initCharts(){
       interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:true,position:"top",align:"end",labels:{color:"rgba(240,244,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
+        datalabels:{display:false},
         tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
       },
       scales:{
@@ -1621,9 +1625,12 @@ function initCharts(){
         y1:{position:"right",grid:{display:false},ticks:{color:"rgba(77,184,204,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtN(v)+' pz'},border:{display:false}}
       }
     };
+    const showLabels=td.labels.length<=24;
     mkChart("ch_ov_trend","bar",td.labels,[
-      {type:"bar",label:"Fatturato (€)",data:td.vals,backgroundColor:"rgba(232,184,75,.3)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,yAxisID:"y"},
-      {type:"line",label:"Pezzi",data:td.pzs,borderColor:"#4db8cc",backgroundColor:"rgba(77,184,204,.08)",borderWidth:2,pointRadius:step==='A'?3:step==='M'?2:1,pointBackgroundColor:"#4db8cc",tension:0.4,fill:false,yAxisID:"y1"}
+      {type:"bar",label:"Fatturato (€)",data:td.vals,backgroundColor:"rgba(232,184,75,.3)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,yAxisID:"y",
+        datalabels:showLabels?{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.85)',font:{family:"'DM Mono',monospace",size:td.labels.length<=12?10:8},formatter:v=>v>0?fmtShort(v):''}:{display:false}},
+      {type:"line",label:"Pezzi",data:td.pzs,borderColor:"#4db8cc",backgroundColor:"rgba(77,184,204,.08)",borderWidth:2,pointRadius:step==='A'?3:step==='M'?2:1,pointBackgroundColor:"#4db8cc",tension:0.4,fill:false,yAxisID:"y1",
+        datalabels:(step==='A'||td.labels.length<=12)?{display:true,anchor:'end',align:'bottom',color:'rgba(77,184,204,.85)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>v>0?fmtShortPz(v)+' pz':''}:{display:false}}
     ],ovOpts);
   }
 
@@ -1633,7 +1640,9 @@ function initCharts(){
     if(window.__vend.tipoDisp&&window.__vend.tipoDisp.length>0){
       const td=window.__vend.tipoDisp.slice(0,7);
       const tipoColors=["#e8b84b","rgba(232,184,75,.65)","rgba(201,149,74,.8)","rgba(232,184,75,.4)","rgba(201,149,74,.5)","rgba(232,184,75,.25)","rgba(201,149,74,.3)"];
-      mkChart("ch_vcat","doughnut",td.map(t=>t.n.replace('Montature vista','Montature').replace('Occhiali sole','Sole').replace('Lenti monofocali','Monofoc.').replace('Lenti progressive','Progress.').replace('Lenti bifocali','Bifoc.').replace('Lenti occupazionali','Occup.').replace('Lenti a supporto accomodativo','Acc.').replace('Lenti a profondità di campo','PDC')),[{data:td.map(t=>t.pz),backgroundColor:tipoColors.slice(0,td.length),borderWidth:0,hoverOffset:6}],{...coDon,plugins:{...coDon.plugins,tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}}});
+      const vdonTotal=td.reduce((s,t)=>s+t.pz,0);
+      mkChart("ch_vcat","doughnut",td.map(t=>t.n.replace('Montature vista','Montature').replace('Occhiali sole','Sole').replace('Lenti monofocali','Monofoc.').replace('Lenti progressive','Progress.').replace('Lenti bifocali','Bifoc.').replace('Lenti occupazionali','Occup.').replace('Lenti a supporto accomodativo','Acc.').replace('Lenti a profondità di campo','PDC')),[{data:td.map(t=>t.pz),backgroundColor:tipoColors.slice(0,td.length),borderWidth:0,hoverOffset:6,
+        datalabels:{display:ctx=>vdonTotal>0&&(ctx.dataset.data[ctx.dataIndex]/vdonTotal)>=0.05,formatter:(v)=>Math.round(v/vdonTotal*100)+'%',color:'rgba(7,9,15,.9)',font:{family:"'DM Mono',monospace",size:11,weight:'600'}}}],{...coDon,plugins:{...coDon.plugins,datalabels:{display:false},tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}}});
     }
     // Stacked bar brand (costo + margine)
     if(window.__vend.brands&&window.__vend.brands.length>0){
@@ -1641,8 +1650,9 @@ function initCharts(){
       const labels=brs.map(b=>b.n.length>14?b.n.slice(0,13)+'…':b.n);
       const brandOpts={...coLeg,scales:{...coLeg.scales,x:{...coLeg.scales.x,stacked:true},y:{...coLeg.scales.y,stacked:true,ticks:{...coLeg.scales.y.ticks,callback:v=>v===0?'':fmt(v)}}},plugins:{...coLeg.plugins,tooltip:{...CO.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}`}}}};
       mkChart("ch_vbrand","bar",labels,[
-        {label:"Costo acq.",data:brs.map(b=>b.acq),backgroundColor:"rgba(201,149,74,.25)",borderColor:"rgba(201,149,74,.7)",borderWidth:1,borderRadius:{topLeft:0,topRight:0,bottomLeft:4,bottomRight:4},stack:"s"},
-        {label:"Margine",data:brs.map(b=>b.marg>0?b.marg:0),backgroundColor:"rgba(232,184,75,.35)",borderColor:"#e8b84b",borderWidth:1,borderRadius:{topLeft:4,topRight:4,bottomLeft:0,bottomRight:0},stack:"s"}
+        {label:"Costo acq.",data:brs.map(b=>b.acq),backgroundColor:"rgba(201,149,74,.25)",borderColor:"rgba(201,149,74,.7)",borderWidth:1,borderRadius:{topLeft:0,topRight:0,bottomLeft:4,bottomRight:4},stack:"s",datalabels:{display:false}},
+        {label:"Margine",data:brs.map(b=>b.marg>0?b.marg:0),backgroundColor:"rgba(232,184,75,.35)",borderColor:"#e8b84b",borderWidth:1,borderRadius:{topLeft:4,topRight:4,bottomLeft:0,bottomRight:0},stack:"s",
+          datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.9)',font:{family:"'DM Mono',monospace",size:9},formatter:(v,ctx)=>{const acq=ctx.chart.data.datasets[0].data[ctx.dataIndex]||0;const tot=acq+(v>0?v:0);return tot>0?fmtShort(tot):''}}}
       ],brandOpts);
     }
   }
@@ -1653,11 +1663,11 @@ function initCharts(){
     // Grafico 1
     if(mg.bf){
       const byMod=Object.entries(mg.rows.reduce((o,r)=>{o[r.mod]=(o[r.mod]||0)+r.v;return o;},{})).sort((a,b)=>b[1]-a[1]).slice(0,10);
-      mkChart("ch_mag1","bar",byMod.map(x=>x[0].slice(0,14)),[{data:byMod.map(x=>x[1]),backgroundColor:"rgba(232,184,75,.2)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4}],CO);
+      mkChart("ch_mag1","bar",byMod.map(x=>x[0].slice(0,14)),[{data:byMod.map(x=>x[1]),backgroundColor:"rgba(232,184,75,.2)",borderColor:"#e8b84b",borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.8)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}],CO);
     } else {
       const magBrandAlphas=["rgba(232,184,75,.5)","rgba(232,184,75,.4)","rgba(201,149,74,.5)","rgba(232,184,75,.3)","rgba(201,149,74,.4)","rgba(232,184,75,.25)","rgba(201,149,74,.3)","rgba(232,184,75,.2)","rgba(201,149,74,.25)","rgba(232,184,75,.15)"];
       const magBrandBorder=["#e8b84b","#e8b84b","rgba(201,149,74,.9)","rgba(232,184,75,.7)","rgba(201,149,74,.7)","rgba(232,184,75,.6)","rgba(201,149,74,.6)","rgba(232,184,75,.5)","rgba(201,149,74,.5)","rgba(232,184,75,.4)"];
-      mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:magBrandAlphas,borderColor:magBrandBorder,borderWidth:1.5,borderRadius:4}],CO);
+      mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:magBrandAlphas,borderColor:magBrandBorder,borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.8)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}],CO);
     }
     // Grafico 2 categorie
     mkChart("ch_mag2","doughnut",["A · Montature","A · Sole","B · Montature","B · Sole"],[{data:[mg.catA["Montature"]||0,mg.catA["Sole"]||0,mg.catB["Montature"]||0,mg.catB["Sole"]||0],backgroundColor:["#e8b84b","rgba(232,184,75,.5)","rgba(201,149,74,.8)","rgba(201,149,74,.4)"],borderWidth:0,hoverOffset:6}],coDon);
@@ -1670,7 +1680,7 @@ function initCharts(){
       const agMode=ST.agChartMode==="pz";
       const agData=anni.map(y=>agMode?ag.byAnno[y].pz:ag.byAnno[y].v);
       const agOpts={...CO,plugins:{...CO.plugins,tooltip:{...CO.plugins?.tooltip,callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}},scales:{...CO.scales,y:{...CO.scales?.y,ticks:{...CO.scales?.y?.ticks,callback:v=>agMode?v+" pz":"€ "+Math.round(v).toLocaleString("it-IT")}}}};
-      mkChart("ch_aging","bar",anni,[{data:agData,backgroundColor:agColors,borderColor:agBorder,borderWidth:1.5,borderRadius:4}],agOpts);
+      mkChart("ch_aging","bar",anni,[{data:agData,backgroundColor:agColors,borderColor:agBorder,borderWidth:1.5,borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:'rgba(232,184,75,.8)',font:{family:"'DM Mono',monospace",size:10},formatter:v=>agMode?fmtShortPz(v)+' pz':fmtShort(v)}}],agOpts);
       // Donut priorità
       const stats=ag.stats;
       const priData=agMode?[stats.U.pz,stats.A.pz,stats.M.pz,stats.O.pz]:[stats.U.v,stats.A.v,stats.M.v,stats.O.v];
