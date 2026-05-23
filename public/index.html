@@ -427,7 +427,7 @@ function parseVendite(file){
     try{
       const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd'});
+      const raw = XLSX.utils.sheet_to_json(ws, {raw:true});
       if(!raw.length) throw new Error("File vuoto");
       processVendite(raw, file.name);
     } catch(err){ alert("Errore lettura vendite: " + err.message); }
@@ -440,12 +440,15 @@ function processVendite(raw, name){
   // Righe compatte per filtri dinamici
   const compactRows = rows.map(r => {
     let dt = r['data di vendita'];
-    if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
-    else if(typeof dt === 'number') dt = excelSerialToISO(dt);
-    else if(typeof dt === 'string') dt = normalizeDateValue(dt);
-    else dt = null;
-    // filter out clearly wrong dates (before 2015)
-    if(dt && parseInt(dt.slice(0,4)) < 2015) dt = null;
+    if(dt instanceof Date){
+      // usa ora locale per evitare shift UTC
+      const p=n=>String(n).padStart(2,'0');
+      dt=`${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}`;
+    } else if(typeof dt==='number') dt=excelSerialToISO(dt);
+    else if(typeof dt==='string') dt=normalizeDateValue(dt);
+    else dt=null;
+    // scarta date palesemente errate
+    if(dt && parseInt(dt.slice(0,4)) < 2019) dt=null;
     const yr = dt ? parseInt(dt.slice(0,4)) : null;
     const mo = dt ? parseInt(dt.slice(5,7)) : null;
     return {
@@ -465,13 +468,14 @@ function processVendite(raw, name){
   const allMarchi = [...new Set(compactRows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').map(r=>r.mar).filter(Boolean))].sort();
   const allTipi   = [...new Set(compactRows.map(r=>r.tp).filter(Boolean))].sort();
 
-  const datedRows = compactRows.filter(r=>r.dt);
+  const datedCount = compactRows.filter(r=>r.dt).length;
   LIVE_VEND = {
     rows: compactRows,
     clienti: clienti.size,
     allMarchi,
     allTipi,
-    hasDate: datedRows.length > compactRows.length * 0.3
+    hasDate: datedCount > 100,
+    datedCount
   };
   UPLOAD_NAME_VEND = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
