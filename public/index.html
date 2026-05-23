@@ -438,26 +438,39 @@ function processVendite(raw, name){
   const rows = raw.filter(r => (r['Tipo operazione']||'').trim() === 'VEN');
 
   // Righe compatte per filtri dinamici
-  const compactRows = rows.map(r => ({
-    tp:  (r['Tipo Prodotto']||'').trim(),
-    mar: (r['Marchio']||'').trim(),
-    fil: (r['Filiale']||'').trim().toUpperCase(),
-    op:  (r['Operatore']||'').trim(),
-    pz:  parseFloat(r['Quantità']||1)||1,
-    val: parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0)||0,
-    acq: parseFloat(r['Prezzo acquisto']||0)||0,
-    cli: (r['Codice cliente']||'').trim()
-  }));
+  const compactRows = rows.map(r => {
+    let dt = r['data di vendita'];
+    if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
+    else if(typeof dt === 'string') dt = normalizeDateValue(dt);
+    else dt = null;
+    // filter out clearly wrong dates (before 2015)
+    if(dt && parseInt(dt.slice(0,4)) < 2015) dt = null;
+    const yr = dt ? parseInt(dt.slice(0,4)) : null;
+    const mo = dt ? parseInt(dt.slice(5,7)) : null;
+    return {
+      tp:  (r['Tipo Prodotto']||'').trim(),
+      mar: (r['Marchio']||'').trim(),
+      fil: (r['Filiale']||'').trim().toUpperCase(),
+      op:  (r['Operatore']||'').trim(),
+      pz:  parseFloat(r['Quantità']||1)||1,
+      val: parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0)||0,
+      acq: parseFloat(r['Prezzo acquisto']||0)||0,
+      cli: (r['Codice cliente']||'').trim(),
+      dt, yr, mo
+    };
+  });
 
   const clienti = new Set(compactRows.map(r=>r.cli).filter(Boolean));
   const allMarchi = [...new Set(compactRows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').map(r=>r.mar).filter(Boolean))].sort();
   const allTipi   = [...new Set(compactRows.map(r=>r.tp).filter(Boolean))].sort();
 
+  const datedRows = compactRows.filter(r=>r.dt);
   LIVE_VEND = {
     rows: compactRows,
     clienti: clienti.size,
     allMarchi,
-    allTipi
+    allTipi,
+    hasDate: datedRows.length > compactRows.length * 0.3
   };
   UPLOAD_NAME_VEND = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
@@ -639,6 +652,62 @@ function acqTrend(step){
   }
   return{labels:[],vals:[],pzs:[]};
 }
+// ── VENDITE KPI HELPERS ───────────────────────────────────────────────────────
+function vendRange(rows, from, to){
+  let val=0, pz=0;
+  for(const r of rows){if(!r.dt||r.dt<from||r.dt>to)continue;val+=r.val;pz+=r.pz;}
+  return{val:Math.round(val),pz:Math.round(pz)};
+}
+function vendKPIs(){
+  if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
+  const frRows=LIVE_VEND.rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
+  const now=new Date(); const today=toISO(now);
+  const moNum=CM+1; const moStr=String(moNum).padStart(2,'0');
+  const daysInMoPY=new Date(CY-1,moNum,0).getDate();
+  const daysInMoCY=new Date(CY,moNum,0).getDate();
+  const ytd=vendRange(frRows,`${CY}-01-01`,today);
+  const ytdPY=vendRange(frRows,`${CY-1}-01-01`,`${CY-1}-${today.slice(5)}`);
+  const mo=vendRange(frRows,`${CY}-${moStr}-01`,today);
+  const moPY=vendRange(frRows,`${CY-1}-${moStr}-01`,`${CY-1}-${moStr}-${String(daysInMoPY).padStart(2,'0')}`);
+  const dow=now.getDay()||7;
+  const monThis=new Date(now);monThis.setDate(now.getDate()-dow+1);monThis.setHours(0,0,0,0);
+  const monPrev=new Date(monThis);monPrev.setDate(monThis.getDate()-7);
+  const sunPrev=new Date(monThis);sunPrev.setDate(monThis.getDate()-1);
+  const wk=vendRange(frRows,toISO(monThis),today);
+  const wkPrev=vendRange(frRows,toISO(monPrev),toISO(sunPrev));
+  return{ytd,ytdPY,mo,moPY,wk,wkPrev,daysLeft:daysInMoCY-now.getDate()};
+}
+function vendTrend(step){
+  if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
+  const rows=LIVE_VEND.rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
+  const agg={}; const now=new Date();
+  if(step==='A'){
+    rows.forEach(r=>{if(!r.yr)return;const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  if(step==='M'){
+    const cut=new Date(now);cut.setMonth(cut.getMonth()-23);cut.setDate(1);
+    const cutStr=toISO(cut).slice(0,7);
+    rows.forEach(r=>{if(!r.dt)return;const k=r.dt.slice(0,7);if(k<cutStr)return;if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys.map(k=>{const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  if(step==='W'){
+    const cut=new Date(now);cut.setDate(cut.getDate()-7*51);const cutStr=toISO(cut);
+    rows.forEach(r=>{if(!r.dt||r.dt<cutStr)return;const k=isoWeekKey(r.dt);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys.map(k=>k.replace(/(\d{4})-W/,'W')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  if(step==='D'){
+    const cut=new Date(now);cut.setDate(cut.getDate()-89);const cutStr=toISO(cut);
+    rows.forEach(r=>{if(!r.dt||r.dt<cutStr)return;if(!agg[r.dt])agg[r.dt]={val:0,pz:0};agg[r.dt].val+=r.val;agg[r.dt].pz+=r.pz;});
+    const keys=Object.keys(agg).sort();
+    return{labels:keys.map(k=>k.slice(5).replace('-','/')),vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
+  }
+  return null;
+}
+
 function getObjTarget(type){return parseInt(localStorage.getItem(`ob_${type}_${CY}_${CM}`)||'0')||0;}
 function setObjTarget(type,val){localStorage.setItem(`ob_${type}_${CY}_${CM}`,String(parseInt(val)||0));renderPage();}
 function promptTarget(type,label){
@@ -753,7 +822,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",
   vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M"};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovShowLenti:false};
 let charts={};
 const PER=30;
 
@@ -823,138 +892,134 @@ function rOv(){
   const pzMagTot=mag.kpi.A.pezzi+mag.kpi.B.pezzi;
   const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
   const hasVend=!!LIVE_VEND;
-  const kpis=hasAcq?acqKPIs():null;
-  window.__ov={hasAcq,hasVend,trendStep:ST.ovTrendStep};
+  const hasVendDate=hasVend&&LIVE_VEND.hasDate;
+
+  // Prefer vendite KPIs (frames only) when dates available, else acquisti as proxy
+  const kpis = hasVendDate ? vendKPIs() : (hasAcq ? acqKPIs() : null);
+  const usingProxy = !hasVendDate && hasAcq;
+
+  window.__ov={hasAcq,hasVend,hasVendDate,trendStep:ST.ovTrendStep};
 
   const noDataBanner=(!hasVend&&!hasAcq)?`<div style="background:rgba(232,184,75,.06);border:0.5px solid rgba(232,184,75,.2);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--m);display:flex;align-items:center;gap:10px"><span style="font-size:16px">💡</span>Carica i file Excel dalla sezione <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b> per vedere KPI reali.</div>`:"";
 
-  // Delta helpers
-  const kpiDelta=(c,p,suffix)=>{
-    if(!c||!p)return`<div class="ks" style="color:var(--d)">nessun dato anno prec.</div>`;
-    const d=dLabel(c,p);
-    return`<div class="delta ${d.cls}">${d.lbl} vs ${CY-1}${suffix||''}</div>`;
-  };
-
-  // Box 1: YTD
-  const ytdVal=kpis?kpis.ytd.val:0;
-  const ytdPYVal=kpis?kpis.ytdPY.val:0;
+  const ytdVal=kpis?kpis.ytd.val:0, ytdPYVal=kpis?kpis.ytdPY.val:0;
   const ytdPz=kpis?kpis.ytd.pz:0;
-  const ytdPYPz=kpis?kpis.ytdPY.pz:0;
-
-  // Box 2: Mese corrente
-  const moVal=kpis?kpis.mo.val:0;
-  const moPYVal=kpis?kpis.moPY.val:0;
+  const moVal=kpis?kpis.mo.val:0, moPYVal=kpis?kpis.moPY.val:0;
   const moPz=kpis?kpis.mo.pz:0;
-  const moPYPz=kpis?kpis.moPY.pz:0;
-
-  // Box 3: Settimana
-  const wkVal=kpis?kpis.wk.val:0;
-  const wkPrevVal=kpis?kpis.wkPrev.val:0;
+  const wkVal=kpis?kpis.wk.val:0, wkPrevVal=kpis?kpis.wkPrev.val:0;
   const wkPz=kpis?kpis.wk.pz:0;
-  const wkPrevPz=kpis?kpis.wkPrev.pz:0;
 
-  // Obiettivi
-  const obVal=getObjTarget('val');
-  const obPz=getObjTarget('pz');
-  const gapVal=obVal>0?obVal-moVal:null;
-  const gapPz=obPz>0?obPz-moPz:null;
+  const obVal=getObjTarget('val'), obPz=getObjTarget('pz');
+  const gapVal=obVal>0?obVal-moVal:null, gapPz=obPz>0?obPz-moPz:null;
   const daysLeft=kpis?kpis.daysLeft:0;
   const dailyNeed=gapVal!==null&&daysLeft>0?Math.round(gapVal/daysLeft):null;
 
   const stepBtn=(v,lbl)=>`<button class="tp${ST.ovTrendStep===v?' on':''}" onclick="ST.ovTrendStep='${v}';renderPage()">${lbl}</button>`;
 
-  const kpiBox=(label,val,pz,delta,sub)=>`
+  const kpiBox=(label,val,pz,deltaTxt,sub)=>`
 <div class="g kc" style="display:flex;flex-direction:column;gap:6px">
-  <div class="kl" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">${label}</div>
-  <div class="kv" style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${hasAcq?fmt(val):'—'}</div>
-  <div style="font-size:13px;color:var(--m)">${hasAcq?fmtN(pz)+' pz':'—'}</div>
-  ${hasAcq?delta:`<div class="ks">carica acquisti.xlsx</div>`}
+  <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">${label}</div>
+  <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${(hasVendDate||hasAcq)?fmt(val):'—'}</div>
+  <div style="font-size:13px;color:var(--m)">${(hasVendDate||hasAcq)?fmtN(pz)+' pz':'—'}</div>
+  ${deltaTxt}
   ${sub?`<div style="font-size:10px;color:var(--d);margin-top:2px">${sub}</div>`:''}
 </div>`;
+
+  const delta=(c,p,suffix)=>{
+    if(!(hasVendDate||hasAcq)) return`<div style="font-size:11px;color:var(--d)">carica dati</div>`;
+    if(!p) return`<div style="font-size:11px;color:var(--d)">nessun dato anno prec.</div>`;
+    const d=dLabel(c,p);
+    return`<div class="delta ${d.cls}">${d.lbl} vs ${CY-1}${suffix||''}</div>`;
+  };
+
+  // Lenti panel (pezzi only, no costs)
+  const lentiPanel=()=>{
+    if(!hasVend) return`<div style="color:var(--d);font-size:12px">Carica vendite.xlsx</div>`;
+    const now=new Date(); const today=toISO(now);
+    const ytdFrom=`${CY}-01-01`;
+    const lentiTypes=['Lenti monofocali','Lenti progressive','Lenti occupazionali','Lenti bifocali','Lenti a supporto accomodativo','Lenti a profondità di campo'];
+    // Count pz per tipo (YTD if dates, else all)
+    const counts={};
+    LIVE_VEND.rows.filter(r=>r.tp&&r.tp.startsWith('Lenti')).forEach(r=>{
+      if(hasVendDate&&(!r.dt||r.dt<ytdFrom||r.dt>today)) return;
+      counts[r.tp]=(counts[r.tp]||0)+r.pz;
+    });
+    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const totLPz=sorted.reduce((a,x)=>a+x[1],0);
+    if(!sorted.length) return`<div style="color:var(--d);font-size:12px">Nessun dato lenti</div>`;
+    return`
+<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:10px">Lenti · pezzi${hasVendDate?' YTD':' (totale)'}</div>
+<div style="font-size:22px;font-weight:700;color:var(--t);margin-bottom:10px">${fmtN(totLPz)} pz</div>
+${sorted.map(([tp,pz])=>{
+  const short=tp.replace('Lenti monofocali','Monofocali').replace('Lenti progressive','Progressive').replace('Lenti occupazionali','Occupazionali').replace('Lenti bifocali','Bifocali').replace('Lenti a supporto accomodativo','Acc. accomodativo').replace('Lenti a profondità di campo','Profond. di campo');
+  const pct=totLPz>0?Math.round(pz/totLPz*100):0;
+  return`<div style="margin-bottom:7px">
+  <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;color:var(--m)">${short}</span><span style="font-size:11px;color:var(--t);font-weight:600">${fmtN(pz)} pz · ${pct}%</span></div>
+  <div style="height:2px;background:var(--b);border-radius:1px"><div style="height:100%;width:${pct}%;background:var(--ac);border-radius:1px"></div></div>
+</div>`;}).join('')}`;
+  };
 
   return`
 <div class="topbar fi">
   <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
+  <button class="tp${ST.ovShowLenti?' on':''}" onclick="ST.ovShowLenti=!ST.ovShowLenti;renderPage()" style="margin-left:auto">
+    ◈ Lenti
+  </button>
 </div>
 ${noDataBanner}
+${usingProxy?`<div style="background:rgba(232,184,75,.05);border:0.5px solid rgba(232,184,75,.15);border-radius:var(--r);padding:7px 14px;margin-bottom:10px;font-size:11px;color:var(--d)">⚠ vendite.xlsx senza date — KPI calcolati su acquisti come proxy</div>`:''}
 
-<!-- 4 KPI boxes -->
+<!-- 4 KPI boxes: solo Montature + Occhiali sole -->
 <div class="kg k4 fi" style="margin-bottom:12px">
-  ${kpiBox(
-    'Da inizio anno',
-    ytdVal, ytdPYPz?ytdPz:ytdPz,
-    kpiDelta(ytdVal,ytdPYVal,' stesso periodo'),
-    hasAcq?`periodo: 1 gen – oggi`:''
-  )}
-  ${kpiBox(
-    `${MESI[CM]} ${CY}`,
-    moVal, moPz,
-    kpiDelta(moVal,moPYVal,` vs ${MESI[CM]} ${CY-1}`),
-    hasAcq?`mese corrente`:''
-  )}
-  ${kpiBox(
-    'Settimana corrente',
-    wkVal, wkPz,
-    kpiDelta(wkVal,wkPrevVal,' vs sett. prec.'),
-    hasAcq?`vs settimana precedente`:''
-  )}
+  ${kpiBox('Da inizio anno · frame',ytdVal,ytdPz,delta(ytdVal,ytdPYVal,' stesso periodo'),'Montature + Occhiali sole')}
+  ${kpiBox(`${MESI[CM]} ${CY} · frame`,moVal,moPz,delta(moVal,moPYVal,` vs ${MESI[CM]} ${CY-1}`),'mese corrente')}
+  ${kpiBox('Settimana · frame',wkVal,wkPz,delta(wkVal,wkPrevVal,' vs sett. prec.'),'vs settimana precedente')}
   <div class="g kc" style="display:flex;flex-direction:column;gap:6px">
-    <div class="kl" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
-    <div class="kv" style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
+    <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
+    <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
     <div style="font-size:13px;color:var(--m)">${fmtN(pzMagTot)} pz</div>
-    <div class="ks">Sede A + Sede B</div>
+    <div style="font-size:11px;color:var(--d);margin-top:2px">Sede A + Sede B</div>
   </div>
 </div>
 
-<!-- Trend chart -->
+<!-- Trend chart vendite (frame only) -->
 <div class="g card fi" style="margin-bottom:12px">
   <div class="ch">
     <div style="display:flex;flex-direction:column;gap:3px">
-      <div class="ct"><span class="dot" style="background:var(--ac)"></span>Trend vendite — ${ST.ovTrendStep==='A'?'per anno':ST.ovTrendStep==='M'?'ultimi 24 mesi':ST.ovTrendStep==='W'?'ultime 52 settimane':'ultimi 90 giorni'}</div>
-      ${hasAcq&&!hasVend?`<div style="font-size:10px;color:var(--d)">⚠ vendite.xlsx senza date · proxy: acquisti</div>`:''}
+      <div class="ct"><span class="dot" style="background:var(--ac)"></span>Trend vendite frame — ${ST.ovTrendStep==='A'?'per anno':ST.ovTrendStep==='M'?'ultimi 24 mesi':ST.ovTrendStep==='W'?'ultime 52 settimane':'ultimi 90 giorni'}</div>
+      ${usingProxy?`<div style="font-size:10px;color:var(--d)">proxy: acquisti</div>`:''}
     </div>
     <div class="tpill" style="gap:0">${stepBtn('A','Anno')}${stepBtn('M','Mese')}${stepBtn('W','Settimana')}${stepBtn('D','Giorno')}</div>
   </div>
-  ${hasAcq?`<div class="cw cw-lg"><canvas id="ch_ov_trend"></canvas></div>`:`<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica acquisti.xlsx per vedere il trend vendite</div>`}
+  ${(hasVendDate||hasAcq)?`<div class="cw cw-lg"><canvas id="ch_ov_trend"></canvas></div>`:`<div style="display:flex;align-items:center;justify-content:center;height:120px;color:var(--d);font-size:13px">Carica dati per vedere il trend vendite</div>`}
 </div>
 
 <!-- Bottom row -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" class="fi">
-  <!-- Left: placeholder -->
-  <div class="g card" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--d);font-size:13px;flex-direction:column;gap:8px">
-    <span style="font-size:28px;opacity:.3">◫</span>
-    <span>sezione in arrivo</span>
+  <!-- Left: lenti panel or placeholder -->
+  <div class="g card" style="min-height:200px;padding:16px 18px">
+    ${ST.ovShowLenti?lentiPanel():`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--d);font-size:13px;flex-direction:column;gap:8px"><span style="font-size:28px;opacity:.3">◫</span><span>sezione in arrivo</span></div>`}
   </div>
   <!-- Right: 3 stacked boxes -->
   <div style="display:flex;flex-direction:column;gap:8px">
-    <!-- Box A: mese corrente -->
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">${MESI[CM]} ${CY} · progressivo</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">${MESI[CM]} ${CY} · frame progressivo</div>
       <div style="display:flex;align-items:baseline;gap:12px">
-        <div style="font-size:20px;font-weight:700;color:var(--t)">${hasAcq?fmt(moVal):'—'}</div>
-        <div style="font-size:13px;color:var(--m)">${hasAcq?fmtN(moPz)+' pz':'—'}</div>
+        <div style="font-size:20px;font-weight:700;color:var(--t)">${(hasVendDate||hasAcq)?fmt(moVal):'—'}</div>
+        <div style="font-size:13px;color:var(--m)">${(hasVendDate||hasAcq)?fmtN(moPz)+' pz':'—'}</div>
       </div>
       ${obVal>0?`<div style="margin-top:6px;height:3px;background:var(--b);border-radius:2px"><div style="height:100%;width:${Math.min(100,Math.round(moVal/obVal*100))}%;background:var(--ac);border-radius:2px;transition:width .4s"></div></div><div style="font-size:10px;color:var(--d);margin-top:4px">${Math.round(moVal/obVal*100)}% dell'obiettivo</div>`:''}
     </div>
-    <!-- Box B: gap to fill -->
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d)">Gap obiettivo</div>
-        <button onclick="promptTarget('val','fatturato (€)');promptTarget('pz','pezzi')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ obiettivo</button>
+        <button onclick="promptTarget('val','fatturato frame (€)');promptTarget('pz','pezzi frame')" style="background:rgba(232,184,75,.1);border:0.5px solid rgba(232,184,75,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ obiettivo</button>
       </div>
-      ${obVal>0||obPz>0?`
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div>
-          <div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div>
-          <div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ raggiunto':fmt(gapVal)):'—'}</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div>
-          <div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ raggiunto':fmtN(gapPz)+' pz'):'—'}</div>
-        </div>
-      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun obiettivo impostato · <span style="color:var(--ac);cursor:pointer" onclick="promptTarget('val','fatturato (€)');promptTarget('pz','pezzi')">imposta →</span></div>`}
+      ${obVal>0||obPz>0?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div><div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ ok':fmt(gapVal)):'—'}</div></div>
+        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div><div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ ok':fmtN(gapPz)+' pz'):'—'}</div></div>
+      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun obiettivo impostato · <span style="color:var(--ac);cursor:pointer" onclick="promptTarget('val','fatturato frame (€)');promptTarget('pz','pezzi frame')">imposta →</span></div>`}
     </div>
-    <!-- Box C: giorni a fine mese -->
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fine mese</div>
       <div style="display:flex;align-items:baseline;gap:8px">
@@ -1439,10 +1504,10 @@ ${splitBar()}
 function initCharts(){
   if(!window.Chart)return;
 
-  // OVERVIEW — trend vendite (proxy: acquisti finché vendite.xlsx non ha date)
-  if(ST.page==="overview"&&window.__ov&&window.__ov.hasAcq&&LIVE_ACQ){
+  // OVERVIEW — trend vendite (reale se hasDate, altrimenti proxy acquisti)
+  if(ST.page==="overview"&&window.__ov&&(window.__ov.hasAcq||window.__ov.hasVendDate)){
     const step=window.__ov.trendStep||'M';
-    const td=acqTrend(step);
+    const td=(window.__ov.hasVendDate?vendTrend(step):null)||acqTrend(step);
     const ovOpts={
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
