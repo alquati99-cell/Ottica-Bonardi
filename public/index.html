@@ -223,47 +223,56 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
 @keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.sb{display:none}.forn-grid{grid-template-columns:1fr}}
-/* ── AI Advisor ─────────────────────────────────────────────────────────── */
-#ai-fab{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--ac);box-shadow:0 4px 20px rgba(10,132,255,.5),0 0 0 0 rgba(10,132,255,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1200;border:none;transition:transform .2s,box-shadow .2s;animation:ai-pulse 3s ease-in-out infinite;}
-#ai-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(10,132,255,.65),0 0 0 0 rgba(10,132,255,.3);}
-@keyframes ai-pulse{0%,100%{box-shadow:0 4px 20px rgba(10,132,255,.5),0 0 0 0 rgba(10,132,255,.25)}50%{box-shadow:0 4px 20px rgba(10,132,255,.5),0 0 0 8px rgba(10,132,255,.0)}}
-.ai-panel{position:fixed;bottom:88px;right:24px;width:400px;max-height:76vh;display:flex;flex-direction:column;border-radius:20px;background:rgba(12,12,20,.88);backdrop-filter:blur(60px) saturate(180%);-webkit-backdrop-filter:blur(60px) saturate(180%);border:0.5px solid rgba(255,255,255,.14);border-top:0.5px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 32px 80px rgba(0,0,0,.75),0 0 0 0.5px rgba(255,255,255,.06);z-index:1199;transform:translateY(20px) scale(.97);opacity:0;pointer-events:none;transition:transform .28s cubic-bezier(.34,1.56,.64,1),opacity .22s ease;}
-.ai-panel.open{transform:translateY(0) scale(1);opacity:1;pointer-events:all;}
-.ai-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:0.5px solid rgba(255,255,255,.08);flex-shrink:0;}
-.ai-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ac),#5856d6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
-.ai-model-sel{font-size:10px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.14);color:var(--m);cursor:pointer;font-family:inherit;}
-.ai-model-sel option{background:#1a1a2e;color:#fff;}
-.ai-msgs{flex:1;overflow-y:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:10px;min-height:0;}
-.ai-msgs::-webkit-scrollbar{width:4px}.ai-msgs::-webkit-scrollbar-track{background:transparent}.ai-msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
-.ai-msg{display:flex;gap:8px;align-items:flex-start;}
+/* ── AI Advisor page ─────────────────────────────────────────────────────── */
+.ai-page{display:flex;flex-direction:column;height:calc(100vh - 120px);max-height:calc(100vh - 120px);}
+.ai-page-hdr{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.ai-hero{display:flex;align-items:center;gap:14px;}
+.ai-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--ac),#5856d6);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;box-shadow:0 0 0 3px rgba(10,132,255,.2);}
+.ai-model-sel{font-size:11px;padding:5px 10px;border-radius:10px;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.14);color:var(--m);cursor:pointer;font-family:inherit;}
+.ai-model-sel option{background:#0a0a14;color:#fff;}
+.ai-body{display:flex;gap:16px;flex:1;min-height:0;}
+.ai-sidebar{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;}
+.ai-ctx-card{background:var(--gl);border:0.5px solid var(--b);border-radius:var(--r);padding:14px;}
+.ai-ctx-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--d);margin-bottom:10px;}
+.ai-ctx-row{display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:6px;}
+.ai-ctx-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.ai-prompts-card{background:var(--gl);border:0.5px solid var(--b);border-radius:var(--r);padding:14px;flex:1;}
+.ai-qbtn{display:block;width:100%;text-align:left;font-size:12px;padding:8px 11px;border-radius:10px;background:rgba(10,132,255,.08);border:0.5px solid rgba(10,132,255,.18);color:var(--ac);cursor:pointer;margin-bottom:6px;transition:background .15s;line-height:1.3;}
+.ai-qbtn:hover{background:rgba(10,132,255,.18);}
+.ai-qbtn:last-child{margin-bottom:0;}
+.ai-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:0;background:var(--gl);border:0.5px solid var(--b);border-top:0.5px solid rgba(255,255,255,.16);border-radius:var(--r);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 24px 64px rgba(0,0,0,.4);}
+.ai-msgs{flex:1;overflow-y:auto;padding:20px 22px 12px;display:flex;flex-direction:column;gap:14px;min-height:0;}
+.ai-msgs::-webkit-scrollbar{width:4px}.ai-msgs::-webkit-scrollbar-track{background:transparent}.ai-msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
+.ai-msg{display:flex;gap:10px;align-items:flex-start;}
 .ai-msg.user{flex-direction:row-reverse;}
-.ai-bubble{font-size:13px;line-height:1.55;padding:9px 13px;border-radius:14px;max-width:88%;word-break:break-word;}
-.ai-msg.bot .ai-bubble{background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.1);color:var(--t);border-radius:4px 14px 14px 14px;}
-.ai-msg.user .ai-bubble{background:var(--ac);color:#fff;border-radius:14px 4px 14px 14px;}
+.ai-msg-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.ai-msg.bot .ai-msg-av{background:linear-gradient(135deg,var(--ac),#5856d6);color:#fff;}
+.ai-msg.user .ai-msg-av{background:rgba(255,255,255,.12);color:var(--m);}
+.ai-bubble{font-size:13.5px;line-height:1.6;padding:11px 15px;border-radius:16px;max-width:82%;word-break:break-word;}
+.ai-msg.bot .ai-bubble{background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);color:var(--t);border-radius:4px 16px 16px 16px;}
+.ai-msg.user .ai-bubble{background:var(--ac);color:#fff;border-radius:16px 4px 16px 16px;}
 .ai-bubble b,.ai-bubble strong{color:var(--ac);font-weight:600;}
-.ai-bubble code{font-family:'DM Mono',monospace;font-size:11px;background:rgba(255,255,255,.1);padding:1px 5px;border-radius:4px;}
-.ai-bubble ul{margin:4px 0 4px 16px;padding:0;}
-.ai-bubble li{margin:2px 0;}
-.ai-cursor{display:inline-block;width:2px;height:14px;background:var(--ac);margin-left:2px;vertical-align:text-bottom;animation:blink .7s step-end infinite;}
+.ai-msg.user .ai-bubble strong{color:#fff;}
+.ai-bubble code{font-family:'DM Mono',monospace;font-size:11.5px;background:rgba(255,255,255,.1);padding:1px 6px;border-radius:4px;}
+.ai-bubble ul{margin:6px 0 6px 18px;padding:0;}
+.ai-bubble li{margin:3px 0;}
+.ai-bubble p{margin:0 0 6px;}
+.ai-cursor{display:inline-block;width:2px;height:15px;background:var(--ac);margin-left:2px;vertical-align:text-bottom;animation:blink .7s step-end infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-.ai-typing{display:flex;gap:4px;align-items:center;padding:10px 13px;}
-.ai-typing span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4);animation:bounce .9s ease-in-out infinite;}
+.ai-typing{display:flex;gap:5px;align-items:center;padding:12px 15px;}
+.ai-typing span{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);animation:bounce .9s ease-in-out infinite;}
 .ai-typing span:nth-child(2){animation-delay:.15s;}
 .ai-typing span:nth-child(3){animation-delay:.3s;}
-@keyframes bounce{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1);opacity:1}}
-.ai-quick{display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px 4px;}
-.ai-qbtn{font-size:11px;padding:4px 10px;border-radius:99px;background:rgba(10,132,255,.12);border:0.5px solid rgba(10,132,255,.3);color:var(--ac);cursor:pointer;white-space:nowrap;transition:background .15s;}
-.ai-qbtn:hover{background:rgba(10,132,255,.22);}
-.ai-foot{flex-shrink:0;border-top:0.5px solid rgba(255,255,255,.08);padding:10px 12px 14px;}
-.ai-inp-row{display:flex;gap:8px;align-items:flex-end;}
-#ai-inp{flex:1;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.14);border-radius:12px;color:var(--t);font-size:13px;font-family:inherit;padding:9px 12px;resize:none;outline:none;line-height:1.4;max-height:100px;overflow-y:auto;}
-#ai-inp:focus{border-color:rgba(10,132,255,.5);background:rgba(10,132,255,.06);}
-#ai-send{width:36px;height:36px;border-radius:50%;background:var(--ac);border:none;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s,transform .15s;}
-#ai-send:hover{transform:scale(1.08);}
-#ai-send:disabled{opacity:.35;cursor:not-allowed;transform:none;}
-.ai-ctx-badge{font-size:10px;color:var(--em);display:flex;align-items:center;gap:4px;margin-bottom:6px;}
-.ai-ctx-badge.warn{color:var(--am);}
-@media(max-width:480px){.ai-panel{right:8px;left:8px;width:auto;bottom:76px;}#ai-fab{bottom:16px;right:16px;}}
+@keyframes bounce{0%,80%,100%{transform:scale(.7);opacity:.4}40%{transform:scale(1);opacity:1}}
+.ai-foot{flex-shrink:0;border-top:0.5px solid rgba(255,255,255,.07);padding:14px 18px 16px;}
+.ai-inp-row{display:flex;gap:10px;align-items:flex-end;}
+#ai-inp{flex:1;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.14);border-radius:14px;color:var(--t);font-size:13.5px;font-family:inherit;padding:11px 15px;resize:none;outline:none;line-height:1.45;max-height:120px;overflow-y:auto;transition:border-color .15s,background .15s;}
+#ai-inp::placeholder{color:rgba(255,255,255,.28);}
+#ai-inp:focus{border-color:rgba(10,132,255,.5);background:rgba(10,132,255,.05);}
+#ai-send{width:40px;height:40px;border-radius:50%;background:var(--ac);border:none;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s,transform .15s,background .15s;box-shadow:0 4px 14px rgba(10,132,255,.4);}
+#ai-send:hover{transform:scale(1.08);background:#0071e3;}
+#ai-send:disabled{opacity:.3;cursor:not-allowed;transform:none;}
+@media(max-width:700px){.ai-sidebar{display:none;}.ai-page{height:auto;}}
 </style>
 </head>
 <body>
@@ -286,6 +295,7 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span><span class="nb-label">Clienti</span></button>
     <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span><span class="nb-label">Carica dati</span></button>
     <button class="nb" onclick="nav('lenti')" id="nb-lenti"><span class="nb-ic">🔬</span><span class="nb-label">Lenti</span></button>
+    <button class="nb" onclick="nav('ai')" id="nb-ai"><span class="nb-ic">✦</span><span class="nb-label">AI Advisor</span></button>
   </div>
   <div class="sb-vista">
     <div class="sb-vista-label">Vista dati</div>
@@ -1002,6 +1012,7 @@ function renderPage(){
   else if(ST.page==="clienti")r.innerHTML=rCli();
   else if(ST.page==="dati")r.innerHTML=rDati();
   else if(ST.page==="lenti")r.innerHTML=rLenti();
+  else if(ST.page==="ai"){r.innerHTML=rAI();initAIPage();}
   setTimeout(initCharts,60);
 }
 
@@ -2428,19 +2439,92 @@ renderPage();
 
 // ═══ AI ADVISOR ══════════════════════════════════════════════════════════════
 let AI_HISTORY=[];
+let AI_PAGE_READY=false;
 let AI_LOADING=false;
-
-function toggleAI(){
-  const p=document.getElementById('ai-panel');
-  if(!p)return;
-  p.classList.toggle('open');
-  if(p.classList.contains('open'))setTimeout(()=>document.getElementById('ai-inp')?.focus(),200);
-}
 
 function clearAIChat(){
   AI_HISTORY=[];
   const m=document.getElementById('ai-msgs');
-  if(m)m.innerHTML=`<div class="ai-msg bot"><div class="ai-bubble">Chat azzerata. Chiedimi pure qualcosa sui tuoi dati!</div></div>`;
+  if(m)m.innerHTML=welcomeMsg();
+}
+
+function welcomeMsg(){
+  const items=[];
+  if(LIVE_VEND&&LIVE_VEND.hasDate)items.push('<span style="color:var(--em)">✓ Vendite</span>');
+  else items.push('<span style="color:var(--am)">⚠ Vendite senza date</span>');
+  if(LIVE_MAG)items.push('<span style="color:var(--em)">✓ Magazzino</span>');
+  if(LIVE_CLI)items.push('<span style="color:var(--em)">✓ Anagrafica</span>');
+  const ctx=items.length?`Contesto caricato: ${items.join(' · ')}`:'Carica i file in <b>Carica dati</b> per analisi sui tuoi dati reali.';
+  return`<div class="ai-msg bot"><div class="ai-msg-av">AI</div><div class="ai-bubble">Ciao! Sono il tuo <strong>CFO Advisor</strong> — leggo i dati del negozio e rispondo in italiano con analisi chiare, criticità e suggerimenti concreti.<br><br><span style="font-size:12px;color:var(--m)">${ctx}</span></div></div>`;
+}
+
+function rAI(){
+  const ctxItems=[];
+  if(LIVE_VEND&&LIVE_VEND.hasDate)ctxItems.push({ok:true,label:'Vendite',sub:LIVE_VEND.rows.length+' righe'});
+  else ctxItems.push({ok:false,label:'Vendite',sub:LIVE_VEND?'senza date':'non caricato'});
+  if(LIVE_MAG)ctxItems.push({ok:true,label:'Magazzino',sub:UPLOAD_NAME_SHORT||'caricato'});
+  else ctxItems.push({ok:false,label:'Magazzino',sub:'dati demo'});
+  if(LIVE_ACQ)ctxItems.push({ok:true,label:'Acquisti',sub:UPLOAD_NAME_ACQ||'caricato'});
+  else ctxItems.push({ok:false,label:'Acquisti',sub:'non caricato'});
+  if(LIVE_CLI)ctxItems.push({ok:true,label:'Anagrafica',sub:LIVE_CLI.length+' clienti'});
+  else ctxItems.push({ok:false,label:'Anagrafica',sub:'non caricato'});
+
+  return`
+<div class="ai-page fi">
+  <div class="ai-page-hdr">
+    <div class="ai-hero">
+      <div class="ai-avatar" style="width:44px;height:44px;font-size:17px">✦</div>
+      <div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-.02em">CFO Advisor AI</div>
+        <div style="font-size:12px;color:var(--m);margin-top:2px">Cloudflare Workers AI · analisi dati in tempo reale</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <select id="ai-model-sel" class="ai-model-sel">
+        <option value="fast">✦ Llama 3.1 8B · veloce</option>
+        <option value="smart">✦ Llama 3.3 70B · smart</option>
+      </select>
+      <button onclick="clearAIChat()" style="background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.12);border-radius:10px;color:var(--m);cursor:pointer;padding:6px 12px;font-size:12px;font-family:inherit">↺ Nuova chat</button>
+    </div>
+  </div>
+  <div class="ai-body">
+    <div class="ai-sidebar">
+      <div class="ai-ctx-card">
+        <div class="ai-ctx-title">Contesto dati</div>
+        ${ctxItems.map(c=>`<div class="ai-ctx-row">
+          <div class="ai-ctx-dot" style="background:${c.ok?'var(--em)':'rgba(255,255,255,.2)'}"></div>
+          <div><div style="font-size:11px;font-weight:600;color:${c.ok?'var(--t)':'var(--d)'}">${c.label}</div><div style="font-size:10px;color:var(--d)">${c.sub}</div></div>
+        </div>`).join('')}
+        ${!LIVE_VEND||!LIVE_VEND.hasDate?`<button onclick="nav('dati')" style="margin-top:10px;width:100%;font-size:11px;padding:6px;border-radius:8px;background:rgba(10,132,255,.12);border:0.5px solid rgba(10,132,255,.3);color:var(--ac);cursor:pointer;font-family:inherit">Carica dati →</button>`:''}
+      </div>
+      <div class="ai-prompts-card">
+        <div class="ai-ctx-title">Analisi rapide</div>
+        <button class="ai-qbtn" onclick="sendAI('Dammi un briefing CFO completo: situazione attuale, KPI critici, trend, alert e 3 azioni prioritarie')">📋 Briefing CFO completo</button>
+        <button class="ai-qbtn" onclick="sendAI('Analizza vendite mese corrente vs anno scorso. Evidenzia criticità e opportunità con bullet point')">📊 Analisi mese corrente</button>
+        <button class="ai-qbtn" onclick="sendAI('Quali brand hanno il margine migliore e peggiore? Dove posso migliorare il mix prodotto?')">💎 Analisi brand e margini</button>
+        <button class="ai-qbtn" onclick="sendAI('Analizza i clienti: quanti sono a rischio abbandono, qual è la frequenza di ritorno, cosa fare per fidelizzarli?')">👥 Fidelizzazione clienti</button>
+        <button class="ai-qbtn" onclick="sendAI('Analizza il magazzino: quali prodotti sono fermi, cosa va riordinato, quale filiale ha eccesso o carenza?')">📦 Analisi magazzino</button>
+        <button class="ai-qbtn" onclick="sendAI('Analisi lenti: quali tipologie vendono di più, qual è il margine, dove migliorare?')">🔬 Analisi lenti</button>
+        <button class="ai-qbtn" onclick="sendAI('Confronta le performance delle filiali A, B, C: fatturato, margine, mix prodotto. Chi performa meglio e perché?')">🏪 Confronto filiali</button>
+        <button class="ai-qbtn" onclick="sendAI('Individuami le 5 criticità più urgenti di questo negozio e per ognuna dammi un suggerimento concreto')">⚠️ Criticità urgenti</button>
+      </div>
+    </div>
+    <div class="ai-main">
+      <div id="ai-msgs" class="ai-msgs">${welcomeMsg()}</div>
+      <div class="ai-foot">
+        <div class="ai-inp-row">
+          <textarea id="ai-inp" placeholder="Chiedi qualcosa sui tuoi dati… (Invio per inviare, Shift+Invio per andare a capo)" rows="1" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+          <button id="ai-send" onclick="sendAI()">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+function initAIPage(){
+  AI_PAGE_READY=true;
+  setTimeout(()=>document.getElementById('ai-inp')?.focus(),100);
 }
 
 function buildAIContext(){
@@ -2451,9 +2535,17 @@ function buildAIContext(){
 
   let ctx=`Sei il CFO Advisor AI di Ottica Bonardi, negozio di ottica premium a Cremona con 3 filiali (A, B, C).
 Data odierna: ${now.toLocaleDateString('it-IT',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}.
-Anno corrente: ${CY} | Mese: ${curMoLabel}.
+Anno corrente: ${CY} | Mese corrente: ${curMoLabel}.
 
-ISTRUZIONI: Rispondi SEMPRE in italiano, in modo conciso e professionale. Usa € con numeri formattati. Fornisci analisi concrete. Suggerisci azioni quando utile. Se mancano dati dillo chiaramente.\n\n`;
+REGOLE DI RISPOSTA (rispetta sempre queste):
+1. Rispondi SOLO in italiano, tono professionale da consulente CFO senior
+2. Struttura SEMPRE le risposte con sezioni chiare: usa **Titolo** per i titoli, bullet • per gli elenchi
+3. Per ogni analisi includi: 📊 KPI principali → ⚠️ Criticità → 💡 Iniziative suggerite
+4. Evidenzia le criticità con ⚠️ e le opportunità con 💡
+5. I numeri in €: usa formato italiano (€12.500, non $12,500)
+6. Sii CONCISO: massimo 4-5 bullet per sezione, niente testo ridondante
+7. Se mancano dati specifici, dillo brevemente e analizza quello che hai
+8. Chiudi sempre con 1-2 "Prossimi passi" concreti e prioritizzati\n\n`;
 
   if(LIVE_VEND&&LIVE_VEND.hasDate){
     const rows=LIVE_VEND.rows;
@@ -2606,72 +2698,6 @@ async function sendAI(prefill){
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey&&document.activeElement?.id==='ai-inp'){e.preventDefault();sendAI();}
-});
-</script>
-
-<!-- AI Advisor FAB + Panel -->
-<button id="ai-fab" onclick="toggleAI()" title="CFO AI Advisor — Cloudflare Workers AI">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-    <circle cx="9" cy="14" r="1.2" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1.2" fill="#fff" stroke="none"/>
-  </svg>
-</button>
-
-<div id="ai-panel" class="ai-panel">
-  <div class="ai-hdr">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="ai-avatar">AI</div>
-      <div>
-        <div style="font-weight:700;font-size:14px">CFO Advisor AI</div>
-        <div style="font-size:10px;color:var(--m);margin-top:1px">Cloudflare Workers AI</div>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <select id="ai-model-sel" class="ai-model-sel" title="Modello AI">
-        <option value="fast">Llama 3.1 8B · veloce</option>
-        <option value="smart">Llama 3.3 70B · smart</option>
-      </select>
-      <button onclick="clearAIChat()" title="Nuova chat" style="background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:var(--m);cursor:pointer;padding:4px 8px;font-size:13px">↺</button>
-      <button onclick="toggleAI()" style="background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:var(--m);cursor:pointer;padding:4px 8px;font-size:13px">✕</button>
-    </div>
-  </div>
-  <div id="ai-msgs" class="ai-msgs">
-    <div class="ai-msg bot">
-      <div class="ai-avatar" style="width:24px;height:24px;font-size:10px">AI</div>
-      <div class="ai-bubble">Ciao! Sono il tuo <strong>CFO Advisor AI</strong>. Analizzo i dati caricati — vendite, magazzino, clienti, lenti — e rispondo in italiano.<br><br>Cosa vuoi sapere?</div>
-    </div>
-  </div>
-  <div class="ai-quick">
-    <button class="ai-qbtn" onclick="sendAI('Analizza le vendite del mese corrente rispetto all\'anno scorso')">📊 Mese corrente</button>
-    <button class="ai-qbtn" onclick="sendAI('Quali brand rendono meglio per margine? Suggeriscimi azioni')">💎 Migliori brand</button>
-    <button class="ai-qbtn" onclick="sendAI('Analizza i clienti a rischio di abbandono e cosa fare')">👥 Clienti a rischio</button>
-    <button class="ai-qbtn" onclick="sendAI('Dove sono le maggiori opportunità di crescita per questo negozio?')">🚀 Opportunità</button>
-    <button class="ai-qbtn" onclick="sendAI('Analisi completa magazzino: cosa è fermo, cosa va riordinato')">📦 Magazzino</button>
-    <button class="ai-qbtn" onclick="sendAI('Dammi un briefing CFO completo: situazione attuale, trend, alert critici')">📋 Briefing CFO</button>
-  </div>
-  <div class="ai-foot">
-    <div id="ai-ctx-badge" class="ai-ctx-badge"></div>
-    <div class="ai-inp-row">
-      <textarea id="ai-inp" placeholder="Chiedi sui tuoi dati…" rows="1" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
-      <button id="ai-send" onclick="sendAI()">↑</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// Update context badge when panel opens
-document.getElementById('ai-fab').addEventListener('click',()=>{
-  setTimeout(()=>{
-    const badge=document.getElementById('ai-ctx-badge');
-    if(!badge)return;
-    const items=[];
-    if(LIVE_VEND&&LIVE_VEND.hasDate)items.push('✅ Vendite');
-    else items.push('⚠️ Vendite senza date');
-    if(LIVE_MAG)items.push('✅ Magazzino');
-    if(LIVE_CLI)items.push('✅ Anagrafica');
-    badge.textContent=items.length?'Dati: '+items.join(' · '):'Carica file in "Dati" per analisi precise';
-    badge.className='ai-ctx-badge'+(LIVE_VEND&&LIVE_VEND.hasDate?'':' warn');
-  },100);
 });
 </script>
 </body>
