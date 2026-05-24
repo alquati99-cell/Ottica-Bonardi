@@ -952,7 +952,7 @@ function buildAgingSummary(rows){
 const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:CY,selMese:CM,
   magTab:"stock",magBrand:"all",magSed:"all",magCat:"all",magForn:"all",magDateFrom:"",magDateTo:"",magFocus:"all",magSearch:"",magSort:"v",magAsc:false,magPage:0,
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
-  cliSearch:"",cliTab:"retention",cliRetLost:6,cliRetSort:"last",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,
+  cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"pz",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,
   vendFil:"all",vendTp:"all",vendMar:"all",
   ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10,lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12};
 let charts={};
@@ -1772,11 +1772,12 @@ function rCli(){
 
   // ── Sort + filter retention list ───────────────────────────────────────────
   let retFiltered=ST.cliRetFilter==='all'?retClients:retClients.filter(c=>c.status===ST.cliRetFilter);
-  const rs=ST.cliRetSort||'last';const mul=ST.cliRetAsc?1:-1;
+  const rs=ST.cliRetSort||'pz';const mul=ST.cliRetAsc?1:-1;
   retFiltered=[...retFiltered].sort((a,b)=>{
     if(rs==='last')return mul*(b.daysSince-a.daysSince);
     if(rs==='val')return mul*(b.totVal-a.totVal);
     if(rs==='visits')return mul*(b.nVisits-a.nVisits);
+    if(rs==='pz')return mul*(b.totPz-a.totPz);
     return 0;
   });
   const retDisplay=srch?retFiltered.filter(c=>c.cli.toLowerCase().includes(srch)):retFiltered;
@@ -1785,7 +1786,7 @@ function rCli(){
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const sPill=s=>{const cfg={attivo:['#30d158','rgba(48,209,88,.15)','Attivo'],rischio:['#ff9f0a','rgba(255,159,10,.15)','A rischio'],perso:['#ff453a','rgba(255,69,58,.15)','Perso'],nuovo:['#5ac8fa','rgba(90,200,250,.15)','Nuovo']}[s]||['#fff','#333',s];return`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${cfg[1]};color:${cfg[0]}">${cfg[2]}</span>`;};
-  const thS=col=>`<th style="cursor:pointer" onclick="cliRetSort('${col}')">${{last:'Ultima visita',val:'Fatturato',visits:'Visite'}[col]||col} ${rs===col?(ST.cliRetAsc?'↑':'↓'):''}</th>`;
+  const thS=col=>`<th style="cursor:pointer" onclick="cliRetSort('${col}')">${{last:'Ultima visita',val:'Fatturato',visits:'Visite',pz:'Prodotti tot.'}[col]||col} ${rs===col?(ST.cliRetAsc?'↑':'↓'):''}</th>`;
   const fmtDays=d=>d===9999?'—':d<=1?'oggi':d<=30?`${d}gg`:`${Math.round(d/30)}m`;
 
   // ── Tab: Retention ─────────────────────────────────────────────────────────
@@ -1799,16 +1800,17 @@ function rCli(){
     const rBtn=(v,l)=>`<button class="tp${retMonths===v?' on':''}" onclick="ST.cliRetLost=${v};renderPage()" style="font-size:11px">${l}</button>`;
     return`
 <div class="kg k4 fi" style="margin-bottom:0">
-  <div class="g kc"><div class="ki" style="color:#30d158">◉</div><div class="kl">Attivi</div><div class="kv" style="color:#30d158">${fmtN(nAttivi)}</div><div class="ks">ultimi ${Math.round(retDays/2)}gg</div></div>
-  <div class="g kc"><div class="ki" style="color:#ff9f0a">◎</div><div class="kl">A rischio</div><div class="kv" style="color:#ff9f0a">${fmtN(nRischio)}</div><div class="ks">${Math.round(retDays/2)}–${retDays}gg assenti</div></div>
-  <div class="g kc"><div class="ki" style="color:#ff453a">○</div><div class="kl">Persi</div><div class="kv" style="color:#ff453a">${fmtN(nPersi)}</div><div class="ks">&gt;${retDays}gg assenti</div></div>
+  ${(()=>{const half=retMonths/2;const halfLbl=half>=12?Math.round(half/12)+'a':Math.round(half)+'m';const fullLbl=retMonths>=12?Math.round(retMonths/12)+'a':retMonths+'m';return`
+  <div class="g kc"><div class="ki" style="color:#30d158">◉</div><div class="kl">Attivi</div><div class="kv" style="color:#30d158">${fmtN(nAttivi)}</div><div class="ks">ultimi ${halfLbl}</div></div>
+  <div class="g kc"><div class="ki" style="color:#ff9f0a">◎</div><div class="kl">A rischio</div><div class="kv" style="color:#ff9f0a">${fmtN(nRischio)}</div><div class="ks">${halfLbl}–${fullLbl} assenti</div></div>
+  <div class="g kc"><div class="ki" style="color:#ff453a">○</div><div class="kl">Persi</div><div class="kv" style="color:#ff453a">${fmtN(nPersi)}</div><div class="ks">&gt;${fullLbl} assenti</div></div>`;})()}
   <div class="g kc"><div class="ki" style="color:#5ac8fa">✦</div><div class="kl">Nuovi</div><div class="kv" style="color:#5ac8fa">${fmtN(nNuovi)}</div><div class="ks">1 sola visita</div></div>
 </div>
 <div class="g2 fi" style="margin-bottom:0">
   <div class="g card"><div class="ch"><div class="ct">Distribuzione recency</div></div><div class="cw" style="height:180px"><canvas id="ch_cli_ret"></canvas></div></div>
   <div class="g card" style="display:flex;flex-direction:column;gap:10px;justify-content:center">
     <div style="font-size:11px;color:var(--d);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Soglia "perso"</div>
-    <div class="tpill" style="gap:0">${[3,6,12].map(v=>rBtn(v,v+'m')).join('')}</div>
+    <div class="tpill" style="gap:0">${[[3,'3m'],[6,'6m'],[12,'1a'],[24,'2a'],[36,'3a']].map(([v,l])=>rBtn(v,l)).join('')}</div>
     <div style="height:1px;background:var(--b)"></div>
     <div style="font-size:11px;color:var(--d);text-transform:uppercase;letter-spacing:.08em">KPI fidelizzazione</div>
     <div style="display:flex;flex-direction:column;gap:7px">
@@ -1827,9 +1829,10 @@ function rCli(){
     </div>
   </div>
   <div style="overflow-x:auto">
-  <table><thead><tr><th>Cod. cliente</th>${thS('last')}${thS('visits')}${thS('val')}<th>Lenti</th><th>Sole</th><th>Vista</th><th>Status</th></tr></thead>
+  <table><thead><tr><th>Cod. cliente</th>${thS('pz')}${thS('last')}${thS('visits')}${thS('val')}<th>Lenti</th><th>Sole</th><th>Vista</th><th>Status</th></tr></thead>
   <tbody>${retDisplay.slice(0,50).map(c=>`<tr>
     <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--ac)">${c.cli}</td>
+    <td class="mn" style="font-weight:600;color:var(--t)">${c.totPz}</td>
     <td class="mn">${fmtDays(c.daysSince)}<span style="font-size:10px;color:var(--d);margin-left:4px">${c.lastDt?c.lastDt.slice(0,7):''}</span></td>
     <td class="mn">${c.nVisits}</td>
     <td class="mn mn-gr">${fmtShort(c.totVal)}</td>
@@ -1837,7 +1840,7 @@ function rCli(){
     <td class="mn" style="color:var(--am)">${c.nSole>0?c.nSole:'—'}</td>
     <td class="mn" style="color:var(--cy)">${c.nVista>0?c.nVista:'—'}</td>
     <td>${sPill(c.status)}</td>
-  </tr>`).join('')}${retDisplay.length>50?`<tr><td colspan="8" style="text-align:center;color:var(--d);font-size:12px;padding:12px">… altri ${retDisplay.length-50} clienti</td></tr>`:''}</tbody></table>
+  </tr>`).join('')}${retDisplay.length>50?`<tr><td colspan="9" style="text-align:center;color:var(--d);font-size:12px;padding:12px">… altri ${retDisplay.length-50} clienti</td></tr>`:''}</tbody></table>
   </div>
 </div>`;
   };
