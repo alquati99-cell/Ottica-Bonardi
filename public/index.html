@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--bg:#000000;--bg2:#0a0a0f;--gl:rgba(255,255,255,.065);--b:rgba(255,255,255,.1);--bb:rgba(255,255,255,.22);--t:#ffffff;--m:rgba(255,255,255,.55);--d:rgba(255,255,255,.28);--ac:#0a84ff;--acl:rgba(10,132,255,.15);--acs:rgba(10,132,255,.08);--cy:#5ac8fa;--em:#30d158;--am:#ff9f0a;--vi:#bf5af2;--ro:#ff453a;--gr:#30d158;--grl:rgba(48,209,88,.18);--pri-u:#ff453a;--pri-a:#ff9f0a;--pri-m:#bf5af2;--pri-o:#30d158;--r:18px}
+:root{--bg:#000000;--bg2:#0a0a0f;--gl:rgba(255,255,255,.065);--b:rgba(255,255,255,.1);--bb:rgba(255,255,255,.22);--t:#ffffff;--m:rgba(255,255,255,.55);--d:rgba(255,255,255,.28);--ac:#4da8ff;--acl:rgba(10,132,255,.15);--acs:rgba(10,132,255,.08);--cy:#5ac8fa;--em:#30d158;--am:#ff9f0a;--vi:#bf5af2;--ro:#ff453a;--gr:#30d158;--grl:rgba(48,209,88,.18);--pri-u:#ff453a;--pri-a:#ff9f0a;--pri-m:#bf5af2;--pri-o:#30d158;--r:18px}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sora',sans-serif;background:#000;color:var(--t);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 90% 70% at -5% -5%,rgba(10,132,255,.18) 0%,transparent 55%),radial-gradient(ellipse 70% 50% at 105% 105%,rgba(48,209,88,.12) 0%,transparent 50%),radial-gradient(ellipse 50% 40% at 50% 110%,rgba(191,90,242,.08) 0%,transparent 45%)}
@@ -1230,6 +1230,24 @@ ${usingProxy?`<div style="background:rgba(10,132,255,.05);border:0.5px solid rgb
       ${dailyNeed!==null?`<div style="font-size:12px;color:var(--m);margin-top:4px">ritmo necessario: <b style="color:var(--ac)">${fmt(dailyNeed)}/giorno</b></div>`:''}
     </div>
   </div>
+</div>
+<div class="g card fi" id="ov-ai-card" style="border-top:1.5px solid rgba(77,168,255,.22)">
+  <div class="ch" style="flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#4da8ff,#5856d6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0">✦</div>
+      <div>
+        <div style="font-size:13px;font-weight:700">AI Insights · Overview</div>
+        <div style="font-size:10px;color:var(--d)">Llama · Cloudflare Workers AI</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="ov-ai-model" class="ai-model-sel"><option value="fast">8B · veloce</option><option value="smart">70B · smart</option></select>
+      <button id="ov-ai-btn" onclick="genOvAI()" style="background:rgba(77,168,255,.12);border:0.5px solid rgba(77,168,255,.3);border-radius:10px;color:var(--ac);cursor:pointer;padding:6px 14px;font-size:12px;font-family:inherit;transition:background .15s;white-space:nowrap">✦ Genera analisi</button>
+    </div>
+  </div>
+  <div id="ov-ai-out" style="font-size:13px;line-height:1.65;color:var(--t);padding:2px 0 4px;min-height:48px">
+    <span style="color:var(--d);font-size:12px">Clicca "Genera analisi" per una lettura AI dei trend e KPI correnti — criticità, opportunità e prossimi passi.</span>
+  </div>
 </div>`;
 }
 
@@ -2424,6 +2442,63 @@ function initCharts(){
       ],{...CO,plugins:{...CO.plugins,legend:{display:true,labels:{color:'rgba(255,255,255,.65)',font:{size:10},boxWidth:10}},datalabels:{display:false}},scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(255,255,255,.45)',font:{size:10}}},y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(255,255,255,.4)',font:{size:10}}}}});
     }
   }
+}
+
+async function genOvAI(){
+  const out=document.getElementById('ov-ai-out');
+  const btn=document.getElementById('ov-ai-btn');
+  if(!out||!btn||btn.disabled)return;
+  btn.disabled=true;btn.textContent='✦ Analisi in corso…';
+  out.innerHTML='<span class="ai-cursor">▋</span>';
+
+  const now=new Date();
+  const today=toISO(now);
+  const moStr=String(CM+1).padStart(2,'0');
+  let kpiSummary='';
+  if(LIVE_VEND&&LIVE_VEND.hasDate){
+    const rows=LIVE_VEND.rows;
+    const ytdRows=rows.filter(r=>r.dt&&r.dt>=`${CY}-01-01`&&r.dt<=today);
+    const ytdVal=Math.round(ytdRows.reduce((a,r)=>a+r.val,0));
+    const ytdPz=ytdRows.reduce((a,r)=>a+r.pz,0);
+    const ytdPYRows=rows.filter(r=>r.dt&&r.dt>=`${CY-1}-01-01`&&r.dt<=`${CY-1}-${today.slice(5)}`);
+    const ytdPYVal=Math.round(ytdPYRows.reduce((a,r)=>a+r.val,0));
+    const dV=ytdPYVal>0?Math.round((ytdVal-ytdPYVal)/ytdPYVal*100):null;
+    const moRows=rows.filter(r=>r.dt&&r.dt.slice(0,7)===`${CY}-${moStr}`);
+    const moVal=Math.round(moRows.reduce((a,r)=>a+r.val,0));
+    const moPz=moRows.reduce((a,r)=>a+r.pz,0);
+    const moRowsPY=rows.filter(r=>r.dt&&r.dt.slice(0,7)===`${CY-1}-${moStr}`);
+    const moPYVal=Math.round(moRowsPY.reduce((a,r)=>a+r.val,0));
+    const dMo=moPYVal>0?Math.round((moVal-moPYVal)/moPYVal*100):null;
+    const byMar={};ytdRows.forEach(r=>{if(!r.mar)return;if(!byMar[r.mar])byMar[r.mar]=0;byMar[r.mar]+=r.val;});
+    const topMar=Object.entries(byMar).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([n,v])=>`${n} €${Math.round(v).toLocaleString('it-IT')}`).join(', ');
+    const byFil={};ytdRows.forEach(r=>{if(!r.fil)return;if(!byFil[r.fil])byFil[r.fil]=0;byFil[r.fil]+=r.val;});
+    const filStr=Object.entries(byFil).map(([k,v])=>`${k}: €${Math.round(v).toLocaleString('it-IT')}`).join(' | ');
+    kpiSummary=`YTD ${CY}: €${ytdVal.toLocaleString('it-IT')} (${dV!==null?(dV>0?'+':'')+dV+'% vs '+CY:''}) | ${ytdPz}pz\nMese ${MESI[CM]}: €${moVal.toLocaleString('it-IT')} (${dMo!==null?(dMo>0?'+':'')+dMo+'% vs prec.':''}) | ${moPz}pz\nFiliali: ${filStr}\nTop marchi: ${topMar}`;
+  } else kpiSummary='Dati vendite non disponibili con date.';
+
+  const systemCtx=buildAIContext();
+  const question=`Basandoti su questi KPI Overview (periodo: ${ST.ovPeriodo}):\n${kpiSummary}\n\nFai un'analisi rapida e schematica con esattamente:\n**Situazione attuale**\n• [max 2 bullet, dati concreti con €]\n\n**⚠️ Criticità**\n• [max 2 punti critici specifici]\n\n**💡 Opportunità & prossimi passi**\n• [max 2 azioni concrete e prioritizzate]\n\nMassimo 12 righe totali. Sii diretto e concreto.`;
+
+  const payload={model:document.getElementById('ov-ai-model')?.value||'fast',messages:[{role:'system',content:systemCtx},{role:'user',content:question}]};
+  try{
+    const resp=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const reader=resp.body.getReader();const dec=new TextDecoder();let full='';let buf='';
+    out.innerHTML='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        const raw=line.slice(6).trim();if(raw==='[DONE]')break;
+        try{const j=JSON.parse(raw);const tok=j.response||'';if(tok){full+=tok;out.innerHTML=aiMarkdown(full)+'<span class="ai-cursor">▋</span>';}}catch{}
+      }
+    }
+    out.innerHTML=aiMarkdown(full)||'(nessuna risposta)';
+    out.querySelectorAll('.ai-cursor').forEach(e=>e.remove());
+  }catch(err){out.innerHTML=`<span style="color:var(--ro)">Errore: ${err.message}${err.message.includes('fetch')?'<br><small>Funziona solo su Cloudflare Workers</small>':''}</span>`;}
+  finally{btn.disabled=false;btn.textContent='✦ Rigenera';}
 }
 
 window.cliRetSort=col=>{if(ST.cliRetSort===col)ST.cliRetAsc=!ST.cliRetAsc;else{ST.cliRetSort=col;ST.cliRetAsc=false;}renderPage();}
