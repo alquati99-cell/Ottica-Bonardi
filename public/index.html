@@ -874,7 +874,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",
   vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10,lentiTab:'kpi',lentiFil:'all',lentiTp:'all'};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10,lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12};
 let charts={};
 const PER=30;
 
@@ -1700,28 +1700,51 @@ function rLenti(){
   const byFil={A:{pz:0,val:0,acq:0},B:{pz:0,val:0,acq:0}};
   ytdRows.forEach(r=>{const k=r.fil==='B'?'B':'A';byFil[k].pz+=r.pz;byFil[k].val+=r.val;byFil[k].acq+=r.acq;});
 
-  // Trend mensile
+  // Tutti i tipi di lenti disponibili per selettore
+  const allLentiTipi=[...new Set(allL.map(r=>r.tp).filter(Boolean))].sort();
+
+  // Trend mensile con slicer range + tipo
+  const trendStep=ST.lentiTrendStep||'M';
+  const trendRange=ST.lentiTrendRange||12;
+  const trendTpFilter=ST.lentiTrendTp||'all';
+  const trendSrc=trendTpFilter==='all'?rows:rows.filter(r=>r.tp===trendTpFilter);
   const trendAgg={};
   if(hasDate){
-    const cut=new Date(now);cut.setMonth(cut.getMonth()-11);cut.setDate(1);
-    const cutStr=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,'0')}`;
-    rows.forEach(r=>{
+    let cutStr='';
+    if(trendStep==='M'){
+      const cut=new Date(now);cut.setMonth(cut.getMonth()-(trendRange-1));cut.setDate(1);
+      cutStr=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,'0')}`;
+    } else if(trendStep==='W'){
+      const cut=new Date(now);cut.setDate(cut.getDate()-7*(trendRange-1));
+      cutStr=toISO(cut);
+    } else if(trendStep==='D'){
+      const cut=new Date(now);cut.setDate(cut.getDate()-(trendRange-1));
+      cutStr=toISO(cut);
+    }
+    trendSrc.forEach(r=>{
       if(!r.dt)return;
-      const k=r.dt.slice(0,7);
-      if(k<cutStr)return;
+      let k;
+      if(trendStep==='M') k=r.dt.slice(0,7);
+      else if(trendStep==='W') k=isoWeekKey(r.dt);
+      else k=r.dt;
+      if(cutStr&&k<cutStr)return;
       if(!trendAgg[k])trendAgg[k]={pz:0,val:0,marg:0};
       trendAgg[k].pz+=r.pz;trendAgg[k].val+=r.val;trendAgg[k].marg+=(r.val-r.acq);
     });
   }
   const trendKeys=Object.keys(trendAgg).sort();
-  const trendLabels=trendKeys.map(k=>{const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);});
+  const trendLabels=trendKeys.map(k=>{
+    if(trendStep==='M'){const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}
+    if(trendStep==='W') return k.replace(/(\d{4})-W/,'W');
+    return k.slice(5).replace('-','/');
+  });
 
   const filBtn=f=>`<button class="tp${ST.lentiFil===f?' on':''}" onclick="ST.lentiFil='${f}';renderPage()">${f==='all'?'Tutte':f}</button>`;
 
   // Percentuale tipo su totale
   const pctTp=tp=>totPz>0?Math.round((byTp[tp]||{pz:0}).pz/totPz*100):0;
 
-  window.__lenti={hasDate,trendKeys,trendLabels,trendAgg,tpSorted,shortTp,marSorted,diamSorted,hasDiam,opSorted};
+  window.__lenti={hasDate,trendKeys,trendLabels,trendAgg,tpSorted,shortTp,marSorted,diamSorted,hasDiam,opSorted,allLentiTipi,trendStep,trendRange,trendTpFilter};
 
   return`
 <div class="topbar fi" style="flex-wrap:wrap;gap:8px">
@@ -1756,8 +1779,8 @@ function rLenti(){
   </div>
 </div>
 
-<!-- Row 1: tipo breakdown + trend -->
-<div class="g2 fi" style="margin-bottom:14px">
+<!-- Row 1: tipo breakdown | trend full-width -->
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px" class="fi">
   <!-- Breakdown per tipo — barre orizzontali + margine -->
   <div class="g card">
     <div class="ch"><div class="ct"><span class="dot dem"></span>Analisi per tipo lente</div></div>
@@ -1786,9 +1809,27 @@ function rLenti(){
     </div>
   </div>
 
-  <!-- Trend mensile o placeholder -->
-  <div class="g card">
-    <div class="ch"><div class="ct"><span class="dot dcy"></span>Trend mensile${hasDate?'':" (carica vendite con date)"}</div></div>
+  <!-- Trend con selettore tipo + range -->
+  <div class="g card" style="grid-column:1/-1">
+    <div class="ch" style="flex-wrap:wrap;gap:8px">
+      <div class="ct"><span class="dot dcy"></span>Andamento lenti${trendTpFilter!=='all'?` · ${trendTpFilter.replace('Lenti ','')}`:''}</div>
+      <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-left:auto">
+        <!-- Step selector -->
+        <div style="display:flex;gap:5px;align-items:center">
+          <div class="tpill" style="gap:0">
+            ${['M','W','D'].map(s=>`<button class="tp${trendStep===s?' on':''}" onclick="ST.lentiTrendStep='${s}';ST.lentiTrendRange=${s==='M'?12:s==='W'?13:30};renderPage()" style="font-size:11px">${s==='M'?'Mese':s==='W'?'Sett.':'Giorno'}</button>`).join('')}
+          </div>
+          <div class="tpill" style="gap:0">
+            ${(trendStep==='M'?[[6,'6m'],[12,'12m'],[24,'24m'],[null,'tutto']]:trendStep==='W'?[[13,'13w'],[26,'26w'],[52,'52w'],[null,'tutto']]:[[30,'30g'],[60,'60g'],[90,'90g'],[null,'tutto']]).map(([v,l])=>`<button class="tp${trendRange===v?' on':''}" onclick="ST.lentiTrendRange=${v===null?'null':v};renderPage()" style="font-size:10px">${l}</button>`).join('')}
+          </div>
+        </div>
+        <!-- Tipo selector -->
+        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="tp${trendTpFilter==='all'?' on':''}" onclick="ST.lentiTrendTp='all';renderPage()" style="font-size:10px;padding:3px 8px">Tutte</button>
+          ${allLentiTipi.map(tp=>`<button class="tp${trendTpFilter===tp?' on':''}" onclick="ST.lentiTrendTp='${tp}';renderPage()" style="font-size:10px;padding:3px 8px">${tp.replace('Lenti ','')}</button>`).join('')}
+        </div>
+      </div>
+    </div>
     ${hasDate&&trendKeys.length?`<div class="cw cw-lg"><canvas id="ch_lenti_trend"></canvas></div>`:`<div style="height:200px;display:flex;align-items:center;justify-content:center;color:var(--d);font-size:13px;flex-direction:column;gap:8px"><span style="font-size:28px;opacity:.3">📅</span><span>Dati senza date</span></div>`}
   </div>
 </div>
@@ -1978,6 +2019,59 @@ function initCharts(){
       const priData=agMode?[stats.U.pz,stats.A.pz,stats.M.pz,stats.O.pz]:[stats.U.v,stats.A.v,stats.M.v,stats.O.v];
       const priOpts={...coDon,plugins:{...coDon.plugins,tooltip:{callbacks:{label:ctx=>agMode?`${Math.round(ctx.raw)} pz`:`€ ${Math.round(ctx.raw).toLocaleString("it-IT")}`}}}};
       mkChart("ch_aging_pri","doughnut",["Urgente (>5 anni)","Alta (3-5 anni)","Media (2-3 anni)","OK (<2 anni)"],[{data:priData,backgroundColor:["rgba(255,69,58,.65)","rgba(255,159,10,.55)","rgba(48,209,88,.35)","rgba(48,209,88,.62)"],borderWidth:0,hoverOffset:6}],priOpts);
+    }
+  }
+
+  // LENTI
+  if(ST.page==="lenti"&&window.__lenti){
+    const ln=window.__lenti;
+    // Trend con selettore tipo
+    if(ln.hasDate&&ln.trendKeys.length){
+      const sz=ln.trendKeys.length;
+      const showLbl=sz<=24;
+      const lblSz=sz<=12?10:sz<=18?9:8;
+      const lentiTrendOpts={
+        responsive:true,maintainAspectRatio:false,
+        layout:{padding:{top:28,right:8}},
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          datalabels:{
+            display:ctx=>ctx.datasetIndex===0?showLbl&&ctx.dataset.data[ctx.dataIndex]>0:showLbl&&ctx.dataset.data[ctx.dataIndex]>0,
+            anchor:ctx=>ctx.datasetIndex===0?'end':'center',
+            align:ctx=>ctx.datasetIndex===0?'start':'top',
+            offset:ctx=>ctx.datasetIndex===0?6:5,
+            color:'rgba(232,237,245,.95)',
+            backgroundColor:ctx=>ctx.datasetIndex===0?'rgba(6,30,20,.68)':'rgba(90,200,250,.28)',
+            borderRadius:5,padding:{top:2,bottom:2,left:6,right:6},
+            font:ctx=>({family:"'DM Mono',monospace",size:ctx.datasetIndex===0?12:11,weight:'600'}),
+            formatter:(v,ctx)=>ctx.datasetIndex===0?fmtShort(v):fmtShortPz(v)+' pz'
+          },
+          legend:{display:true,position:"top",align:"end",labels:{color:"rgba(255,255,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
+          tooltip:{backgroundColor:"rgba(0,0,0,.9)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(255,255,255,.9)",bodyColor:"rgba(255,255,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
+        },
+        scales:{
+          x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(255,255,255,.3)",font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
+          y:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(255,255,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtShort(v)},border:{display:false}},
+          y1:{position:"right",grid:{display:false},ticks:{color:"rgba(90,200,250,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtShortPz(v)+' pz'},border:{display:false}}
+        }
+      };
+      mkChart("ch_lenti_trend","bar",ln.trendLabels,[
+        {type:"bar",label:"Fatturato (€)",data:ln.trendKeys.map(k=>Math.round(ln.trendAgg[k].val)),backgroundColor:"rgba(48,209,88,.22)",borderColor:"#30d158",borderWidth:1.5,borderRadius:4,yAxisID:"y"},
+        {type:"line",label:"Pezzi",data:ln.trendKeys.map(k=>Math.round(ln.trendAgg[k].pz)),borderColor:"#5ac8fa",backgroundColor:"rgba(90,200,250,.08)",borderWidth:2,pointRadius:ln.trendStep==='A'?3:2,pointBackgroundColor:"#5ac8fa",tension:0.4,fill:false,yAxisID:"y1"}
+      ],lentiTrendOpts);
+    }
+    // Donut tipi
+    if(ln.tpSorted.length){
+      const lentiColors=["#30d158","rgba(48,209,88,.7)","rgba(48,209,88,.5)","rgba(90,200,250,.7)","rgba(191,90,242,.6)","rgba(255,159,10,.5)"];
+      const lentiDonTotal=ln.tpSorted.reduce((s,[,d])=>s+d.pz,0);
+      mkChart("ch_lenti_tipi","doughnut",
+        ln.tpSorted.map(([tp])=>ln.shortTp(tp)),
+        [{data:ln.tpSorted.map(([,d])=>Math.round(d.pz)),backgroundColor:lentiColors.slice(0,ln.tpSorted.length),borderWidth:0,hoverOffset:6}],
+        {...coDon,plugins:{...coDon.plugins,
+          datalabels:{display:ctx=>lentiDonTotal>0&&(ctx.dataset.data[ctx.dataIndex]/lentiDonTotal)>=0.05,formatter:v=>Math.round(v/lentiDonTotal*100)+'%',color:'rgba(0,0,0,.85)',font:{family:"'DM Mono',monospace",size:11,weight:'600'}},
+          tooltip:{...coDon.plugins.tooltip,callbacks:{label:ctx=>` ${ctx.label}: ${fmtN(ctx.raw)} pz`}}
+        }}
+      );
     }
   }
 
