@@ -647,20 +647,83 @@ function parseCli(file){
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
       if(!rows.length) throw new Error("File vuoto");
-      LIVE_CLI=rows.map(r=>{
-        const cod=(r['Codice cliente']||r['CodiceCliente']||r['Codice']||r['ID Cliente']||r['ID']||'').toString().trim();
-        const nome=(r['Cognome Nome']||r['Nome']||r['Cognome']||r['Denominazione']||'').toString().trim();
-        let rawN=r['Data nascita']||r['DataNascita']||r['Anno nascita']||r['AnnoNascita']||r['Nascita']||'';
-        let nascita=0;
-        if(rawN instanceof Date) nascita=rawN.getFullYear();
-        else if(typeof rawN==='string'){const m=rawN.match(/(\d{4})/);if(m)nascita=parseInt(m[1]);}
-        else if(typeof rawN==='number'){ nascita=rawN>1900&&rawN<2020?rawN:0; }
-        const sesso=(r['Sesso']||r['Genere']||'').toString().trim().toUpperCase().slice(0,1);
-        return{cod,nome,nascita,sesso};
-      }).filter(r=>r.cod&&r.nascita>1900&&r.nascita<2020);
+
+      // Detect format: orders file (has 'codice scheda cliente') or simple anagrafica
+      const hasOrdini=Object.keys(rows[0]).some(k=>k.toLowerCase().includes('scheda')||k.toLowerCase().includes('consegna')||k.toLowerCase().includes('modello'));
+
+      if(hasOrdini){
+        // ── Clienti.xlsx: storico ordini ──────────────────────────────────────
+        const byCode={};
+        rows.forEach(r=>{
+          const cod=(r['codice scheda cliente']||r['Codice cliente']||r['Codice']||'').toString().trim();
+          if(!cod)return;
+          if(!byCode[cod]){
+            const cog=(r['Cognome']||'').trim();const nom=(r['Nome']||'').trim();const cog2=(r['Cognome 2']||'').trim();
+            byCode[cod]={cod,nome:[cog,cog2,nom].filter(Boolean).join(' ')||cod,
+              filiale:(r['Filiale']||'').trim(),
+              nOrdini:0,nVista:0,nSole:0,nLenti:0,
+              brands:{},lenti:{},fornitori:{},
+              orders:[],totSpeso:0
+            };
+          }
+          const c=byCode[cod];
+          let dt='';
+          const rawDt=r['Data consegna']||r['Data']||'';
+          if(rawDt instanceof Date)dt=rawDt.toISOString().slice(0,10);
+          else if(typeof rawDt==='string'&&rawDt.length>=8)dt=rawDt.slice(0,10);
+          const modello=(r['Marca modello']||'').trim();
+          const isVista=modello.toUpperCase().includes('VISTA');
+          const isSole=modello.toUpperCase().includes('SOLE');
+          const lenteDx=(r['Prodotto lente Dx']||'').trim();
+          const lenteSx=(r['Prodotto lente Sx']||'').trim();
+          const marcaDx=(r['Marca lente Dx']||'').trim();
+          const marcaSx=(r['Marca lente Sx']||'').trim();
+          const fornituraDx=(r['Fornitore Dx']||'').trim();
+          const fornitore=(r['Fornitore']||'').trim();
+          const totale=parseFloat(r['Totale']||r['Importo totale']||0)||0;
+          const tipo=parseInt(r['Tipo fornitura']||0)||0;
+          // estrai brand dalla prima parte del modello
+          const brand=modello.split(/\s+/).slice(0,tipo>=2?2:2).join(' ').replace(/\s*(VISTA|SOLE)$/i,'').trim();
+          if(isVista)c.nVista++;
+          if(isSole)c.nSole++;
+          if(lenteDx||lenteSx)c.nLenti++;
+          if(brand&&brand.length>1){c.brands[brand]=(c.brands[brand]||0)+1;}
+          if(marcaDx){c.lenti[marcaDx]=(c.lenti[marcaDx]||0)+1;}
+          else if(marcaSx){c.lenti[marcaSx]=(c.lenti[marcaSx]||0)+1;}
+          if(fornitore)c.fornitori[fornitore]=(c.fornitori[fornitore]||0)+1;
+          c.totSpeso+=totale;c.nOrdini++;
+          if(c.orders.length<30)c.orders.push({dt,modello,tipo,lenteDx,lenteSx,marcaDx:marcaDx||marcaSx,fornitore:fornituraDx||fornitore,tot:totale});
+        });
+        const cliList=Object.values(byCode).map(c=>{
+          c.orders.sort((a,b)=>a.dt>b.dt?-1:1);
+          c.lastDt=c.orders[0]?.dt||'';
+          c.firstDt=[...c.orders].reverse()[0]?.dt||'';
+          c.brandFav=Object.entries(c.brands).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+          c.lenteFav=Object.entries(c.lenti).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+          c.totSpeso=Math.round(c.totSpeso);
+          delete c.brands;delete c.lenti;delete c.fornitori;
+          return c;
+        });
+        LIVE_CLI={byCode,cliList:cliList.sort((a,b)=>b.nOrdini-a.nOrdini),totalCli:cliList.length,totalOrdini:rows.length,hasOrders:true,hasEta:false};
+      } else {
+        // ── Anagrafica semplice (Data nascita / Sesso) ────────────────────────
+        const arr=rows.map(r=>{
+          const cod=(r['Codice cliente']||r['CodiceCliente']||r['Codice']||'').toString().trim();
+          const nome=(r['Cognome Nome']||r['Cognome']||r['Nome']||'').toString().trim();
+          let rawN=r['Data nascita']||r['DataNascita']||r['Anno nascita']||'';
+          let nascita=0;
+          if(rawN instanceof Date)nascita=rawN.getFullYear();
+          else if(typeof rawN==='string'){const m=rawN.match(/(\d{4})/);if(m)nascita=parseInt(m[1]);}
+          else if(typeof rawN==='number')nascita=rawN>1900&&rawN<2020?rawN:0;
+          const sesso=(r['Sesso']||'').toString().trim().toUpperCase().slice(0,1);
+          return{cod,nome,nascita,sesso};
+        }).filter(r=>r.cod&&r.nascita>1900&&r.nascita<2020);
+        const byCode=Object.fromEntries(arr.map(c=>[c.cod,c]));
+        LIVE_CLI={byCode,cliList:arr,totalCli:arr.length,hasOrders:false,hasEta:true};
+      }
       UPLOAD_NAME_CLI=file.name.length>30?file.name.slice(0,27)+'…':file.name;
       renderPage();
-    }catch(err){alert('Errore lettura anagrafica: '+err.message);}
+    }catch(err){alert('Errore lettura clienti: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
 }
@@ -952,7 +1015,7 @@ function buildAgingSummary(rows){
 const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:CY,selMese:CM,
   magTab:"stock",magBrand:"all",magSed:"all",magCat:"all",magForn:"all",magDateFrom:"",magDateTo:"",magFocus:"all",magSearch:"",magSort:"v",magAsc:false,magPage:0,
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
-  cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"pz",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,
+  cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"pz",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,cliStoricoDrill:null,
   vendFil:"all",vendTp:"all",vendMar:"all",
   ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10,lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12};
 let charts={};
@@ -1379,7 +1442,7 @@ function rDati(){
   ${mkZone("mag","Magazzino","📦","Stock, valore, anzianità per sede e brand",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"","parseExcel","Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino")}
   ${mkZone("vend","Vendite","◈","Pezzi venduti, top brand, operatori, clienti",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"","parseVendite","Colonne: Tipo Prodotto · Marchio · Modello · Codice a barre · Filiale · Operatore · Codice cliente · Tipo operazione · Prezzo consigliato · Quantità")}
   ${mkZone("acq","Acquisti","🛒","Trend storico 2020–${CY}, valore per anno e filiale",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"","parseAcquisti","Colonne: Filiale · Tipo Prodotto · Marchio · Modello · Codice a barre · Data movimento · Quantità · ValoreAcq")}
-  ${mkZone("cli","Anagrafica clienti","👥","Fasce età, sesso, cluster demografici — unisce vendite per Codice cliente",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"","parseCli","Colonne: Codice cliente · Cognome Nome · Data nascita · Sesso")}
+  ${mkZone("cli","Storico clienti","👥","Ordini, brand preferiti, retention — unisce vendite per Codice cliente",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"","parseCli","Colonne: Codice scheda cliente · Cognome · Nome · Data consegna · Marca modello · Prodotto lente Dx/Sx · Marca lente Dx/Sx · Tipo fornitura")}
 </div>
 <div style="margin-top:20px;background:rgba(255,255,255,.03);border:0.5px solid var(--b);border-radius:var(--r);padding:14px 16px">
   <div style="font-size:13px;font-weight:600;margin-bottom:10px">Stato file caricati</div>
@@ -1745,9 +1808,15 @@ function rCli(){
   const attivi=retClients.filter(c=>c.status==='attivo');
   const avgValA=attivi.length>0?Math.round(attivi.reduce((a,c)=>a+c.totVal,0)/attivi.length):0;
 
-  // ── Fasce età (richiede LIVE_CLI) ─────────────────────────────────────────
+  // ── Enrich retention with names from LIVE_CLI (orders format) ─────────────
+  const cliByCode=LIVE_CLI?.byCode||{};
+  const cliName=cod=>{const c=cliByCode[cod];return c?.nome||'';};
+  const cliSearch2=srch?retClients.filter(c=>{const n=cliName(c.cli).toLowerCase();return c.cli.toLowerCase().includes(srch)||n.includes(srch);}):retClients;
+
+  // ── Fasce età (richiede LIVE_CLI con hasEta) ──────────────────────────────
   const CYnow=now.getFullYear();
-  const hasEta=!!(LIVE_CLI&&LIVE_CLI.length&&hasVend);
+  const hasEta=!!(LIVE_CLI?.hasEta&&hasVend);
+  const hasOrders=!!(LIVE_CLI?.hasOrders&&LIVE_CLI.totalCli>0);
   const brackets=['<25','25–44','45–64','65+'];
   const bracketCfg={
     '<25':{col:'#5ac8fa',bg:'rgba(90,200,250,.13)'},
@@ -1757,9 +1826,8 @@ function rCli(){
   };
   const bracketData=Object.fromEntries(brackets.map(b=>[b,{n:0,totVal:0,nLenti:0,nSole:0,nVista:0,clients:[]}]));
   if(hasEta){
-    const cliMap={};LIVE_CLI.forEach(c=>{cliMap[c.cod]=c;});
     retClients.forEach(rc=>{
-      const ci=cliMap[rc.cli];if(!ci||!ci.nascita)return;
+      const ci=cliByCode[rc.cli];if(!ci||!ci.nascita)return;
       const eta=CYnow-ci.nascita;
       const br=eta<25?'<25':eta<45?'25–44':eta<65?'45–64':'65+';
       const bd=bracketData[br];
@@ -1780,12 +1848,12 @@ function rCli(){
     if(rs==='pz')return mul*(b.totPz-a.totPz);
     return 0;
   });
-  const retDisplay=srch?retFiltered.filter(c=>c.cli.toLowerCase().includes(srch)):retFiltered;
+  const retDisplay=srch?retFiltered.filter(c=>{const n=cliName(c.cli).toLowerCase();return c.cli.toLowerCase().includes(srch)||n.includes(srch);}):retFiltered;
 
-  window.__cli={hasVend,hasEta,buckets,nAttivi,nRischio,nPersi,nNuovi,nTot,etaBrackets:brackets,etaData:bracketData};
+  window.__cli={hasVend,hasEta,hasOrders,buckets,nAttivi,nRischio,nPersi,nNuovi,nTot,etaBrackets:brackets,etaData:bracketData};
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const sPill=s=>{const cfg={attivo:['#30d158','rgba(48,209,88,.15)','Attivo'],rischio:['#ff9f0a','rgba(255,159,10,.15)','A rischio'],perso:['#ff453a','rgba(255,69,58,.15)','Perso'],nuovo:['#5ac8fa','rgba(90,200,250,.15)','Nuovo']}[s]||['#fff','#333',s];return`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${cfg[1]};color:${cfg[0]}">${cfg[2]}</span>`;};
+  const sPill=s=>{const cfg={attivo:['#4ade80','rgba(74,222,128,.15)','Attivo'],rischio:['#fbbf24','rgba(251,191,36,.15)','A rischio'],perso:['#f87171','rgba(248,113,113,.15)','Perso'],nuovo:['#67e8f9','rgba(103,232,249,.15)','Nuovo']}[s]||['#fff','#333',s];return`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${cfg[1]};color:${cfg[0]}">${cfg[2]}</span>`;};
   const thS=col=>`<th style="cursor:pointer" onclick="cliRetSort('${col}')">${{last:'Ultima visita',val:'Fatturato',visits:'Visite',pz:'Prodotti tot.'}[col]||col} ${rs===col?(ST.cliRetAsc?'↑':'↓'):''}</th>`;
   const fmtDays=d=>d===9999?'—':d<=1?'oggi':d<=30?`${d}gg`:`${Math.round(d/30)}m`;
 
@@ -1829,18 +1897,18 @@ function rCli(){
     </div>
   </div>
   <div style="overflow-x:auto">
-  <table><thead><tr><th>Cod. cliente</th>${thS('pz')}${thS('last')}${thS('visits')}${thS('val')}<th>Lenti</th><th>Sole</th><th>Vista</th><th>Status</th></tr></thead>
-  <tbody>${retDisplay.slice(0,50).map(c=>`<tr>
-    <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--ac)">${c.cli}</td>
-    <td class="mn" style="font-weight:600;color:var(--t)">${c.totPz}</td>
-    <td class="mn">${fmtDays(c.daysSince)}<span style="font-size:10px;color:var(--d);margin-left:4px">${c.lastDt?c.lastDt.slice(0,7):''}</span></td>
+  <table><thead><tr><th>${hasOrders?'Nome cliente':'Cod. cliente'}</th>${thS('pz')}${thS('last')}${thS('visits')}${thS('val')}<th>Lenti</th><th>Sole</th><th>Vista</th><th>Status</th></tr></thead>
+  <tbody>${retDisplay.slice(0,60).map(c=>{const nome=cliName(c.cli);return`<tr>
+    <td><div style="display:flex;flex-direction:column;gap:1px">${nome?`<span style="font-size:12px;font-weight:500;color:var(--t)">${nome}</span><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--d)">${c.cli}</span>`:`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--ac)">${c.cli}</span>`}</div></td>
+    <td class="mn" style="font-weight:700;color:var(--t)">${c.totPz}</td>
+    <td class="mn">${fmtDays(c.daysSince)}<br><span style="font-size:10px;color:var(--d)">${c.lastDt?c.lastDt.slice(0,7):''}</span></td>
     <td class="mn">${c.nVisits}</td>
     <td class="mn mn-gr">${fmtShort(c.totVal)}</td>
-    <td class="mn" style="color:var(--em)">${c.nLenti>0?c.nLenti:'—'}</td>
-    <td class="mn" style="color:var(--am)">${c.nSole>0?c.nSole:'—'}</td>
-    <td class="mn" style="color:var(--cy)">${c.nVista>0?c.nVista:'—'}</td>
+    <td class="mn" style="color:var(--em)">${c.nLenti>0?`<b>${c.nLenti}</b>`:'—'}</td>
+    <td class="mn" style="color:var(--am)">${c.nSole>0?`<b>${c.nSole}</b>`:'—'}</td>
+    <td class="mn" style="color:var(--cy)">${c.nVista>0?`<b>${c.nVista}</b>`:'—'}</td>
     <td>${sPill(c.status)}</td>
-  </tr>`).join('')}${retDisplay.length>50?`<tr><td colspan="9" style="text-align:center;color:var(--d);font-size:12px;padding:12px">… altri ${retDisplay.length-50} clienti</td></tr>`:''}</tbody></table>
+  </tr>`;}).join('')}${retDisplay.length>60?`<tr><td colspan="9" style="text-align:center;color:var(--d);font-size:12px;padding:12px">… altri ${retDisplay.length-60} clienti</td></tr>`:''}</tbody></table>
   </div>
 </div>`;
   };
@@ -1954,9 +2022,79 @@ ${drillHtml}`;
     </div>`;
   };
 
-  const tabs=[['retention','Retention'],['eta','Fasce età'],['lista','Lista']];
+  // ── Tab: Storico ordini (da Clienti.xlsx) ─────────────────────────────────
+  const tStorico=()=>{
+    if(!hasOrders)return`<div class="g card fi" style="text-align:center;padding:40px 20px">
+      <div style="font-size:32px;margin-bottom:12px">📋</div>
+      <div style="font-size:14px;margin-bottom:8px;color:var(--m)">Carica il file Clienti.xlsx</div>
+      <div style="font-size:12px;color:var(--d);max-width:360px;margin:0 auto">Colonne: <b style="color:var(--t)">codice scheda cliente · Cognome · Nome · Data consegna · Marca modello · Prodotto lente Dx/Sx</b></div>
+      <button class="tp on" style="margin-top:16px" onclick="nav('dati')">Carica clienti.xlsx</button>
+    </div>`;
+    const cList=LIVE_CLI.cliList;
+    const drill=ST.cliStoricoDrill?cliByCode[ST.cliStoricoDrill]:null;
+    const filtered=srch?cList.filter(c=>c.nome.toLowerCase().includes(srch)||c.cod.toLowerCase().includes(srch)):cList;
+    const fmtLastDt=dt=>dt?dt.slice(0,7):'—';
+    const daysSinceLast=dt=>dt?Math.round((now-new Date(dt))/86400000):9999;
+    const ageLabel=d=>{const days=daysSinceLast(d);if(days<=30)return{l:'questo mese',c:'#4ade80'};if(days<=180)return{l:Math.round(days/30)+'m fa',c:'#a5b4fc'};if(days<=365)return{l:Math.round(days/30)+'m fa',c:'#fbbf24'};return{l:Math.round(days/365)+'a fa',c:'#f87171'};};
+    const drillHtml=drill?`
+<div class="g card fi" style="border:0.5px solid rgba(165,180,252,.3)">
+  <div class="ch">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:16px;font-weight:700;color:var(--t)">${drill.nome}</div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--ac)">${drill.cod} · Filiale ${drill.filiale}</div>
+    </div>
+    <button class="tp" onclick="ST.cliStoricoDrill=null;renderPage()">✕ Chiudi</button>
+  </div>
+  <div class="kg k4 fi" style="margin-bottom:12px">
+    <div class="g kc"><div class="kl">Ordini totali</div><div class="kv" style="color:var(--t)">${drill.nOrdini}</div></div>
+    <div class="g kc"><div class="kl">Prima visita</div><div class="kv" style="font-size:16px;color:var(--m)">${drill.firstDt?drill.firstDt.slice(0,7):'—'}</div></div>
+    <div class="g kc"><div class="kl">Ultima visita</div><div class="kv" style="font-size:16px;color:var(--ac)">${drill.lastDt?drill.lastDt.slice(0,7):'—'}</div></div>
+    <div class="g kc"><div class="kl">Brand preferito</div><div class="kv" style="font-size:14px;color:var(--am)">${drill.brandFav||'—'}</div></div>
+  </div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">
+    <span style="color:var(--em)"><b>${drill.nLenti}</b> con lenti</span>
+    <span style="color:var(--am)"><b>${drill.nSole}</b> sole</span>
+    <span style="color:var(--cy)"><b>${drill.nVista}</b> vista</span>
+    ${drill.lenteFav?`<span style="color:var(--d)">Lente preferita: <b style="color:var(--m)">${drill.lenteFav}</b></span>`:''}
+  </div>
+  <table><thead><tr><th>Data</th><th>Modello</th><th>Lente Dx</th><th>Lente Sx</th><th>Fornitore lenti</th><th>€</th></tr></thead>
+  <tbody>${drill.orders.map(o=>`<tr>
+    <td class="mn" style="color:var(--m)">${o.dt?o.dt.slice(0,10):'—'}</td>
+    <td style="font-size:12px;font-weight:500">${o.modello||'—'}</td>
+    <td style="font-size:11px;color:var(--em)">${o.lenteDx||'—'}</td>
+    <td style="font-size:11px;color:var(--em)">${o.lenteSx||'—'}</td>
+    <td style="font-size:11px;color:var(--d)">${o.fornitore||'—'}</td>
+    <td class="mn mn-gr">${o.tot>0?fmt(o.tot):'—'}</td>
+  </tr>`).join('')}</tbody></table>
+</div>`:''
+    return`
+<div style="font-size:12px;color:var(--m);margin-bottom:4px" class="fi">${fmtN(LIVE_CLI.totalCli)} clienti · ${fmtN(LIVE_CLI.totalOrdini)} ordini totali · Clicca un cliente per il dettaglio</div>
+<div class="g card fi">
+  <div class="ch">
+    <div class="ct">Tutti i clienti (${filtered.length})</div>
+  </div>
+  <div style="overflow-x:auto">
+  <table><thead><tr><th>Nome</th><th>Cod.</th><th>Filiale</th><th>Ordini</th><th>Vista</th><th>Sole</th><th>Lenti</th><th>Brand fav.</th><th>Prima visita</th><th>Ultima visita</th></tr></thead>
+  <tbody>${filtered.slice(0,80).map(c=>{const ag=ageLabel(c.lastDt);return`<tr style="cursor:pointer" onclick="ST.cliStoricoDrill=ST.cliStoricoDrill==='${c.cod}'?null:'${c.cod}';renderPage()">
+    <td style="font-size:12px;font-weight:500;color:${ST.cliStoricoDrill===c.cod?'var(--ac)':'var(--t)'}">${c.nome}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--d)">${c.cod}</td>
+    <td class="mn" style="color:var(--m)">${c.filiale||'—'}</td>
+    <td class="mn" style="font-weight:700;color:var(--t)">${c.nOrdini}</td>
+    <td class="mn" style="color:var(--cy)">${c.nVista>0?`<b>${c.nVista}</b>`:'—'}</td>
+    <td class="mn" style="color:var(--am)">${c.nSole>0?`<b>${c.nSole}</b>`:'—'}</td>
+    <td class="mn" style="color:var(--em)">${c.nLenti>0?`<b>${c.nLenti}</b>`:'—'}</td>
+    <td style="font-size:11px;color:var(--am)">${c.brandFav||'—'}</td>
+    <td class="mn" style="color:var(--d);font-size:10px">${fmtLastDt(c.firstDt)}</td>
+    <td class="mn"><span style="color:${ag.c}">${ag.l}</span></td>
+  </tr>`;}).join('')}${filtered.length>80?`<tr><td colspan="10" style="text-align:center;color:var(--d);font-size:12px;padding:12px">… altri ${filtered.length-80}</td></tr>`:''}</tbody></table>
+  </div>
+</div>
+${drillHtml}`;
+  };
+
+  const tabs=[['retention','Retention'],['storico',hasOrders?`Storico (${fmtN(LIVE_CLI.totalCli)})` :'Storico'],['eta','Fasce età'],['lista','Lista']];
   return`
-<div class="topbar fi"><div class="page-title">Clienti${hasVend?` <span class="pt-badge">${fmtN(nTot)} con date</span>`:''}</div>
+<div class="topbar fi"><div class="page-title">Clienti${hasOrders?` <span class="pt-badge">${fmtN(LIVE_CLI.totalCli)} clienti</span>`:(hasVend?` <span class="pt-badge">${fmtN(nTot)} con date</span>`:'')}</div>
   <div class="controls" style="gap:6px">
     <div class="tpill" style="gap:0">${tabs.map(([k,l])=>`<button class="tp${tab===k?' on':''}" onclick="ST.cliTab='${k}';renderPage()">${l}</button>`).join('')}</div>
     <input class="srch" placeholder="Cerca cod. cliente…" value="${ST.cliSearch}" oninput="ST.cliSearch=this.value;renderPage()" style="width:170px">
@@ -2544,7 +2682,7 @@ function rAI(){
   else ctxItems.push({ok:false,label:'Magazzino',sub:'dati demo'});
   if(LIVE_ACQ)ctxItems.push({ok:true,label:'Acquisti',sub:UPLOAD_NAME_ACQ||'caricato'});
   else ctxItems.push({ok:false,label:'Acquisti',sub:'non caricato'});
-  if(LIVE_CLI)ctxItems.push({ok:true,label:'Anagrafica',sub:LIVE_CLI.length+' clienti'});
+  if(LIVE_CLI)ctxItems.push({ok:true,label:'Anagrafica',sub:(LIVE_CLI.totalCli||LIVE_CLI.length||0)+' clienti'});
   else ctxItems.push({ok:false,label:'Anagrafica',sub:'non caricato'});
 
   return`
