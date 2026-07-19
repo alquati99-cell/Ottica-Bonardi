@@ -10,8 +10,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#07080f;--bg2:#0b0c18;--gl:rgba(255,255,255,.055);--b:rgba(255,255,255,.09);--bb:rgba(255,255,255,.2);--t:#f0f4ff;--m:rgba(200,212,255,.52);--d:rgba(200,212,255,.26);--ac:#a5b4fc;--acl:rgba(165,180,252,.14);--acs:rgba(165,180,252,.07);--cy:#67e8f9;--em:#4ade80;--am:#fbbf24;--vi:#c084fc;--ro:#f87171;--gr:#4ade80;--grl:rgba(74,222,128,.16);--pri-u:#f87171;--pri-a:#fbbf24;--pri-m:#c084fc;--pri-o:#4ade80;--r:18px}
+html.light{--bg:#f2f4fa;--bg2:#ffffff;--gl:rgba(15,23,42,.03);--b:rgba(15,23,42,.1);--bb:rgba(15,23,42,.24);--t:#0f172a;--m:rgba(30,41,59,.6);--d:rgba(30,41,59,.38);--ac:#4f46e5;--acl:rgba(79,70,229,.1);--acs:rgba(79,70,229,.05);--cy:#0891b2;--em:#15803d;--am:#b45309;--vi:#7e22ce;--ro:#b91c1c;--gr:#15803d;--grl:rgba(21,128,61,.12);--pri-u:#b91c1c;--pri-a:#b45309;--pri-m:#7e22ce;--pri-o:#15803d}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Sora',sans-serif;background:#07080f;color:var(--t);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;transition:background .35s ease,color .35s ease}
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 100% 80% at -8% -8%,rgba(129,140,248,.18) 0%,transparent 52%),radial-gradient(ellipse 80% 60% at 108% 108%,rgba(74,222,128,.12) 0%,transparent 50%),radial-gradient(ellipse 60% 45% at 52% 115%,rgba(192,132,252,.1) 0%,transparent 48%),radial-gradient(ellipse 40% 30% at 105% 10%,rgba(103,232,249,.07) 0%,transparent 40%),#07080f}
 .bg::after{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(165,180,252,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(165,180,252,.025) 1px,transparent 1px);background-size:52px 52px;mask-image:radial-gradient(ellipse 100% 100% at 50% 50%,black 40%,transparent 100%)}
 html{scroll-behavior:smooth}
@@ -55,6 +56,8 @@ html{scroll-behavior:smooth}
 .sb:not(.collapsed) .nb:nth-child(3){animation-delay:.12s}
 .sb:not(.collapsed) .nb:nth-child(4){animation-delay:.16s}
 .sb:not(.collapsed) .nb:nth-child(5){animation-delay:.20s}
+.sb:not(.collapsed) .nb:nth-child(6){animation-delay:.24s}
+.sb:not(.collapsed) .nb:nth-child(7){animation-delay:.28s}
 @keyframes nbReveal{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
 
 .sb-nav{padding:10px 0;flex:1;overflow:hidden}
@@ -221,6 +224,56 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
 .marg-fill-m{background:rgba(48,209,88,.5)}
 .fi{animation:fi .45s ease both}
 @keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+/* stagger entrances */
+.fi:nth-child(2){animation-delay:.05s}.fi:nth-child(3){animation-delay:.1s}.fi:nth-child(4){animation-delay:.15s}.fi:nth-child(5){animation-delay:.2s}.fi:nth-child(6){animation-delay:.25s}.fi:nth-child(7){animation-delay:.3s}
+.kg>.g{animation:fi .5s cubic-bezier(.32,.72,0,1) both}
+.kg>.g:nth-child(2){animation-delay:.06s}.kg>.g:nth-child(3){animation-delay:.12s}.kg>.g:nth-child(4){animation-delay:.18s}
+.kv,.kv-s-val,td{font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* ── TOAST ─────────────────────────────────────────────────────── */
+#toasts{position:fixed;bottom:22px;right:22px;z-index:999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{display:flex;align-items:center;gap:9px;padding:11px 16px;border-radius:14px;background:linear-gradient(158deg,rgba(255,255,255,.1),rgba(255,255,255,.05));backdrop-filter:blur(32px) saturate(180%);-webkit-backdrop-filter:blur(32px) saturate(180%);border:0.5px solid rgba(255,255,255,.16);box-shadow:0 16px 40px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.18);font-size:12px;font-weight:500;color:var(--t);max-width:340px;animation:toastIn .35s cubic-bezier(.32,.72,0,1) both;pointer-events:auto}
+html.light .toast{background:rgba(255,255,255,.92);border-color:rgba(15,23,42,.12);box-shadow:0 16px 40px rgba(15,23,42,.18)}
+.toast.out{animation:toastOut .3s ease both}
+.toast-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.toast-ok .toast-dot{background:var(--em);box-shadow:0 0 8px var(--em)}
+.toast-err .toast-dot{background:var(--ro);box-shadow:0 0 8px var(--ro)}
+.toast-info .toast-dot{background:var(--ac);box-shadow:0 0 8px var(--ac)}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(8px) scale(.96)}}
+/* ── LIGHT THEME COMPONENT OVERRIDES ───────────────────────────── */
+html.light body{background:var(--bg)}
+html.light .bg{background:radial-gradient(ellipse 100% 80% at -8% -8%,rgba(99,102,241,.1) 0%,transparent 52%),radial-gradient(ellipse 80% 60% at 108% 108%,rgba(22,163,74,.07) 0%,transparent 50%),radial-gradient(ellipse 60% 45% at 52% 115%,rgba(147,51,234,.06) 0%,transparent 48%),#f2f4fa}
+html.light .bg::after{background-image:linear-gradient(rgba(79,70,229,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(79,70,229,.04) 1px,transparent 1px)}
+html.light .sb{background:rgba(255,255,255,.78);border-right:0.5px solid rgba(15,23,42,.08)}
+html.light .sb-logo,html.light .sb-vista{border-color:rgba(15,23,42,.07)}
+html.light .sb-toggle{background:rgba(15,23,42,.06)}
+html.light .hb{background:rgba(30,41,59,.55)}
+html.light .nb:hover{background:rgba(15,23,42,.045)}
+html.light .g{background:linear-gradient(158deg,rgba(255,255,255,.92) 0%,rgba(255,255,255,.75) 100%);border:0.5px solid rgba(15,23,42,.1);border-top-color:rgba(255,255,255,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 16px 44px rgba(15,23,42,.1),0 0 0 0.5px rgba(79,70,229,.04)}
+html.light .g:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,1),0 20px 52px rgba(15,23,42,.14),0 0 24px rgba(79,70,229,.06);border-color:rgba(15,23,42,.14)}
+html.light .kc::after{background:linear-gradient(90deg,transparent,rgba(15,23,42,.06),transparent)}
+html.light .sel,html.light .tpill,html.light .qbtn{background:rgba(15,23,42,.04)}
+html.light .sel option{background:#fff;color:#0f172a}
+html.light .tp.on{background:rgba(79,70,229,.1)}
+html.light .up{background:rgba(21,128,61,.1);color:#15803d;border-color:rgba(21,128,61,.3)}
+html.light .dn{background:rgba(185,28,28,.08);color:#b91c1c;border-color:rgba(185,28,28,.3)}
+html.light .gcy{background:linear-gradient(135deg,#4f46e5,#6366f1);-webkit-background-clip:text;background-clip:text}
+html.light .gem{background:linear-gradient(135deg,#15803d,#16a34a);-webkit-background-clip:text;background-clip:text}
+html.light .gam{background:linear-gradient(135deg,#b45309,#d97706);-webkit-background-clip:text;background-clip:text}
+html.light .gvi{background:linear-gradient(135deg,#7e22ce,#9333ea);-webkit-background-clip:text;background-clip:text}
+html.light .gro{background:linear-gradient(135deg,#b91c1c,#dc2626);-webkit-background-clip:text;background-clip:text}
+html.light ::-webkit-scrollbar-thumb{background:rgba(15,23,42,.18)}
+html.light .ai-model-sel option{background:#fff;color:#0f172a}
+html.light .sb-icon{box-shadow:0 0 16px rgba(79,70,229,.18),inset 0 1px 0 rgba(255,255,255,.3)}
+/* theme switch */
+.theme-sw{display:flex;align-items:center;gap:8px;width:100%;margin-top:12px;padding:7px 10px;border-radius:10px;border:0.5px solid var(--b);background:rgba(255,255,255,.04);cursor:pointer;font-size:11px;font-weight:500;color:var(--m);font-family:'Sora',sans-serif;transition:all .2s}
+.theme-sw:hover{color:var(--t);border-color:var(--bb)}
+html.light .theme-sw{background:rgba(15,23,42,.04)}
+.theme-track{width:30px;height:16px;border-radius:999px;background:rgba(165,180,252,.25);position:relative;flex-shrink:0;transition:background .25s}
+html.light .theme-track{background:rgba(79,70,229,.3)}
+.theme-knob{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .25s cubic-bezier(.32,.72,0,1);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+html.light .theme-knob{transform:translateX(14px)}
 @media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.sb{display:none}.forn-grid{grid-template-columns:1fr}}
 /* ── AI Advisor page ─────────────────────────────────────────────────────── */
@@ -306,6 +359,10 @@ tbody tr:hover td{background:rgba(255,255,255,.025)}
       <button class="sp s-b2" onclick="setSede('B2')">B</button>
       <button class="sp s-b3" onclick="setSede('B3')">C</button>
     </div>
+    <button class="theme-sw" onclick="toggleTheme()" title="Tema chiaro / scuro">
+      <span class="theme-track"><span class="theme-knob"></span></span>
+      <span id="themeLbl">Tema scuro</span>
+    </button>
   </div>
 </nav>
 <div class="main"><div id="root"></div></div>
@@ -365,6 +422,142 @@ let UPLOAD_NAME_VEND = null;
 let UPLOAD_NAME_ACQ  = null;
 let LIVE_CLI  = null;
 let UPLOAD_NAME_CLI = null;
+
+// ═══ TEMA CHIARO / SCURO ════════════════════════════════════════════════════
+function applyTheme(t,rerender){
+  document.documentElement.classList.toggle('light',t==='light');
+  try{localStorage.setItem('ob-theme',t);}catch(e){}
+  const lbl=document.getElementById('themeLbl');
+  if(lbl)lbl.textContent=t==='light'?'Tema chiaro':'Tema scuro';
+  if(rerender){buildChartOpts();renderPage();}
+}
+window.toggleTheme=()=>applyTheme(document.documentElement.classList.contains('light')?'dark':'light',true);
+
+// ═══ TOAST NOTIFICHE ════════════════════════════════════════════════════════
+function toast(msg,type='ok',ms=3500){
+  let box=document.getElementById('toasts');
+  if(!box){box=document.createElement('div');box.id='toasts';document.body.appendChild(box);}
+  const el=document.createElement('div');
+  el.className=`toast toast-${type}`;
+  el.innerHTML=`<span class="toast-dot"></span><span>${msg}</span>`;
+  box.appendChild(el);
+  setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),320);},ms);
+}
+
+// ═══ PERSISTENZA AUTOMATICA (IndexedDB) ═════════════════════════════════════
+// I dataset caricati vengono salvati sul dispositivo: alla prossima apertura
+// non serve ricaricare i file Excel.
+const IDB_NAME='ottica-bonardi',IDB_STORE='datasets';
+function idbOpen(){return new Promise((res,rej)=>{
+  const q=indexedDB.open(IDB_NAME,1);
+  q.onupgradeneeded=()=>q.result.createObjectStore(IDB_STORE);
+  q.onsuccess=()=>res(q.result);
+  q.onerror=()=>rej(q.error);
+});}
+function idbSet(k,v){return idbOpen().then(db=>new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,'readwrite');
+  tx.objectStore(IDB_STORE).put(v,k);
+  tx.oncomplete=()=>{db.close();res();};
+  tx.onerror=()=>{db.close();rej(tx.error);};
+}));}
+function idbGet(k){return idbOpen().then(db=>new Promise((res,rej)=>{
+  const q=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get(k);
+  q.onsuccess=()=>{db.close();res(q.result);};
+  q.onerror=()=>{db.close();rej(q.error);};
+}));}
+function idbDel(k){return idbOpen().then(db=>new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,'readwrite');
+  tx.objectStore(IDB_STORE).delete(k);
+  tx.oncomplete=()=>{db.close();res();};
+  tx.onerror=()=>{db.close();rej(tx.error);};
+}));}
+
+let LOCAL_SAVED_AT=null,CLOUD_SAVED_AT=null;
+function snapshotData(){
+  return {v:1,savedAt:new Date().toISOString(),
+    LIVE_MAG,LIVE_VEND,LIVE_ACQ,LIVE_CLI,
+    names:{mag:UPLOAD_NAME,magShort:UPLOAD_NAME_SHORT,vend:UPLOAD_NAME_VEND,acq:UPLOAD_NAME_ACQ,cli:UPLOAD_NAME_CLI}};
+}
+function applySnapshot(s){
+  if(!s||s.v!==1)return false;
+  let n=0;
+  if(s.LIVE_MAG){LIVE_MAG=s.LIVE_MAG;n++;}
+  if(s.LIVE_VEND){LIVE_VEND=s.LIVE_VEND;n++;}
+  if(s.LIVE_ACQ){LIVE_ACQ=s.LIVE_ACQ;n++;}
+  if(s.LIVE_CLI){LIVE_CLI=s.LIVE_CLI;n++;}
+  if(s.names){
+    UPLOAD_NAME=s.names.mag||UPLOAD_NAME;UPLOAD_NAME_SHORT=s.names.magShort||UPLOAD_NAME_SHORT;
+    UPLOAD_NAME_VEND=s.names.vend||UPLOAD_NAME_VEND;UPLOAD_NAME_ACQ=s.names.acq||UPLOAD_NAME_ACQ;
+    UPLOAD_NAME_CLI=s.names.cli||UPLOAD_NAME_CLI;
+  }
+  return n;
+}
+let PERSIST_T=null;
+function persistData(silent){
+  clearTimeout(PERSIST_T);
+  PERSIST_T=setTimeout(async()=>{
+    try{
+      const s=snapshotData();
+      await idbSet('snapshot',s);
+      LOCAL_SAVED_AT=s.savedAt;
+      if(!silent)toast('💾 Dati salvati sul dispositivo — non serve ricaricarli','ok');
+    }catch(e){console.warn('persist failed',e);}
+  },400);
+}
+async function restoreData(){
+  try{
+    const s=await idbGet('snapshot');
+    const n=applySnapshot(s);
+    if(n){LOCAL_SAVED_AT=s.savedAt;renderPage();
+      toast(`✅ ${n} dataset ripristinati automaticamente (${fmtSavedAt(s.savedAt)})`,'ok',4500);}
+  }catch(e){console.warn('restore failed',e);}
+}
+async function clearSavedData(){
+  try{await idbDel('snapshot');LOCAL_SAVED_AT=null;
+    LIVE_MAG=LIVE_VEND=LIVE_ACQ=LIVE_CLI=null;
+    UPLOAD_NAME=UPLOAD_NAME_VEND=UPLOAD_NAME_ACQ=UPLOAD_NAME_CLI=null;UPLOAD_NAME_SHORT='';
+    renderPage();toast('🗑️ Dati locali eliminati','info');
+  }catch(e){toast('Errore eliminazione: '+e.message,'err');}
+}
+const fmtSavedAt=iso=>{try{return new Date(iso).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+
+// ═══ CLOUD SYNC (Cloudflare KV via /api/data) ═══════════════════════════════
+async function cloudSave(){
+  try{
+    toast('☁️ Salvataggio su Cloudflare…','info',2000);
+    const body=JSON.stringify(snapshotData());
+    const r=await fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json'},body});
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.hint||j.error||('HTTP '+r.status));
+    CLOUD_SAVED_AT=j.savedAt;
+    toast(`☁️ Salvato su cloud (${(j.bytes/1048576).toFixed(1)} MB) — accessibile da ogni dispositivo`,'ok',4500);
+    renderPage();
+  }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);}
+}
+async function cloudLoad(){
+  try{
+    toast('☁️ Caricamento dal cloud…','info',2000);
+    const r=await fetch('/api/data');
+    if(r.status===404)throw new Error('Nessun dato salvato sul cloud');
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.hint||j.error||('HTTP '+r.status));
+    const n=applySnapshot(j);
+    if(!n)throw new Error('Snapshot vuoto o non valido');
+    CLOUD_SAVED_AT=j.savedAt;
+    persistData(true);
+    renderPage();
+    toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(j.savedAt)})`,'ok',4500);
+  }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);}
+}
+async function cloudDelete(){
+  try{
+    const r=await fetch('/api/data',{method:'DELETE'});
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.hint||j.error);
+    CLOUD_SAVED_AT=null;renderPage();toast('🗑️ Dati cloud eliminati','info');
+  }catch(e){toast('⚠️ Cloud: '+e.message,'err');}
+}
+window.cloudSave=cloudSave;window.cloudLoad=cloudLoad;window.cloudDelete=cloudDelete;window.clearSavedData=clearSavedData;
 
 function curMAG(){ return LIVE_MAG || MAG; }
 function curAG(){ return LIVE_AG || AG; }
@@ -477,6 +670,7 @@ function processUpload(raw, name){
   UPLOAD_NAME_SHORT = name.length>30 ? name.slice(0,27)+'…' : name;
   Object.assign(ST,{magPage:0,agPage:0,magBrand:'all',magSed:'all',magCat:'all',magForn:'all',magDateFrom:'',magDateTo:'',magFocus:'all',magSearch:'',agPri:'all',agSed:'all',agSearch:''});
   renderPage();
+  persistData();
 }
 
 // ═══ VENDITE PARSER ═════════════════════════════════════════════════════════
@@ -540,6 +734,7 @@ function processVendite(raw, name){
   };
   UPLOAD_NAME_VEND = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
+  persistData();
 }
 
 function filtVendRows(){
@@ -636,6 +831,7 @@ function processAcquisti(raw, name){
   };
   UPLOAD_NAME_ACQ = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
+  persistData();
 }
 
 // ═══ ANAGRAFICA CLIENTI PARSER ══════════════════════════════════════════════
@@ -723,6 +919,7 @@ function parseCli(file){
       }
       UPLOAD_NAME_CLI=file.name.length>30?file.name.slice(0,27)+'…':file.name;
       renderPage();
+      persistData();
     }catch(err){alert('Errore lettura clienti: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
@@ -1076,15 +1273,50 @@ function renderPage(){
   else if(ST.page==="dati")r.innerHTML=rDati();
   else if(ST.page==="lenti")r.innerHTML=rLenti();
   else if(ST.page==="ai"){r.innerHTML=rAI();initAIPage();}
-  setTimeout(initCharts,60);
+  setTimeout(()=>{initCharts();animKV();},60);
+}
+
+// ═══ COUNT-UP ANIMATION SUI KPI ═════════════════════════════════════════════
+function animKV(){
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  document.querySelectorAll('.kv').forEach(el=>{
+    if(el.childElementCount>0||el.dataset.anim)return;
+    const txt=el.textContent;
+    const m=txt.match(/(\d{1,3}(?:\.\d{3})+|\d+)(,\d+)?/);
+    if(!m)return;
+    const intPart=m[1].replace(/\./g,''),decPart=(m[2]||'').slice(1);
+    const raw=parseFloat(intPart+(decPart?'.'+decPart:''));
+    if(!isFinite(raw)||raw===0)return;
+    el.dataset.anim='1';
+    const dec=decPart.length,t0=performance.now(),dur=650;
+    const step=now=>{
+      const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,3);
+      if(p>=1){el.textContent=txt;return;}
+      el.textContent=txt.replace(m[0],(raw*e).toLocaleString('it-IT',{minimumFractionDigits:dec,maximumFractionDigits:dec}));
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
 }
 
 // ═══ CHART OPTIONS ══════════════════════════════════════════════════════════
-const CO={responsive:true,maintainAspectRatio:false,
-  plugins:{legend:{display:false},datalabels:{display:false},tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>" "+fmt(ctx.raw)}}},
-  scales:{x:{grid:{color:"rgba(255,255,255,.04)",drawBorder:false},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10}},border:{display:false}},y:{grid:{color:"rgba(255,255,255,.04)",drawBorder:false},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}}}};
-const coLeg={...CO,plugins:{...CO.plugins,legend:{display:true,position:"top",align:"end",labels:{color:"rgba(240,244,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}}}};
-const coDon={responsive:true,maintainAspectRatio:false,cutout:"65%",plugins:{legend:{display:true,position:"right",labels:{color:"rgba(240,244,255,.45)",font:{family:"'Sora',sans-serif",size:11},boxWidth:7,padding:9,usePointStyle:true}},datalabels:{display:false},tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:10,bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)}`}}}};
+let CO,coLeg,coDon;
+function buildChartOpts(){
+  const L=document.documentElement.classList.contains('light');
+  const grid=L?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
+  const tick=L?"rgba(15,23,42,.45)":"rgba(240,244,255,.3)";
+  const leg =L?"rgba(15,23,42,.55)":"rgba(240,244,255,.45)";
+  const ttBg=L?"rgba(255,255,255,.97)":"rgba(8,13,26,.95)";
+  const ttBd=L?"rgba(15,23,42,.14)":"rgba(255,255,255,.1)";
+  const ttTi=L?"rgba(15,23,42,.92)":"rgba(240,244,255,.9)";
+  const ttBo=L?"rgba(15,23,42,.65)":"rgba(240,244,255,.65)";
+  CO={responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},datalabels:{display:false},tooltip:{backgroundColor:ttBg,borderColor:ttBd,borderWidth:1,padding:11,titleColor:ttTi,bodyColor:ttBo,titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>" "+fmt(ctx.raw)}}},
+    scales:{x:{grid:{color:grid,drawBorder:false},ticks:{color:tick,font:{family:"'DM Mono',monospace",size:10}},border:{display:false}},y:{grid:{color:grid,drawBorder:false},ticks:{color:tick,font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}}}};
+  coLeg={...CO,plugins:{...CO.plugins,legend:{display:true,position:"top",align:"end",labels:{color:leg,font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}}}};
+  coDon={responsive:true,maintainAspectRatio:false,cutout:"65%",plugins:{legend:{display:true,position:"right",labels:{color:leg,font:{family:"'Sora',sans-serif",size:11},boxWidth:7,padding:9,usePointStyle:true}},datalabels:{display:false},tooltip:{backgroundColor:ttBg,borderColor:ttBd,borderWidth:1,padding:10,bodyColor:ttBo,bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)}`}}}};
+}
+buildChartOpts();
 
 function mkChart(id,type,labels,datasets,opts){const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type,data:{labels,datasets},options:opts||CO});}
 
@@ -1434,9 +1666,25 @@ function rDati(){
     </div>
   </div>`;
   return`
-<div class="topbar fi"><div class="page-title">Carica dati <span class="pt-badge">3 file Excel</span></div></div>
+<div class="topbar fi"><div class="page-title">Carica dati <span class="pt-badge">4 file Excel</span></div></div>
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ch"><div class="ct"><span style="font-size:16px">💾</span>Salvataggio automatico &amp; Cloud</div>
+    ${LOCAL_SAVED_AT?`<span style="font-size:11px;color:var(--em)">✅ salvato sul dispositivo · ${fmtSavedAt(LOCAL_SAVED_AT)}</span>`:`<span style="font-size:11px;color:var(--d)">nessun salvataggio locale</span>`}
+  </div>
+  <div style="font-size:12px;color:var(--m);margin-bottom:12px;line-height:1.5">
+    I file caricati vengono <b style="color:var(--t)">salvati automaticamente sul dispositivo</b> (IndexedDB): alla prossima apertura i dati sono già pronti, senza ricaricare gli Excel.
+    Con <b style="color:var(--t)">Salva su cloud</b> lo snapshot viene archiviato su Cloudflare KV ed è accessibile da qualsiasi dispositivo.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="qbtn" style="border-color:rgba(165,180,252,.35);color:var(--ac)" onclick="cloudSave()">☁️ Salva su cloud</button>
+    <button class="qbtn" style="border-color:rgba(74,222,128,.35);color:var(--em)" onclick="cloudLoad()">⬇ Carica da cloud</button>
+    <button class="qbtn" onclick="clearSavedData()">🗑️ Cancella dati locali</button>
+    <button class="qbtn" style="color:var(--ro)" onclick="cloudDelete()">🗑️ Cancella dati cloud</button>
+    ${CLOUD_SAVED_AT?`<span style="align-self:center;font-size:11px;color:var(--ac)">☁️ ultimo salvataggio cloud: ${fmtSavedAt(CLOUD_SAVED_AT)}</span>`:''}
+  </div>
+</div>
 <div style="background:rgba(255,255,255,.03);border:0.5px solid var(--b);border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--m)">
-  Carica i tre file Excel per abilitare tutte le analisi della dashboard. I dati vengono elaborati localmente nel browser — nessun upload su server.
+  Carica i file Excel per abilitare tutte le analisi della dashboard. I dati vengono elaborati localmente nel browser.
 </div>
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
   ${mkZone("mag","Magazzino","📦","Stock, valore, anzianità per sede e brand",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"","parseExcel","Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino")}
@@ -2651,7 +2899,11 @@ window.setMagDateFrom=v=>{ST.magDateFrom=v;if(ST.magDateTo&&v&&ST.magDateTo<v)ST
 window.setMagDateTo=v=>{ST.magDateTo=v;if(ST.magDateFrom&&v&&ST.magDateFrom>v)ST.magDateFrom=v;ST.magPage=0;ST.agPage=0;renderPage();}
 window.resetMagFilters=()=>{Object.assign(ST,{magBrand:'all',magSed:'all',magCat:'all',magForn:'all',magDateFrom:'',magDateTo:'',magFocus:'all',magSearch:'',magPage:0,agPage:0});renderPage();}
 
+// ═══ BOOT ═══════════════════════════════════════════════════════════════════
+applyTheme(localStorage.getItem('ob-theme')||'dark');
+buildChartOpts();
 renderPage();
+restoreData();
 
 // ═══ AI ADVISOR ══════════════════════════════════════════════════════════════
 let AI_HISTORY=[];

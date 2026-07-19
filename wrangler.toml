@@ -7,3 +7,14 @@ binding = "AI"
 
 [assets]
 directory = "public"
+
+# ── Cloud storage dataset (opzionale) ─────────────────────────────
+# Per abilitare il salvataggio dati su Cloudflare (niente più ricarica
+# dei file Excel da altri dispositivi):
+#   1. wrangler kv namespace create DATA
+#   2. decommenta e incolla l'id generato qui sotto
+#   3. wrangler deploy
+#
+# [[kv_namespaces]]
+# binding = "DATA"
+# id = "INCOLLA_QUI_ID_NAMESPACE"
