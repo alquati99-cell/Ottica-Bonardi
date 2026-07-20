@@ -1,0 +1,28 @@
+name: Deploy su Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+      - claude/setup-ottica-bonardi-github-LVWpo
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy con Wrangler
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Secret CLOUDFLARE_API_TOKEN mancante. Crealo su GitHub: Settings → Secrets and variables → Actions → New repository secret. Il token si genera su dash.cloudflare.com → My Profile → API Tokens → template 'Edit Cloudflare Workers'."
+            exit 1
+          fi
+          npx wrangler@4 deploy
