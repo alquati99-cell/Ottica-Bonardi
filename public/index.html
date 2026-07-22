@@ -422,6 +422,8 @@ let UPLOAD_NAME_VEND = null;
 let UPLOAD_NAME_ACQ  = null;
 let LIVE_CLI  = null;
 let UPLOAD_NAME_CLI = null;
+let LIVE_CLI_ANAG = null;
+let UPLOAD_NAME_CLI_ANAG = null;
 
 // ═══ TEMA CHIARO / SCURO ════════════════════════════════════════════════════
 function applyTheme(t,rerender){
@@ -472,29 +474,56 @@ function idbDel(k){return idbOpen().then(db=>new Promise((res,rej)=>{
   tx.onerror=()=>{db.close();rej(tx.error);};
 }));}
 
-let LOCAL_SAVED_AT=null,CLOUD_SAVED_AT=null;
+let LOCAL_SAVED_AT=null,CLOUD_SAVED_AT=null,CLOUD_AVAILABLE=null;
+
+// LIVE_CLI.byCode e LIVE_CLI_ANAG.byName sono indici di lookup ricostruibili
+// dall'array sorgente: non li serializziamo (dimezza il peso dei dati).
+const DATASET_KEYS=['mag','vend','acq','cli','cliAnag'];
+function datasetValue(key){
+  if(key==='mag') return LIVE_MAG;
+  if(key==='vend') return LIVE_VEND;
+  if(key==='acq') return LIVE_ACQ;
+  if(key==='cli') return LIVE_CLI?{cliList:LIVE_CLI.cliList,totalCli:LIVE_CLI.totalCli,totalOrdini:LIVE_CLI.totalOrdini,hasOrders:LIVE_CLI.hasOrders,hasEta:LIVE_CLI.hasEta}:null;
+  if(key==='cliAnag') return LIVE_CLI_ANAG?{list:LIVE_CLI_ANAG.list,total:LIVE_CLI_ANAG.total,hasEta:LIVE_CLI_ANAG.hasEta}:null;
+  return null;
+}
+function applyDataset(key,v){
+  if(v==null)return false;
+  if(key==='mag'){LIVE_MAG=v;return true;}
+  if(key==='vend'){LIVE_VEND=v;return true;}
+  if(key==='acq'){LIVE_ACQ=v;return true;}
+  if(key==='cli'){LIVE_CLI={...v,byCode:Object.fromEntries(v.cliList.map(c=>[c.cod,c]))};return true;}
+  if(key==='cliAnag'){LIVE_CLI_ANAG={...v,byName:Object.fromEntries(v.list.map(c=>[normName(c.cog,c.nom),c]))};return true;}
+  return false;
+}
+function snapshotMeta(){
+  return {v:2,savedAt:new Date().toISOString(),
+    names:{mag:UPLOAD_NAME,magShort:UPLOAD_NAME_SHORT,vend:UPLOAD_NAME_VEND,acq:UPLOAD_NAME_ACQ,cli:UPLOAD_NAME_CLI,cliAnag:UPLOAD_NAME_CLI_ANAG}};
+}
+function applyMeta(m){
+  if(!m||!m.names)return;
+  UPLOAD_NAME=m.names.mag||UPLOAD_NAME;UPLOAD_NAME_SHORT=m.names.magShort||UPLOAD_NAME_SHORT;
+  UPLOAD_NAME_VEND=m.names.vend||UPLOAD_NAME_VEND;UPLOAD_NAME_ACQ=m.names.acq||UPLOAD_NAME_ACQ;
+  UPLOAD_NAME_CLI=m.names.cli||UPLOAD_NAME_CLI;UPLOAD_NAME_CLI_ANAG=m.names.cliAnag||UPLOAD_NAME_CLI_ANAG;
+}
+// Formato locale (IndexedDB): un unico oggetto con tutti i dataset dedotti —
+// va bene perché IndexedDB non ha il limite dei 25MB per valore del KV.
 function snapshotData(){
-  return {v:1,savedAt:new Date().toISOString(),
-    LIVE_MAG,LIVE_VEND,LIVE_ACQ,LIVE_CLI,
-    names:{mag:UPLOAD_NAME,magShort:UPLOAD_NAME_SHORT,vend:UPLOAD_NAME_VEND,acq:UPLOAD_NAME_ACQ,cli:UPLOAD_NAME_CLI}};
+  const s=snapshotMeta();
+  DATASET_KEYS.forEach(k=>s[k]=datasetValue(k));
+  return s;
 }
 function applySnapshot(s){
-  if(!s||s.v!==1)return false;
+  if(!s)return false;
   let n=0;
-  if(s.LIVE_MAG){LIVE_MAG=s.LIVE_MAG;n++;}
-  if(s.LIVE_VEND){LIVE_VEND=s.LIVE_VEND;n++;}
-  if(s.LIVE_ACQ){LIVE_ACQ=s.LIVE_ACQ;n++;}
-  if(s.LIVE_CLI){LIVE_CLI=s.LIVE_CLI;n++;}
-  if(s.names){
-    UPLOAD_NAME=s.names.mag||UPLOAD_NAME;UPLOAD_NAME_SHORT=s.names.magShort||UPLOAD_NAME_SHORT;
-    UPLOAD_NAME_VEND=s.names.vend||UPLOAD_NAME_VEND;UPLOAD_NAME_ACQ=s.names.acq||UPLOAD_NAME_ACQ;
-    UPLOAD_NAME_CLI=s.names.cli||UPLOAD_NAME_CLI;
-  }
+  DATASET_KEYS.forEach(k=>{ if(applyDataset(k,s[k])) n++; });
+  applyMeta(s);
   return n;
 }
-let PERSIST_T=null;
+let PERSIST_T=null,LAST_CHANGED_KEY=null;
 function persistData(silent){
   clearTimeout(PERSIST_T);
+  const changedKey=LAST_CHANGED_KEY;LAST_CHANGED_KEY=null;
   PERSIST_T=setTimeout(async()=>{
     try{
       const s=snapshotData();
@@ -502,51 +531,117 @@ function persistData(silent){
       LOCAL_SAVED_AT=s.savedAt;
       if(!silent)toast('💾 Dati salvati sul dispositivo — non serve ricaricarli','ok');
     }catch(e){console.warn('persist failed',e);}
+    // sincronizza automaticamente col cloud, come un vero backend — silenzioso
+    // se il KV non è configurato (nessun fastidio finché non lo attivi). Se
+    // sappiamo quale dataset è appena cambiato sincronizziamo solo quello
+    // (molto più leggero), altrimenti risincronizziamo tutto.
+    if(changedKey) cloudSaveOne(changedKey,true); else cloudSaveAll(true);
   },400);
 }
 async function restoreData(){
   try{
     const s=await idbGet('snapshot');
     const n=applySnapshot(s);
-    if(n){LOCAL_SAVED_AT=s.savedAt;renderPage();
-      toast(`✅ ${n} dataset ripristinati automaticamente (${fmtSavedAt(s.savedAt)})`,'ok',4500);}
+    if(n){
+      LOCAL_SAVED_AT=s.savedAt;renderPage();
+      toast(`✅ ${n} dataset ripristinati automaticamente (${fmtSavedAt(s.savedAt)})`,'ok',4500);
+      return;
+    }
   }catch(e){console.warn('restore failed',e);}
+  // Nessun dato locale: prova il cloud, poi il dataset reale precaricato di fabbrica.
+  try{
+    const n=await cloudLoadAll(true);
+    if(n){persistData(true);renderPage();
+      toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(CLOUD_SAVED_AT)})`,'ok',4500);
+      return;}
+  }catch(e){console.warn('cloud restore skipped',e);}
+  try{
+    let n=0;
+    const metaR=await fetch('default-data/meta.json');
+    if(metaR.ok) applyMeta(await metaR.json());
+    for(const k of DATASET_KEYS){
+      const r=await fetch(`default-data/${k}.json`);
+      if(r.ok && applyDataset(k, await r.json())) n++;
+    }
+    if(n){renderPage();persistData(true);
+      toast(`✅ Dati reali precaricati (${fmtN(n)} dataset) — Ottica Bonardi 3 sedi`,'ok',4500);
+      cloudSaveAll(true); // semina il cloud al primo avvio, se il KV è configurato
+    }
+  }catch(e){console.warn('default data load skipped',e);}
 }
 async function clearSavedData(){
   try{await idbDel('snapshot');LOCAL_SAVED_AT=null;
-    LIVE_MAG=LIVE_VEND=LIVE_ACQ=LIVE_CLI=null;
-    UPLOAD_NAME=UPLOAD_NAME_VEND=UPLOAD_NAME_ACQ=UPLOAD_NAME_CLI=null;UPLOAD_NAME_SHORT='';
+    LIVE_MAG=LIVE_VEND=LIVE_ACQ=LIVE_CLI=LIVE_CLI_ANAG=null;
+    UPLOAD_NAME=UPLOAD_NAME_VEND=UPLOAD_NAME_ACQ=UPLOAD_NAME_CLI=UPLOAD_NAME_CLI_ANAG=null;UPLOAD_NAME_SHORT='';
     renderPage();toast('🗑️ Dati locali eliminati','info');
   }catch(e){toast('Errore eliminazione: '+e.message,'err');}
 }
 const fmtSavedAt=iso=>{try{return new Date(iso).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
 
-// ═══ CLOUD SYNC (Cloudflare KV via /api/data) ═══════════════════════════════
-async function cloudSave(){
+// ═══ CLOUD SYNC (Cloudflare KV, una chiave per dataset via /api/data/<key>) ═
+// Ogni dataset è salvato separatamente: sincronizzare un solo file appena
+// caricato non richiede di rispedire tutti gli altri, e nessun valore KV
+// rischia di superare il limite di 25MB anche con lo storico clienti intero.
+// silent=true → sincronizzazione automatica in background: nessun toast se
+// il KV non è ancora configurato (comportamento opzionale, non bloccante).
+async function cloudPut(key,value){
+  const r=await fetch(`/api/data/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
+  const j=await r.json();
+  if(!r.ok)throw new Error(j.hint||j.error||('HTTP '+r.status));
+  return j;
+}
+async function cloudSaveAll(silent){
   try{
-    toast('☁️ Salvataggio su Cloudflare…','info',2000);
-    const body=JSON.stringify(snapshotData());
-    const r=await fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json'},body});
-    const j=await r.json();
-    if(!r.ok)throw new Error(j.hint||j.error||('HTTP '+r.status));
-    CLOUD_SAVED_AT=j.savedAt;
-    toast(`☁️ Salvato su cloud (${(j.bytes/1048576).toFixed(1)} MB) — accessibile da ogni dispositivo`,'ok',4500);
-    renderPage();
-  }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);}
+    if(!silent)toast('☁️ Salvataggio su Cloudflare…','info',2000);
+    const active=DATASET_KEYS.filter(k=>datasetValue(k)!=null);
+    let bytes=0;
+    for(const k of active){ const j=await cloudPut(k,datasetValue(k)); bytes+=j.bytes; }
+    await cloudPut('meta',snapshotMeta());
+    CLOUD_SAVED_AT=new Date().toISOString();CLOUD_AVAILABLE=true;
+    toast(silent?`☁️ Sincronizzato sul cloud — accessibile da ogni dispositivo`:`☁️ Salvato su cloud (${(bytes/1048576).toFixed(1)} MB, ${active.length} dataset) — accessibile da ogni dispositivo`,'ok',silent?2800:4500);
+    if(!silent)renderPage();
+  }catch(e){
+    CLOUD_AVAILABLE=false;
+    if(!silent)toast('⚠️ Cloud: '+e.message,'err',5000);
+  }
+}
+// Sincronizza SOLO il dataset appena caricato: molto più leggero di un
+// salvataggio completo, usato automaticamente dopo ogni singolo upload.
+async function cloudSaveOne(key,silent){
+  try{
+    const v=datasetValue(key);if(v==null)return;
+    await cloudPut(key,v);
+    await cloudPut('meta',snapshotMeta());
+    CLOUD_SAVED_AT=new Date().toISOString();CLOUD_AVAILABLE=true;
+    if(!silent)toast(`☁️ ${key} sincronizzato sul cloud`,'ok',2500);
+  }catch(e){
+    CLOUD_AVAILABLE=false;
+    if(!silent)toast('⚠️ Cloud: '+e.message,'err',5000);
+  }
+}
+async function cloudLoadAll(quiet){
+  const r=await fetch('/api/data');
+  if(r.status===404) throw new Error('Nessun dato salvato sul cloud');
+  const j=await r.json();
+  if(!r.ok) throw new Error(j.hint||j.error||('HTTP '+r.status));
+  if(j.meta) applyMeta(j.meta);
+  const present=DATASET_KEYS.filter(k=>j.present&&j.present[k]);
+  let n=0;
+  await Promise.all(present.map(async k=>{
+    const kr=await fetch(`/api/data/${k}`);
+    if(kr.ok && applyDataset(k, await kr.json())) n++;
+  }));
+  if(n) CLOUD_SAVED_AT=j.meta?.savedAt||new Date().toISOString();
+  return n;
 }
 async function cloudLoad(){
   try{
     toast('☁️ Caricamento dal cloud…','info',2000);
-    const r=await fetch('/api/data');
-    if(r.status===404)throw new Error('Nessun dato salvato sul cloud');
-    const j=await r.json();
-    if(!r.ok)throw new Error(j.hint||j.error||('HTTP '+r.status));
-    const n=applySnapshot(j);
-    if(!n)throw new Error('Snapshot vuoto o non valido');
-    CLOUD_SAVED_AT=j.savedAt;
+    const n=await cloudLoadAll(false);
+    if(!n)throw new Error('Nessun dataset trovato sul cloud');
     persistData(true);
     renderPage();
-    toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(j.savedAt)})`,'ok',4500);
+    toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(CLOUD_SAVED_AT)})`,'ok',4500);
   }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);}
 }
 async function cloudDelete(){
@@ -557,7 +652,7 @@ async function cloudDelete(){
     CLOUD_SAVED_AT=null;renderPage();toast('🗑️ Dati cloud eliminati','info');
   }catch(e){toast('⚠️ Cloud: '+e.message,'err');}
 }
-window.cloudSave=cloudSave;window.cloudLoad=cloudLoad;window.cloudDelete=cloudDelete;window.clearSavedData=clearSavedData;
+window.cloudSave=()=>cloudSaveAll(false);window.cloudLoad=cloudLoad;window.cloudDelete=cloudDelete;window.clearSavedData=clearSavedData;
 
 function curMAG(){ return LIVE_MAG || MAG; }
 function curAG(){ return LIVE_AG || AG; }
@@ -599,7 +694,7 @@ function processUpload(raw, name){
     const bc  = String(r['Codice a barre']||r['Barcode']||r['EAN']||r['GTIN']||r['barcode']||r['ean']||'').trim();
     const qty = parseFloat(String(r['Quantità magazzino']||r['Quantita magazzino']||0).replace(',','.')) || 0;
     const val = parseFloat(String(r['Valore magazzino']||0).replace(',','.')) || 0;
-    const cos = parseFloat(String(r['Costo medio']||0).replace(',','.')) || 0;
+    const cos = parseFloat(String(r['Costo medio']||r['Prezzo acquisto']||0).replace(',','.')) || 0;
     let dt = r['Data entrata magazzino']||r['Data entrata']||r['Data Entrata']||r['Data ult. acq']||r['Data ult acq']||r['Data ultimo acquisto']||r['DataEntrata']||r['data_entrata']||'';
     if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
     else if(typeof dt === 'number') dt = excelSerialToISO(dt);
@@ -670,7 +765,7 @@ function processUpload(raw, name){
   UPLOAD_NAME_SHORT = name.length>30 ? name.slice(0,27)+'…' : name;
   Object.assign(ST,{magPage:0,agPage:0,magBrand:'all',magSed:'all',magCat:'all',magForn:'all',magDateFrom:'',magDateTo:'',magFocus:'all',magSearch:'',agPri:'all',agSed:'all',agSearch:''});
   renderPage();
-  persistData();
+  LAST_CHANGED_KEY='mag';persistData();
 }
 
 // ═══ VENDITE PARSER ═════════════════════════════════════════════════════════
@@ -692,7 +787,7 @@ function processVendite(raw, name){
 
   // Righe compatte per filtri dinamici
   const compactRows = rows.map(r => {
-    let dt = r['data di vendita'];
+    let dt = r['data di vendita']||r['Data']||r['Data vendita']||r['Data di vendita'];
     if(dt instanceof Date){
       // usa ora locale per evitare shift UTC
       const p=n=>String(n).padStart(2,'0');
@@ -734,7 +829,7 @@ function processVendite(raw, name){
   };
   UPLOAD_NAME_VEND = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
-  persistData();
+  LAST_CHANGED_KEY='vend';persistData();
 }
 
 function filtVendRows(){
@@ -831,7 +926,7 @@ function processAcquisti(raw, name){
   };
   UPLOAD_NAME_ACQ = name.length>30 ? name.slice(0,27)+'…' : name;
   renderPage();
-  persistData();
+  LAST_CHANGED_KEY='acq';persistData();
 }
 
 // ═══ ANAGRAFICA CLIENTI PARSER ══════════════════════════════════════════════
@@ -856,6 +951,7 @@ function parseCli(file){
           if(!byCode[cod]){
             const cog=(r['Cognome']||'').trim();const nom=(r['Nome']||'').trim();const cog2=(r['Cognome 2']||'').trim();
             byCode[cod]={cod,nome:[cog,cog2,nom].filter(Boolean).join(' ')||cod,
+              matchKey:normName(cog,nom),
               filiale:(r['Filiale']||'').trim(),
               nOrdini:0,nVista:0,nSole:0,nLenti:0,
               brands:{},lenti:{},fornitori:{},
@@ -919,8 +1015,55 @@ function parseCli(file){
       }
       UPLOAD_NAME_CLI=file.name.length>30?file.name.slice(0,27)+'…':file.name;
       renderPage();
-      persistData();
+      LAST_CHANGED_KEY='cli';persistData();
     }catch(err){alert('Errore lettura clienti: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Chiave di match nome cliente (Cognome + Nome, normalizzata) usata per
+// incrociare lo storico ordini (che ha un codice scheda) con l'anagrafica
+// età (che non ce l'ha) — le due fonti vengono abbinate per nome.
+const normName=(cog,nom)=>((cog||'')+' '+(nom||'')).toString().trim().toUpperCase().replace(/\s+/g,' ');
+
+// ═══ ANAGRAFICA ETÀ (Cognome · Nome · Eta · Data nascita, senza codice) ═════
+function parseCliAnag(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length) throw new Error("File vuoto");
+      const CYnow=new Date().getFullYear();
+      const byName={};
+      const list=[];
+      rows.forEach(r=>{
+        const cog=(r['Cognome']||'').trim();const nom=(r['Nome']||'').trim();
+        const key=normName(cog,nom);
+        if(!key)return;
+        let nascitaYear=0;
+        const rawN=r['Data nascita']||r['DataNascita']||'';
+        if(rawN instanceof Date)nascitaYear=rawN.getFullYear();
+        else if(typeof rawN==='string'){const m=rawN.match(/(\d{4})/);if(m)nascitaYear=parseInt(m[1]);}
+        let eta=parseInt(r['Eta']||r['Età']||0)||0;
+        if(nascitaYear>1900&&nascitaYear<CYnow) eta=CYnow-nascitaYear;
+        if(!eta||eta<5||eta>110)return;
+        const rec={cog,nom,nome:[cog,nom].filter(Boolean).join(' '),eta,nascitaYear,
+          filiale:(r['Filiale']||'').trim(),
+          cap:(r['Cap']||'').toString().trim(),
+          citta:(r['Città']||r['Citta']||'').trim(),
+          provincia:(r['Provincia']||'').trim(),
+          telefono:(r['Telefonino GSM']||r['Telefono']||r['Telefono2']||'').toString().trim()
+        };
+        if(!byName[key]) byName[key]=rec;
+        list.push(rec);
+      });
+      LIVE_CLI_ANAG={byName,list,total:list.length,hasEta:true};
+      UPLOAD_NAME_CLI_ANAG=file.name.length>30?file.name.slice(0,27)+'…':file.name;
+      renderPage();
+      LAST_CHANGED_KEY='cliAnag';persistData();
+    }catch(err){alert('Errore lettura anagrafica età: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
 }
@@ -1666,17 +1809,17 @@ function rDati(){
     </div>
   </div>`;
   return`
-<div class="topbar fi"><div class="page-title">Carica dati <span class="pt-badge">4 file Excel</span></div></div>
+<div class="topbar fi"><div class="page-title">Carica dati <span class="pt-badge">5 file Excel</span></div></div>
 <div class="g card fi" style="margin-bottom:14px">
   <div class="ch"><div class="ct"><span style="font-size:16px">💾</span>Salvataggio automatico &amp; Cloud</div>
     ${LOCAL_SAVED_AT?`<span style="font-size:11px;color:var(--em)">✅ salvato sul dispositivo · ${fmtSavedAt(LOCAL_SAVED_AT)}</span>`:`<span style="font-size:11px;color:var(--d)">nessun salvataggio locale</span>`}
   </div>
   <div style="font-size:12px;color:var(--m);margin-bottom:12px;line-height:1.5">
-    I file caricati vengono <b style="color:var(--t)">salvati automaticamente sul dispositivo</b> (IndexedDB): alla prossima apertura i dati sono già pronti, senza ricaricare gli Excel.
-    Con <b style="color:var(--t)">Salva su cloud</b> lo snapshot viene archiviato su Cloudflare KV ed è accessibile da qualsiasi dispositivo.
+    I file caricati vengono <b style="color:var(--t)">salvati automaticamente sul dispositivo</b> (IndexedDB) <b style="color:var(--t)">e sincronizzati in background sul cloud</b> ad ogni caricamento — come un vero backend: apri l'app da un altro dispositivo e i dati sono già lì, senza ricaricare nulla.
+    ${CLOUD_AVAILABLE===false?`<span style="color:var(--am)">Il cloud non è ancora configurato su questo deploy (serve il namespace KV) — il salvataggio locale funziona comunque.</span>`:''}
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="qbtn" style="border-color:rgba(165,180,252,.35);color:var(--ac)" onclick="cloudSave()">☁️ Salva su cloud</button>
+    <button class="qbtn" style="border-color:rgba(165,180,252,.35);color:var(--ac)" onclick="cloudSave()">☁️ Salva su cloud ora</button>
     <button class="qbtn" style="border-color:rgba(74,222,128,.35);color:var(--em)" onclick="cloudLoad()">⬇ Carica da cloud</button>
     <button class="qbtn" onclick="clearSavedData()">🗑️ Cancella dati locali</button>
     <button class="qbtn" style="color:var(--ro)" onclick="cloudDelete()">🗑️ Cancella dati cloud</button>
@@ -1687,17 +1830,18 @@ function rDati(){
   Carica i file Excel per abilitare tutte le analisi della dashboard. I dati vengono elaborati localmente nel browser.
 </div>
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
-  ${mkZone("mag","Magazzino","📦","Stock, valore, anzianità per sede e brand",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"","parseExcel","Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre · Costo medio · Quantità magazzino · Valore magazzino · Data entrata magazzino")}
-  ${mkZone("vend","Vendite","◈","Pezzi venduti, top brand, operatori, clienti",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"","parseVendite","Colonne: Tipo Prodotto · Marchio · Modello · Codice a barre · Filiale · Operatore · Codice cliente · Tipo operazione · Prezzo consigliato · Quantità")}
+  ${mkZone("mag","Magazzino","📦","Stock, valore, anzianità per sede e brand",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"","parseExcel","Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre · Costo medio (o Prezzo acquisto) · Quantità magazzino · Valore magazzino · Data ult. acq")}
+  ${mkZone("vend","Vendite","◈","Pezzi venduti, top brand, operatori, clienti",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"","parseVendite","Colonne: Tipo Prodotto · Marchio · Modello · Codice a barre · Filiale · Operatore · Codice cliente · Tipo operazione · Prezzo consigliato · Quantità · Data")}
   ${mkZone("acq","Acquisti","🛒","Trend storico 2020–${CY}, valore per anno e filiale",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"","parseAcquisti","Colonne: Filiale · Tipo Prodotto · Marchio · Modello · Codice a barre · Data movimento · Quantità · ValoreAcq")}
-  ${mkZone("cli","Storico clienti","👥","Ordini, brand preferiti, retention — unisce vendite per Codice cliente",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"","parseCli","Colonne: Codice scheda cliente · Cognome · Nome · Data consegna · Marca modello · Prodotto lente Dx/Sx · Marca lente Dx/Sx · Tipo fornitura")}
+  ${mkZone("cli","Storico clienti","👥","Ordini, brand preferiti, retention — unisce vendite per Codice cliente",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"","parseCli","Colonne: codice scheda cliente · Cognome · Nome · Data consegna · Marca modello · Prodotto lente Dx/Sx · Marca lente Dx/Sx · Tipo fornitura · Totale")}
+  ${mkZone("cliAnag","Anagrafica età","🎂","Età, indirizzo, telefono — abbinata per nome allo storico clienti per la clusterizzazione età",!!UPLOAD_NAME_CLI_ANAG,UPLOAD_NAME_CLI_ANAG||"","parseCliAnag","Colonne: Cognome · Nome · Eta (o Data nascita) · Filiale · Indirizzo · Cap · Città · Telefono")}
 </div>
 <div style="margin-top:20px;background:rgba(255,255,255,.03);border:0.5px solid var(--b);border-radius:var(--r);padding:14px 16px">
   <div style="font-size:13px;font-weight:600;margin-bottom:10px">Stato file caricati</div>
   <div style="display:flex;flex-direction:column;gap:8px">
-    ${[["📦 Magazzino",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"non caricato"],["◈ Vendite",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"non caricato"],["🛒 Acquisti",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"non caricato"],["👥 Anagrafica",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"non caricato"]].map(([lbl,ok,name])=>`
+    ${[["📦 Magazzino",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"non caricato"],["◈ Vendite",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"non caricato"],["🛒 Acquisti",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"non caricato"],["👥 Storico clienti",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"non caricato"],["🎂 Anagrafica età",!!UPLOAD_NAME_CLI_ANAG,UPLOAD_NAME_CLI_ANAG||"non caricato"]].map(([lbl,ok,name])=>`
     <div style="display:flex;align-items:center;gap:10px;font-size:12px">
-      <span style="width:100px;color:var(--m)">${lbl}</span>
+      <span style="width:130px;color:var(--m)">${lbl}</span>
       <span style="color:${ok?"var(--em)":"var(--d)"}">${ok?"✅":"⚪"}</span>
       <span style="font-family:'DM Mono',monospace;font-size:11px;color:${ok?"var(--t)":"var(--d)"}">${name}</span>
     </div>`).join("")}
@@ -2061,10 +2205,15 @@ function rCli(){
   const cliName=cod=>{const c=cliByCode[cod];return c?.nome||'';};
   const cliSearch2=srch?retClients.filter(c=>{const n=cliName(c.cli).toLowerCase();return c.cli.toLowerCase().includes(srch)||n.includes(srch);}):retClients;
 
-  // ── Fasce età (richiede LIVE_CLI con hasEta) ──────────────────────────────
+  // ── Fasce età ────────────────────────────────────────────────────────────
+  // Due percorsi possibili: 1) anagrafica semplice col codice cliente diretto
+  // (vecchio formato), 2) anagrafica età (senza codice) abbinata per nome
+  // allo storico ordini, che fa da ponte codice→nome.
   const CYnow=now.getFullYear();
-  const hasEta=!!(LIVE_CLI?.hasEta&&hasVend);
   const hasOrders=!!(LIVE_CLI?.hasOrders&&LIVE_CLI.totalCli>0);
+  const hasEtaDirect=!!(LIVE_CLI?.hasEta&&hasVend);
+  const hasEtaByName=!!(LIVE_CLI_ANAG&&hasVend&&hasOrders);
+  const hasEta=hasEtaDirect||hasEtaByName;
   const brackets=['<25','25–44','45–64','65+'];
   const bracketCfg={
     '<25':{col:'#5ac8fa',bg:'rgba(90,200,250,.13)'},
@@ -2075,12 +2224,21 @@ function rCli(){
   const bracketData=Object.fromEntries(brackets.map(b=>[b,{n:0,totVal:0,nLenti:0,nSole:0,nVista:0,clients:[]}]));
   if(hasEta){
     retClients.forEach(rc=>{
-      const ci=cliByCode[rc.cli];if(!ci||!ci.nascita)return;
-      const eta=CYnow-ci.nascita;
+      let eta=null,sesso=null,nome=null;
+      if(hasEtaDirect){
+        const ci=cliByCode[rc.cli];
+        if(ci&&ci.nascita){eta=CYnow-ci.nascita;sesso=ci.sesso;nome=ci.nome;}
+      }
+      if(eta===null&&hasEtaByName){
+        const ci=cliByCode[rc.cli];
+        const anag=ci&&ci.matchKey?LIVE_CLI_ANAG.byName[ci.matchKey]:null;
+        if(anag){eta=anag.eta;nome=ci.nome;}
+      }
+      if(eta===null||eta<5||eta>110)return;
       const br=eta<25?'<25':eta<45?'25–44':eta<65?'45–64':'65+';
       const bd=bracketData[br];
       bd.n++;bd.totVal+=rc.totVal;bd.nLenti+=rc.nLenti;bd.nSole+=rc.nSole;bd.nVista+=rc.nVista;
-      bd.clients.push({...rc,eta,sesso:ci.sesso,nome:ci.nome});
+      bd.clients.push({...rc,eta,sesso,nome});
     });
   }
   const drillBr=ST.cliEtaDrill;
@@ -2165,15 +2323,15 @@ function rCli(){
   const tEta=()=>{
     if(!hasVend&&!hasEta)return`<div class="g card fi" style="text-align:center;padding:40px 20px">
       <div style="font-size:32px;margin-bottom:12px">👥</div>
-      <div style="font-size:14px;margin-bottom:6px;color:var(--m)">Serve il file vendite + anagrafica clienti</div>
-      <div style="font-size:12px;color:var(--d)">1. Carica vendite.xlsx → 2. Carica anagrafica.xlsx (Codice cliente · Data nascita · Sesso)</div>
+      <div style="font-size:14px;margin-bottom:6px;color:var(--m)">Servono vendite + storico ordini + anagrafica età</div>
+      <div style="font-size:12px;color:var(--d)">1. Carica Vendite → 2. Carica Storico clienti → 3. Carica Anagrafica età</div>
       <button class="tp on" style="margin-top:16px" onclick="nav('dati')">Vai a Carica dati</button>
     </div>`;
     if(!hasEta)return`<div class="g card fi" style="text-align:center;padding:40px 20px">
       <div style="font-size:32px;margin-bottom:12px">📋</div>
-      <div style="font-size:14px;margin-bottom:8px;color:var(--m)">Carica l'anagrafica clienti</div>
-      <div style="font-size:12px;color:var(--d);max-width:360px;margin:0 auto">File Excel con: <b style="color:var(--t)">Codice cliente · Data nascita · Sesso</b> — verranno incrociati con le vendite per calcolare età e preferenze per fascia</div>
-      <button class="tp on" style="margin-top:16px" onclick="nav('dati')">Carica anagrafica.xlsx</button>
+      <div style="font-size:14px;margin-bottom:8px;color:var(--m)">Carica l'anagrafica età</div>
+      <div style="font-size:12px;color:var(--d);max-width:380px;margin:0 auto">File Excel con: <b style="color:var(--t)">Cognome · Nome · Eta (o Data nascita)</b> — viene abbinato per nome allo Storico clienti per calcolare età e preferenze per fascia</div>
+      <button class="tp on" style="margin-top:16px" onclick="nav('dati')">Carica anagrafica età</button>
     </div>`;
 
     const totCliWithEta=Object.values(bracketData).reduce((a,b)=>a+b.n,0);
@@ -2921,7 +3079,8 @@ function welcomeMsg(){
   if(LIVE_VEND&&LIVE_VEND.hasDate)items.push('<span style="color:var(--em)">✓ Vendite</span>');
   else items.push('<span style="color:var(--am)">⚠ Vendite senza date</span>');
   if(LIVE_MAG)items.push('<span style="color:var(--em)">✓ Magazzino</span>');
-  if(LIVE_CLI)items.push('<span style="color:var(--em)">✓ Anagrafica</span>');
+  if(LIVE_CLI)items.push('<span style="color:var(--em)">✓ Storico clienti</span>');
+  if(LIVE_CLI_ANAG)items.push('<span style="color:var(--em)">✓ Anagrafica età</span>');
   const ctx=items.length?`Contesto caricato: ${items.join(' · ')}`:'Carica i file in <b>Carica dati</b> per analisi sui tuoi dati reali.';
   return`<div class="ai-msg bot"><div class="ai-msg-av">AI</div><div class="ai-bubble">Ciao! Sono il tuo <strong>CFO Advisor</strong> — leggo i dati del negozio e rispondo in italiano con analisi chiare, criticità e suggerimenti concreti.<br><br><span style="font-size:12px;color:var(--m)">${ctx}</span></div></div>`;
 }
@@ -2934,8 +3093,10 @@ function rAI(){
   else ctxItems.push({ok:false,label:'Magazzino',sub:'dati demo'});
   if(LIVE_ACQ)ctxItems.push({ok:true,label:'Acquisti',sub:UPLOAD_NAME_ACQ||'caricato'});
   else ctxItems.push({ok:false,label:'Acquisti',sub:'non caricato'});
-  if(LIVE_CLI)ctxItems.push({ok:true,label:'Anagrafica',sub:(LIVE_CLI.totalCli||LIVE_CLI.length||0)+' clienti'});
-  else ctxItems.push({ok:false,label:'Anagrafica',sub:'non caricato'});
+  if(LIVE_CLI)ctxItems.push({ok:true,label:'Storico clienti',sub:(LIVE_CLI.totalCli||LIVE_CLI.length||0)+' clienti'});
+  else ctxItems.push({ok:false,label:'Storico clienti',sub:'non caricato'});
+  if(LIVE_CLI_ANAG)ctxItems.push({ok:true,label:'Anagrafica età',sub:LIVE_CLI_ANAG.total+' clienti'});
+  else ctxItems.push({ok:false,label:'Anagrafica età',sub:'non caricato'});
 
   return`
 <div class="ai-page fi">
