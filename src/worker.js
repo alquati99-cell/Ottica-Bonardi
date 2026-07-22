@@ -92,19 +92,22 @@ async function handleAI(request, env) {
     return json({ error: 'Invalid JSON' }, 400);
   }
 
-  const { messages, model = 'fast' } = body;
+  // Default al modello "smart": con un contesto dati ricco (vendite, magazzino,
+  // acquisti, storico clienti, retention, età) il modello 8B fatica a restare
+  // aderente ai numeri forniti — il 70B è più affidabile come default.
+  const { messages, model = 'smart' } = body;
   if (!Array.isArray(messages) || messages.length === 0) {
     return json({ error: 'messages[] required' }, 400);
   }
 
-  const modelId = MODELS[model] || MODELS.fast;
+  const modelId = MODELS[model] || MODELS.smart;
 
   try {
     const stream = await env.AI.run(modelId, {
       messages,
       stream: true,
-      max_tokens: 1024,
-      temperature: 0.65,
+      max_tokens: 1536,
+      temperature: 0.35,
     });
 
     return new Response(stream, {

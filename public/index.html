@@ -1763,7 +1763,7 @@ ${usingProxy?`<div style="background:rgba(165,180,252,.05);border:0.5px solid rg
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <select id="ov-ai-model" class="ai-model-sel"><option value="fast">8B · veloce</option><option value="smart">70B · smart</option></select>
+      <select id="ov-ai-model" class="ai-model-sel"><option value="smart" selected>70B · smart (consigliato)</option><option value="fast">8B · veloce</option></select>
       <button id="ov-ai-btn" onclick="genOvAI()" style="background:rgba(165,180,252,.12);border:0.5px solid rgba(165,180,252,.3);border-radius:10px;color:var(--ac);cursor:pointer;padding:6px 14px;font-size:12px;font-family:inherit;transition:background .15s;white-space:nowrap">✦ Genera analisi</button>
     </div>
   </div>
@@ -3203,8 +3203,8 @@ function rAI(){
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <select id="ai-model-sel" class="ai-model-sel">
+        <option value="smart" selected>✦ Llama 3.3 70B · smart (consigliato)</option>
         <option value="fast">✦ Llama 3.1 8B · veloce</option>
-        <option value="smart">✦ Llama 3.3 70B · smart</option>
       </select>
       <button onclick="clearAIChat()" style="background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.12);border-radius:10px;color:var(--m);cursor:pointer;padding:6px 12px;font-size:12px;font-family:inherit">↺ Nuova chat</button>
     </div>
@@ -3259,15 +3259,26 @@ function buildAIContext(){
 Data odierna: ${now.toLocaleDateString('it-IT',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}.
 Anno corrente: ${CY} | Mese corrente: ${curMoLabel}.
 
-REGOLE DI RISPOSTA (rispetta sempre queste):
-1. Rispondi SOLO in italiano, tono professionale da consulente CFO senior
-2. Struttura SEMPRE le risposte con sezioni chiare: usa **Titolo** per i titoli, bullet • per gli elenchi
-3. Per ogni analisi includi: 📊 KPI principali → ⚠️ Criticità → 💡 Iniziative suggerite
-4. Evidenzia le criticità con ⚠️ e le opportunità con 💡
-5. I numeri in €: usa formato italiano (€12.500, non $12,500)
-6. Sii CONCISO: massimo 4-5 bullet per sezione, niente testo ridondante
-7. Se mancano dati specifici, dillo brevemente e analizza quello che hai
-8. Chiudi sempre con 1-2 "Prossimi passi" concreti e prioritizzati\n\n`;
+Qui sotto trovi l'ESTRATTO COMPLETO E REALE dei dati del negozio (vendite,
+magazzino, acquisti, storico clienti, retention, fasce età) già aggregati e
+pronti da leggere: non sono un esempio, sono i numeri veri di oggi.
+
+REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
+1. Usa SOLO i numeri che trovi nelle sezioni "===...===" qui sotto. Non
+   inventare MAI cifre, percentuali o nomi non presenti nel contesto.
+2. Ogni affermazione quantitativa deve citare il numero esatto dal contesto
+   (es. "il magazzino vale €735.770", non "il magazzino ha un buon valore").
+3. Se ti viene chiesto qualcosa che NON è nel contesto (es. un dato non
+   caricato), dillo esplicitamente in una riga — non aggirare il limite
+   inventando una stima.
+4. Rispondi SOLO in italiano, tono da consulente CFO senior, diretto e concreto
+5. Struttura le risposte con **Titolo** per i titoli, bullet • per gli elenchi
+6. Per un'analisi generale includi: 📊 KPI principali (con numeri) → ⚠️ Criticità → 💡 Iniziative
+7. Per una domanda puntuale (es. "quanto vale il magazzino di Sole?") rispondi
+   in modo diretto con il numero, senza sezioni superflue
+8. I numeri in €: usa formato italiano (€12.500, non $12,500)
+9. Sii CONCISO: massimo 4-5 bullet per sezione, niente testo ridondante
+10. Chiudi le analisi generali con 1-2 "Prossimi passi" concreti e prioritizzati\n\n`;
 
   if(LIVE_VEND&&LIVE_VEND.hasDate){
     const rows=LIVE_VEND.rows;
