@@ -274,6 +274,14 @@ html.light .theme-sw{background:rgba(15,23,42,.04)}
 html.light .theme-track{background:rgba(79,70,229,.3)}
 .theme-knob{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .25s cubic-bezier(.32,.72,0,1);box-shadow:0 1px 4px rgba(0,0,0,.4)}
 html.light .theme-knob{transform:translateX(14px)}
+/* AI Advisor: rinforza il contrasto dei pulsanti "Analisi rapide" e del
+   campo domanda, che in chiaro risultavano troppo tenui */
+html.light .ai-qbtn{background:rgba(79,70,229,.08);border-color:rgba(79,70,229,.22);color:#4338ca}
+html.light .ai-qbtn:hover{background:rgba(79,70,229,.16)}
+html.light #ai-inp{background:rgba(15,23,42,.04);border-color:rgba(15,23,42,.14)}
+html.light #ai-inp:focus{border-color:rgba(79,70,229,.45);background:rgba(79,70,229,.04)}
+html.light .ai-foot{border-top-color:rgba(15,23,42,.08)}
+html.light .ai-ctx-card,html.light .ai-prompts-card{background:rgba(15,23,42,.025);border-color:rgba(15,23,42,.09)}
 @media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.sb{display:none}.forn-grid{grid-template-columns:1fr}}
 /* ── AI Advisor page ─────────────────────────────────────────────────────── */
@@ -320,7 +328,7 @@ html.light .theme-knob{transform:translateX(14px)}
 .ai-foot{flex-shrink:0;border-top:0.5px solid rgba(255,255,255,.07);padding:14px 18px 16px;}
 .ai-inp-row{display:flex;gap:10px;align-items:flex-end;}
 #ai-inp{flex:1;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.14);border-radius:14px;color:var(--t);font-size:13.5px;font-family:inherit;padding:11px 15px;resize:none;outline:none;line-height:1.45;max-height:120px;overflow-y:auto;transition:border-color .15s,background .15s;}
-#ai-inp::placeholder{color:rgba(255,255,255,.28);}
+#ai-inp::placeholder{color:var(--d);}
 #ai-inp:focus{border-color:rgba(165,180,252,.5);background:rgba(165,180,252,.05);}
 #ai-send{width:40px;height:40px;border-radius:50%;background:var(--ac);border:none;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s,transform .15s,background .15s;box-shadow:0 4px 14px rgba(165,180,252,.35);}
 #ai-send:hover{transform:scale(1.08);background:#6366f1;}
@@ -355,9 +363,9 @@ html.light .theme-knob{transform:translateX(14px)}
     <div class="sede-pills" id="sedePills">
       <button class="sp s-agg on" onclick="setSede('agg')">Aggregate</button>
       <button class="sp s-spl" onclick="setSede('split')">Per sede</button>
-      <button class="sp s-b1" onclick="setSede('B1')">A</button>
-      <button class="sp s-b2" onclick="setSede('B2')">B</button>
-      <button class="sp s-b3" onclick="setSede('B3')">C</button>
+      <button class="sp s-b1" onclick="setSede('A')">A</button>
+      <button class="sp s-b2" onclick="setSede('B')">B</button>
+      <button class="sp s-b3" onclick="setSede('C')">C</button>
     </div>
     <button class="theme-sw" onclick="toggleTheme()" title="Tema chiaro / scuro">
       <span class="theme-track"><span class="theme-knob"></span></span>
@@ -1128,6 +1136,12 @@ function computeRetention(retDays,sedeFilter){
 // ── DATE / KPI HELPERS ────────────────────────────────────────────────────────
 function toISO(d){return d.toISOString().slice(0,10);}
 function acqRange(rows,from,to){let val=0,pz=0;for(const r of rows){if(r.dt>=from&&r.dt<=to){val+=r.val;pz+=r.pz;}}return{val:Math.round(val),pz:Math.round(pz)};}
+// Filtra le righe in base al selettore sede della sidebar (Aggregate/Per sede/A/B/C).
+// "agg" e "split" mostrano il totale combinato; una sede specifica filtra su r.fil.
+function sedeRows(rows){
+  if(!rows||ST.sedeMode==='agg'||ST.sedeMode==='split')return rows;
+  return rows.filter(r=>r.fil===ST.sedeMode);
+}
 function isoWeekKey(dtStr){
   const d=new Date(dtStr);d.setHours(0,0,0,0);
   const dow=d.getDay()||7;d.setDate(d.getDate()-dow+1);
@@ -1138,7 +1152,7 @@ function isoWeekKey(dtStr){
 }
 function acqKPIs(){
   if(!LIVE_ACQ||!LIVE_ACQ.rows) return null;
-  const rows=LIVE_ACQ.rows;
+  const rows=sedeRows(LIVE_ACQ.rows);
   const now=new Date();
   const today=toISO(now);
   const moNum=CM+1; // 1-indexed
@@ -1167,7 +1181,7 @@ function acqKPIs(){
 }
 function acqTrend(step,range){
   if(!LIVE_ACQ||!LIVE_ACQ.rows) return{labels:[],vals:[],pzs:[]};
-  const rows=LIVE_ACQ.rows;
+  const rows=sedeRows(LIVE_ACQ.rows);
   const agg={};
   const now=new Date();
   if(step==='A'){
@@ -1209,7 +1223,7 @@ function vendRange(rows, from, to){
 }
 function vendKPIs(){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
-  const frRows=LIVE_VEND.rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
+  const frRows=sedeRows(LIVE_VEND.rows).filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
   const now=new Date(); const today=toISO(now);
   const moNum=CM+1; const moStr=String(moNum).padStart(2,'0');
   const daysInMoPY=new Date(CY-1,moNum,0).getDate();
@@ -1246,7 +1260,7 @@ function vendKPIs(){
 }
 function vendTrend(step,range){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
-  const rows=LIVE_VEND.rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
+  const rows=sedeRows(LIVE_VEND.rows).filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
   const agg={}; const now=new Date();
   if(step==='A'){
     rows.forEach(r=>{if(!r.yr)return;const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
@@ -1281,7 +1295,7 @@ function vendTrend(step,range){
 // focus su un mese specifico (1-12) → tutti gli anni, solo frame
 function vendFocusMese(mese){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
-  const rows=LIVE_VEND.rows.filter(r=>(r.tp==='Montature vista'||r.tp==='Occhiali sole')&&r.mo===mese);
+  const rows=sedeRows(LIVE_VEND.rows).filter(r=>(r.tp==='Montature vista'||r.tp==='Occhiali sole')&&r.mo===mese);
   const agg={};
   rows.forEach(r=>{if(!r.yr)return;const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
   const keys=Object.keys(agg).sort();
@@ -1289,7 +1303,7 @@ function vendFocusMese(mese){
 }
 function acqFocusMese(mese){
   if(!LIVE_ACQ||!LIVE_ACQ.rows) return null;
-  const rows=LIVE_ACQ.rows.filter(r=>r.mo===mese);
+  const rows=sedeRows(LIVE_ACQ.rows).filter(r=>r.mo===mese);
   const agg={};
   rows.forEach(r=>{const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
   const keys=Object.keys(agg).sort();
@@ -1447,7 +1461,7 @@ function nav(p){
 }
 function setSede(mode){
   ST.sedeMode=mode;
-  const mp={agg:"s-agg",split:"s-spl",B1:"s-b1",B2:"s-b2",B3:"s-b3"};
+  const mp={agg:"s-agg",split:"s-spl",A:"s-b1",B:"s-b2",C:"s-b3"};
   document.querySelectorAll(".sp").forEach(b=>b.classList.remove("on"));
   document.querySelectorAll("."+mp[mode]).forEach(b=>b.classList.add("on"));
   renderPage();
@@ -1541,8 +1555,9 @@ function splitBar(){
 // ═══ OVERVIEW ═══════════════════════════════════════════════════════════════
 function rOv(){
   const mag=curMAG();
-  const valMagTot=mag.kpi.A.valore+mag.kpi.B.valore;
-  const pzMagTot=mag.kpi.A.pezzi+mag.kpi.B.pezzi;
+  const magSedi=(ST.sedeMode==='agg'||ST.sedeMode==='split')?['A','B','C']:[ST.sedeMode];
+  const valMagTot=magSedi.reduce((a,s)=>a+(mag.kpi[s]?.valore||0),0);
+  const pzMagTot=magSedi.reduce((a,s)=>a+(mag.kpi[s]?.pezzi||0),0);
   const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
   const hasVend=!!LIVE_VEND;
   const hasVendDate=hasVend&&LIVE_VEND.hasDate;
@@ -1579,7 +1594,7 @@ function rOv(){
     else if(ST.ovPeriodo==='PY'){from=`${CY-1}-01-01`;}
     else from=`${CY}-01-01`;
     const to=ST.ovPeriodo==='PY'?`${CY-1}-12-31`:toISO(now2);
-    return LIVE_VEND.rows.filter(r=>r.dt&&r.dt>=from&&r.dt<=to);
+    return sedeRows(LIVE_VEND.rows).filter(r=>r.dt&&r.dt>=from&&r.dt<=to);
   })():[];
   const topBrandIns=(()=>{
     const m={};
@@ -1695,7 +1710,7 @@ ${usingProxy?`<div style="background:rgba(165,180,252,.05);border:0.5px solid rg
     <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
     <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
     <div style="font-size:13px;color:var(--m)">${fmtN(pzMagTot)} pz</div>
-    <div style="font-size:11px;color:var(--d);margin-top:2px">Sede A + Sede B</div>
+    <div style="font-size:11px;color:var(--d);margin-top:2px">${(ST.sedeMode==='agg'||ST.sedeMode==='split')?'Sede A + Sede B':'Sede '+ST.sedeMode}</div>
   </div>
 </div>
 
