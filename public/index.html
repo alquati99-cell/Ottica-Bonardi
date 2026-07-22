@@ -3232,7 +3232,7 @@ function rAI(){
       </div>
     </div>
     <div class="ai-main">
-      <div id="ai-msgs" class="ai-msgs">${welcomeMsg()}</div>
+      <div id="ai-msgs" class="ai-msgs">${welcomeMsg()}${historyToHtml()}</div>
       <div class="ai-foot">
         <div class="ai-inp-row">
           <textarea id="ai-inp" placeholder="Chiedi qualcosa sui tuoi dati… (Invio per inviare, Shift+Invio per andare a capo)" rows="1" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
@@ -3247,6 +3247,18 @@ function rAI(){
 function initAIPage(){
   AI_PAGE_READY=true;
   setTimeout(()=>document.getElementById('ai-inp')?.focus(),100);
+  scrollAI();
+}
+
+// La cronologia (AI_HISTORY) vive in memoria e sopravvive alla navigazione
+// tra pagine, ma rAI() ricostruisce l'HTML da zero ogni volta: senza questo
+// replay la chat sembrava "cancellarsi" cambiando pagina anche se i dati
+// c'erano ancora, perché veniva mostrato solo il messaggio di benvenuto.
+function historyToHtml(){
+  return AI_HISTORY.map(m=>{
+    if(m.role==='user')return`<div class="ai-msg user"><div class="ai-bubble">${aiMarkdown(m.content)}</div></div>`;
+    return`<div class="ai-msg bot"><div class="ai-avatar" style="width:24px;height:24px;font-size:10px">AI</div><div class="ai-bubble">${aiMarkdown(m.content)}</div></div>`;
+  }).join('');
 }
 
 function buildAIContext(){
@@ -3278,7 +3290,12 @@ REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
    in modo diretto con il numero, senza sezioni superflue
 8. I numeri in €: usa formato italiano (€12.500, non $12,500)
 9. Sii CONCISO: massimo 4-5 bullet per sezione, niente testo ridondante
-10. Chiudi le analisi generali con 1-2 "Prossimi passi" concreti e prioritizzati\n\n`;
+10. Chiudi le analisi generali con 1-2 "Prossimi passi" concreti e prioritizzati
+11. Se dopo questo messaggio trovi una sezione "=== CLIENTI TROVATI ===" o
+    "=== PRODOTTI TROVATI ===", sono il risultato di una ricerca automatica
+    fatta ORA sull'archivio reale in base alla domanda dell'utente: usa quei
+    dati come fonte primaria e più aggiornata per rispondere a domande su
+    quel cliente/prodotto specifico\n\n`;
 
   if(LIVE_VEND&&LIVE_VEND.hasDate){
     const rows=LIVE_VEND.rows;
@@ -3402,6 +3419,60 @@ REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
   return ctx;
 }
 
+// Cerca un cliente specifico nominato nella domanda dell'utente e ne inietta
+// i dati reali nel contesto per quella singola richiesta. Il riepilogo
+// statico (buildAIContext) contiene solo le top-10 liste aggregate — senza
+// questa ricerca mirata, qualsiasi cliente fuori dalla top 10 risulterebbe
+// "sconosciuto" anche se è presente nei 23mila+ record caricati.
+function buildClientLookup(query){
+  if(!LIVE_CLI||!LIVE_CLI.hasOrders||!query)return'';
+  const stop=new Set(['CLIENTE','CLIENTI','VENDITE','MAGAZZINO','ACQUISTI','QUESTO','QUESTA','QUESTI','QUESTE','QUANTO','QUANTI','QUANTE','COME','QUALE','QUALI','QUANDO','PERCHE','DOVE','SONO','ANNO','MESE','OGGI','IERI','TOTALE','FATTURATO','OCCHIALI','LENTI','LENTE','VISTA','SOLE','MARCA','MARCHIO','BRAND','NEGOZIO','SEDE','FILIALE','GRAZIE','CIAO','DIMMI','DAMMI','FAMMI','VOGLIO','VORREI','PUOI','POTRESTI']);
+  const norm=s=>s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const words=norm(query).replace(/[^A-Z\s]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!stop.has(w));
+  if(!words.length)return'';
+  const scored=LIVE_CLI.cliList.map(c=>{
+    const cn=norm(c.nome);
+    const hits=words.filter(w=>cn.includes(w)).length;
+    return{c,hits};
+  }).filter(x=>x.hits>0).sort((a,b)=>b.hits-a.hits).slice(0,5);
+  if(!scored.length)return'';
+  let out='\n=== CLIENTI TROVATI (ricerca automatica per nome nella domanda) ===\n';
+  scored.forEach(({c})=>{
+    out+=`${c.nome} (cod. ${c.cod}, filiale ${c.filiale||'—'}): ${c.nOrdini} ordini registrati, prima visita ${c.firstDt||'—'}, ultima visita ${c.lastDt||'—'}, brand preferito: ${c.brandFav||'—'}, lente preferita: ${c.lenteFav||'—'}, spesa storica registrata: €${fmtN(c.totSpeso)}, vista: ${c.nVista||0}, sole: ${c.nSole||0}, lenti: ${c.nLenti||0}\n`;
+  });
+  out+='(Se il nome cercato dall\'utente non compare esattamente in questa lista, NON è nell\'archivio caricato: dillo chiaramente invece di confonderlo con uno dei nomi simili sopra.)\n';
+  return out;
+}
+
+// Stessa logica di buildClientLookup ma sul magazzino: se l'utente nomina
+// un brand/modello nella domanda, cerca le righe reali corrispondenti
+// invece di limitarsi alla top-8 marche già presenti nel riepilogo statico.
+function buildProductLookup(query){
+  const mag=curMAG();
+  if(!mag||!mag.rows?.length||!query)return'';
+  const stop=new Set(['CLIENTE','CLIENTI','VENDITE','MAGAZZINO','ACQUISTI','QUESTO','QUESTA','QUESTI','QUESTE','QUANTO','QUANTI','QUANTE','COME','QUALE','QUALI','QUANDO','PERCHE','DOVE','SONO','ANNO','MESE','OGGI','IERI','TOTALE','FATTURATO','OCCHIALI','LENTI','LENTE','VISTA','SOLE','MARCA','MARCHIO','BRAND','NEGOZIO','SEDE','FILIALE','GRAZIE','CIAO','DIMMI','DAMMI','FAMMI','VOGLIO','VORREI','PUOI','POTRESTI','ABBIAMO','MAGAZZINO','STOCK','PRODOTTO','PRODOTTI']);
+  const norm=s=>s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const words=norm(query).replace(/[^A-Z\s]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!stop.has(w));
+  if(!words.length)return'';
+  const matches=mag.rows.filter(r=>{
+    const hay=norm((r.m||'')+' '+(r.mod||''));
+    return words.some(w=>hay.includes(w));
+  });
+  if(!matches.length)return'';
+  const agg={};
+  matches.forEach(r=>{
+    const k=`${r.m}|${r.mod}`;
+    if(!agg[k])agg[k]={m:r.m,mod:r.mod,q:0,v:0,f:{}};
+    agg[k].q+=r.q;agg[k].v+=r.v;agg[k].f[r.f]=(agg[k].f[r.f]||0)+r.q;
+  });
+  const list=Object.values(agg).sort((a,b)=>b.v-a.v).slice(0,15);
+  let out='\n=== PRODOTTI TROVATI IN MAGAZZINO (ricerca automatica per nome nella domanda) ===\n';
+  list.forEach(p=>{
+    out+=`${p.m} ${p.mod}: ${p.q} pz in stock, valore €${fmtN(p.v)}, per sede: ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}pz`).join(' | ')}\n`;
+  });
+  return out;
+}
+
 function aiMsgHtml(role,text,typing=false){
   const div=document.createElement('div');
   div.className=`ai-msg ${role}`;
@@ -3455,7 +3526,7 @@ async function sendAI(prefill){
   const sendBtn=document.getElementById('ai-send');
   if(sendBtn)sendBtn.disabled=true;
 
-  const sysPrompt=buildAIContext();
+  const sysPrompt=buildAIContext()+buildClientLookup(msg)+buildProductLookup(msg);
   const payload={
     model:document.getElementById('ai-model-sel')?.value||'fast',
     messages:[{role:'system',content:sysPrompt},...AI_HISTORY.slice(-12)]
