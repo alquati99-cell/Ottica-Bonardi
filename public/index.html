@@ -3655,6 +3655,72 @@ function buildSalesLookup(query){
   return out;
 }
 
+// Motore analitico deterministico: rileva PERIODO (anno/mese/YTD), TIPO
+// (vista/sole/lenti) e INTENTO (classifica modelli/marche, giorno della
+// settimana, stagionalità) dalla domanda, e calcola la risposta ESATTA già
+// filtrata. Copre le domande "top/classifica ... nel <anno>", "quale giorno
+// si vende di più", "andamento per mese" — che il modello da solo sbaglia.
+function buildAnalyticsLookup(query){
+  if(!LIVE_VEND||!LIVE_VEND.hasDate||!query)return'';
+  const q=aiNorm(query);
+  const rows=LIVE_VEND.rows;
+  const today=toISO(new Date());
+  let out='';
+
+  // Periodo
+  let from=null,to=null,periodLbl='intero storico';
+  const ym=q.match(/\b(20[12]\d)\b/);
+  if(/QUESTO MESE|MESE CORRENTE/.test(q)){from=`${CY}-${String(CM+1).padStart(2,'0')}-01`;to=today;periodLbl=`${MESI[CM]} ${CY}`;}
+  else if(/ANNO SCORSO|SCORSO ANNO|ANNO PRECEDENTE/.test(q)){from=`${CY-1}-01-01`;to=`${CY-1}-12-31`;periodLbl=`${CY-1}`;}
+  else if(/QUEST ANNO|ANNO CORRENTE|\bYTD\b/.test(q)||(ym&&+ym[1]===CY)){from=`${CY}-01-01`;to=today;periodLbl=`${CY} (da inizio anno)`;}
+  else if(ym){from=`${ym[1]}-01-01`;to=`${ym[1]}-12-31`;periodLbl=ym[1];}
+  else if(/ULTIMI 12|ULTIMO ANNO/.test(q)){const d=new Date();d.setDate(d.getDate()-365);from=toISO(d);to=today;periodLbl='ultimi 12 mesi';}
+  const inPeriod=r=>!from||(r.dt&&r.dt>=from&&r.dt<=to);
+
+  // Tipo prodotto
+  let typeFilter,typeLbl='';
+  if(/MONTATUR|\bVISTA\b/.test(q)&&!/\bSOLE\b/.test(q)){typeFilter=r=>r.tp==='Montature vista';typeLbl=' vista';}
+  else if(/\bSOLE\b|DA SOLE/.test(q)&&!/\bVISTA\b/.test(q)){typeFilter=r=>r.tp==='Occhiali sole';typeLbl=' da sole';}
+  else if(/\bLENTI\b|LENTE/.test(q)){typeFilter=r=>r.tp&&r.tp.startsWith('Lenti');typeLbl=' lenti';}
+  else {typeFilter=r=>r.tp==='Montature vista'||r.tp==='Occhiali sole';}
+  const sel=rows.filter(r=>inPeriod(r)&&typeFilter(r));
+
+  // Giorno della settimana
+  if(/GIORNO|GIORNI|SETTIMANA|WEEKEND|FERIAL/.test(q)){
+    const wd=['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+    const byWd={};sel.forEach(r=>{if(!r.dt)return;const[y,mo,da]=r.dt.split('-').map(Number);const d=new Date(y,mo-1,da).getDay();byWd[d]=(byWd[d]||0)+r.pz;});
+    const tot=Object.values(byWd).reduce((a,b)=>a+b,0);
+    if(tot>0){
+      out+=`\n=== DATI GIÀ CALCOLATI — VENDITE PER GIORNO DELLA SETTIMANA (${periodLbl}${typeLbl}, pezzi) ===\n| Giorno | Pz venduti | % |\n|---|---|---|\n`;
+      [1,2,3,4,5,6,0].forEach(d=>{if(byWd[d])out+=`| ${wd[d]} | ${fmtN(byWd[d])} | ${Math.round(byWd[d]/tot*100)}% |\n`;});
+    }
+  }
+
+  // Classifica modelli / marche
+  const wantsRanking=/CLASSIFIC|\bTOP\b|PIU VENDUT|MENO VENDUT|MIGLIOR|PEGGIOR|BEST SELLER|VENDE DI PIU|VENDONO DI PIU|VENDUTI|VENDUTE/.test(q);
+  const wantsBrands=/MARCH|BRAND/.test(q)&&!/MODELL|OCCHIAL/.test(q);
+  if(wantsRanking){
+    if(wantsBrands){
+      const agg={};sel.forEach(r=>{const root=aiBrandRoot(r.mar);if(!root)return;if(!agg[root])agg[root]={labels:{},pz:0,val:0};const a=agg[root];const m=(r.mar||'').trim();if(m)a.labels[m]=(a.labels[m]||0)+r.pz;a.pz+=r.pz;a.val+=r.val;});
+      const list=Object.values(agg).sort((a,b)=>b.pz-a.pz).slice(0,10);
+      if(list.length){out+=`\n=== DATI GIÀ CALCOLATI — TOP MARCHE${typeLbl.toUpperCase()} (${periodLbl}) ===\n| # | Marca | Pz venduti | Fatturato |\n|---|---|---|---|\n`;list.forEach((p,i)=>out+=`| ${i+1} | ${aiPickLabel(p.labels)} | ${fmtN(p.pz)} | €${fmtN(p.val)} |\n`);}
+    } else {
+      const agg={};sel.forEach(r=>{if(!r.mod)return;const k=((r.mar||'')+' '+r.mod).trim();if(!agg[k])agg[k]={k,pz:0,val:0};agg[k].pz+=r.pz;agg[k].val+=r.val;});
+      const list=Object.values(agg).sort((a,b)=>b.pz-a.pz).slice(0,10);
+      if(list.length){out+=`\n=== DATI GIÀ CALCOLATI — TOP 10 MODELLI${typeLbl.toUpperCase()} PIÙ VENDUTI (${periodLbl}) ===\n| # | Modello | Pz venduti | Fatturato |\n|---|---|---|---|\n`;list.forEach((p,i)=>out+=`| ${i+1} | ${p.k} | ${fmtN(p.pz)} | €${fmtN(p.val)} |\n`);}
+    }
+  }
+
+  // Andamento per mese / stagionalità
+  if(/PER MESE|MENSIL|STAGIONAL|MESE MIGLIOR|MESE PEGGIOR|ANDAMENTO MESE/.test(q)){
+    const byMo={};sel.forEach(r=>{if(!r.dt)return;byMo[+r.dt.slice(5,7)]=(byMo[+r.dt.slice(5,7)]||0)+r.pz;});
+    if(Object.keys(byMo).length){out+=`\n=== DATI GIÀ CALCOLATI — VENDITE PER MESE (${periodLbl}${typeLbl}, pezzi) ===\n| Mese | Pz |\n|---|---|\n`;for(let m=1;m<=12;m++)if(byMo[m])out+=`| ${MESI[m-1]} | ${fmtN(byMo[m])} |\n`;}
+  }
+
+  if(out)out='\n(Le sezioni "DATI GIÀ CALCOLATI" qui sotto sono la risposta diretta alla domanda, già filtrate per il periodo/tipo richiesto: usale tali e quali, non ricalcolare.)'+out;
+  return out;
+}
+
 function aiMsgHtml(role,text,typing=false){
   const div=document.createElement('div');
   div.className=`ai-msg ${role}`;
@@ -3742,7 +3808,7 @@ async function sendAI(prefill){
   const recentCtx=AI_HISTORY.slice(-5).map(m=>m.content).join(' ')+' '+msg;
   const lastUserMsg=[...AI_HISTORY].reverse().find(m=>m.role==='user')?.content||'';
   const brandCtx=lastUserMsg+' '+msg;
-  const sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(brandCtx)+buildSalesLookup(brandCtx);
+  const sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(brandCtx)+buildSalesLookup(brandCtx)+buildAnalyticsLookup(brandCtx);
   const payload={
     model:document.getElementById('ai-model-sel')?.value||'fast',
     messages:[{role:'system',content:sysPrompt},...AI_HISTORY.slice(-12)]
