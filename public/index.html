@@ -3721,6 +3721,167 @@ function buildAnalyticsLookup(query){
   return out;
 }
 
+// ═══ MOTORE DI QUERY GENERICO ("chat con i tuoi dati") ══════════════════════
+// L'AI traduce la domanda in una query JSON; QUESTO codice la esegue in modo
+// esatto sui dati completi e restituisce il risultato. Così si può rispondere
+// a domande arbitrarie senza chiedere al modello di fare aggregazioni (che
+// sbaglia). Nessun eval: solo un piccolo interprete sicuro.
+
+// Righe clienti arricchite col fatturato reale (da retention) per le query.
+function aiClientiRows(){
+  const ret=(LIVE_VEND&&LIVE_VEND.hasDate)?computeRetention(360,'agg'):null;
+  const byCode=ret?Object.fromEntries(ret.retClients.map(r=>[r.cli,r])):{};
+  return (LIVE_CLI?.cliList||[]).map(c=>{const r=byCode[c.cod]||{};return{
+    nome:c.nome,codice:c.cod,filiale:c.filiale,ordini:c.nOrdini||0,vista:c.nVista||0,sole:c.nSole||0,lenti:c.nLenti||0,
+    brand:c.brandFav||'',lente:c.lenteFav||'',primavisita:c.firstDt||'',ultimavisita:c.lastDt||'',
+    fatturato:r.totVal||0,visite:r.nVisits||0,status:r.status||'sconosciuto'};});
+}
+// Mappa marca → etichetta ombrello, per raggruppare le linee (Vista/Sole).
+let AI_MARCA_MAP=null;
+function aiMarcaMap(){
+  if(AI_MARCA_MAP)return AI_MARCA_MAP;
+  AI_MARCA_MAP={};
+  if(LIVE_VEND){
+    const roots=[...new Set(LIVE_VEND.rows.map(r=>aiBrandRoot(r.mar)).filter(Boolean))];
+    aiSalesByRoot(roots).forEach(p=>{Object.keys(p.mods);});
+    // ricostruisci label per root
+    const byRoot={};LIVE_VEND.rows.forEach(r=>{const root=aiBrandRoot(r.mar);if(!root)return;const m=(r.mar||'').trim();if(!byRoot[root])byRoot[root]={};if(m)byRoot[root][m]=(byRoot[root][m]||0)+r.pz;});
+    Object.entries(byRoot).forEach(([root,labels])=>{const lab=aiPickLabel(labels);Object.keys(labels).forEach(m=>AI_MARCA_MAP[m]=lab);});
+  }
+  return AI_MARCA_MAP;
+}
+// Definizione dei dataset interrogabili + accessor dei campi (con sinonimi).
+function aiDataset(name){
+  const mm=aiMarcaMap();
+  if(name==='vendite'){
+    if(!LIVE_VEND)return null;
+    return{rows:LIVE_VEND.rows,get:(r,f)=>{switch(f){
+      case'tipo':case'tp':case'prodotto':case'tipoprodotto':return r.tp;
+      case'marca':case'brand':return mm[(r.mar||'').trim()]||r.mar;
+      case'linea':return r.mar;
+      case'modello':case'mod':case'occhiale':return((r.mar||'')+' '+(r.mod||'')).trim();
+      case'filiale':case'sede':case'fil':case'negozio':return r.fil;
+      case'operatore':case'op':case'venditore':return r.op;
+      case'cliente':case'cli':case'codicecliente':return r.cli;
+      case'anno':case'yr':return r.yr;
+      case'mese':case'mo':return r.mo;
+      case'data':case'dt':return r.dt;
+      case'pezzi':case'pz':case'quantita':case'qta':case'venduti':return r.pz;
+      case'fatturato':case'valore':case'val':case'ricavo':case'euro':return r.val;
+      case'costo':case'acq':case'acquisto':return r.acq;
+      default:return r[f];}}};
+  }
+  if(name==='magazzino'){
+    const mag=curMAG();if(!mag||!mag.rows)return null;
+    return{rows:mag.rows,get:(r,f)=>{switch(f){
+      case'marca':case'brand':return r.m;
+      case'modello':case'mod':return r.mod;
+      case'categoria':case'cat':case'tipo':return r.cat;
+      case'fornitore':case'forn':return r.forn;
+      case'filiale':case'sede':case'f':case'negozio':return r.f;
+      case'anno':return r.anno;case'anzianita':case'pri':return r.pri;
+      case'pezzi':case'pz':case'stock':case'quantita':case'giacenza':return r.q;
+      case'valore':case'v':case'euro':return r.v;
+      case'costo':case'c':return r.c;
+      case'data':case'd':return r.d;
+      default:return r[f];}}};
+  }
+  if(name==='clienti'){
+    const rows=aiClientiRows();if(!rows.length)return null;
+    return{rows,get:(r,f)=>{const k=f.toLowerCase();return r[k]!==undefined?r[k]:r[f];}};
+  }
+  return null;
+}
+function aiCmp(a,b){if(a==null&&b==null)return 0;if(a==null)return -1;if(b==null)return 1;if(typeof a==='number'&&typeof b==='number')return a-b;return String(a).localeCompare(String(b));}
+function aiMatchCond(ds,r,c){
+  const v=ds.get(r,String(c.field||'').toLowerCase());const val=c.value;
+  const num=parseFloat(val);const isNum=typeof v==='number'&&!isNaN(num);
+  const U=x=>aiNorm(String(x==null?'':x));
+  switch((c.op||'=').toLowerCase()){
+    case'=':case'==':case'eq':return isNum?v===num:U(v)===U(val);
+    case'!=':case'ne':return isNum?v!==num:U(v)!==U(val);
+    case'>':case'gt':return v>num;case'>=':case'gte':return v>=num;
+    case'<':case'lt':return v<num;case'<=':case'lte':return v<=num;
+    case'contains':case'like':return U(v).includes(U(val));
+    case'startswith':return U(v).startsWith(U(val));
+    case'in':return (Array.isArray(val)?val:String(val).split(',')).some(x=>U(x)===U(v));
+    default:return false;
+  }
+}
+function aiAgg(rows,ds,m){
+  const fn=(m.fn||'count').toLowerCase();const field=String(m.field||'').toLowerCase();
+  if(fn==='count')return rows.length;
+  const vals=rows.map(r=>ds.get(r,field)).filter(v=>v!=null&&v!=='');
+  if(fn==='countdistinct'||fn==='distinct')return new Set(vals.map(String)).size;
+  const nums=vals.map(Number).filter(v=>!isNaN(v));
+  if(fn==='sum')return Math.round(nums.reduce((a,b)=>a+b,0));
+  if(fn==='avg'||fn==='media')return nums.length?Math.round(nums.reduce((a,b)=>a+b,0)/nums.length):0;
+  if(fn==='min')return nums.length?Math.min(...nums):0;
+  if(fn==='max')return nums.length?Math.max(...nums):0;
+  return 0;
+}
+function runDataQuery(spec){
+  if(!spec||typeof spec!=='object')return null;
+  const ds=aiDataset(String(spec.dataset||'').toLowerCase());
+  if(!ds)return null;
+  let rows=ds.rows.filter(r=>(spec.where||spec.filter||[]).every(c=>aiMatchCond(ds,r,c)));
+  const metrics=(spec.metrics&&spec.metrics.length)?spec.metrics:null;
+  const groupBy=spec.groupBy?(Array.isArray(spec.groupBy)?spec.groupBy:[spec.groupBy]).map(g=>String(g).toLowerCase()):null;
+  let cols,outRows;
+  if(groupBy){
+    const groups={};
+    rows.forEach(r=>{const kv=groupBy.map(g=>ds.get(r,g));const key=kv.map(String).join(' | ');(groups[key]||(groups[key]={kv,rows:[]})).rows.push(r);});
+    const ms=metrics||[{fn:'sum',field:'pezzi',as:'pezzi'},{fn:'sum',field:'fatturato',as:'fatturato'}];
+    outRows=Object.values(groups).map(g=>{const o={};groupBy.forEach((gb,i)=>o[gb]=g.kv[i]);ms.forEach(m=>o[m.as||m.fn]=aiAgg(g.rows,ds,m));return o;});
+    cols=[...groupBy,...ms.map(m=>m.as||m.fn)];
+    const ob=spec.orderBy||spec.sort;const sortKey=ob?(ob.by||ob.field||cols[groupBy.length]):cols[groupBy.length];
+    const dir=(ob&&(ob.dir||ob.order)||'desc').toLowerCase()==='asc'?1:-1;
+    outRows.sort((a,b)=>dir*aiCmp(a[sortKey],b[sortKey]));
+    outRows=outRows.slice(0,spec.limit||20);
+  } else if(metrics){
+    const o={};metrics.forEach(m=>o[m.as||m.fn]=aiAgg(rows,ds,m));
+    cols=metrics.map(m=>m.as||m.fn);outRows=[o];
+  } else {
+    const sel=spec.select?spec.select.map(s=>String(s).toLowerCase()):null;
+    const ob=spec.orderBy||spec.sort;
+    if(ob){const k=(ob.by||ob.field);const dir=((ob.dir||ob.order)||'desc').toLowerCase()==='asc'?1:-1;rows=[...rows].sort((a,b)=>dir*aiCmp(ds.get(a,String(k).toLowerCase()),ds.get(b,String(k).toLowerCase())));}
+    const lim=spec.limit||15;
+    cols=sel||['marca','modello','pezzi','fatturato'];
+    outRows=rows.slice(0,lim).map(r=>{const o={};cols.forEach(c=>o[c]=ds.get(r,c));return o;});
+  }
+  return{cols,rows:outRows,matched:rows.length};
+}
+// Schema passato al modello nel primo passaggio (traduzione domanda→query).
+function aiQuerySchema(){
+  const anni=LIVE_VEND?[...new Set(LIVE_VEND.rows.map(r=>r.yr).filter(Boolean))].sort():[];
+  return `DATASET DISPONIBILI E CAMPI:
+- "vendite" (ogni riga = un articolo venduto): tipo ("Montature vista"|"Occhiali sole"|"Lenti monofocali"|"Lenti progressive"|...), marca, modello, filiale ("A"|"B"), operatore, cliente, anno (${anni.join(',')}), mese (1-12), data, pezzi, fatturato, costo
+- "magazzino" (stock attuale): marca, modello, categoria, fornitore, filiale, anzianita, pezzi, valore
+- "clienti" (uno per cliente): nome, codice, filiale, ordini, vista, sole, lenti, brand, lente, fatturato, visite, status ("attivo"|"rischio"|"perso"|"nuovo"), primavisita, ultimavisita
+FORMATO QUERY (JSON):
+{"dataset":"vendite","where":[{"field":"anno","op":"=","value":2026},{"field":"tipo","op":"=","value":"Occhiali sole"}],"groupBy":"modello","metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"},{"fn":"sum","field":"fatturato","as":"fatturato"}],"orderBy":{"by":"pezzi","dir":"desc"},"limit":10}
+Operatori where: = != > >= < <= contains startswith in. Funzioni metrics: sum, count, avg, min, max, countDistinct.
+ESEMPI:
+- "top 10 occhiali da sole venduti nel 2026" → {"dataset":"vendite","where":[{"field":"anno","op":"=","value":2026},{"field":"tipo","op":"=","value":"Occhiali sole"}],"groupBy":"modello","metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"}],"orderBy":{"by":"pezzi","dir":"desc"},"limit":10}
+- "quanto ha fatturato la filiale A" → {"dataset":"vendite","where":[{"field":"filiale","op":"=","value":"A"}],"metrics":[{"fn":"sum","field":"fatturato","as":"fatturato"}]}
+- "clienti persi che hanno speso più di 500 euro" → {"dataset":"clienti","where":[{"field":"status","op":"=","value":"perso"},{"field":"fatturato","op":">","value":500}],"orderBy":{"by":"fatturato","dir":"desc"},"limit":20}
+- "quante montature Gucci abbiamo in magazzino" → {"dataset":"magazzino","where":[{"field":"marca","op":"contains","value":"Gucci"}],"metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"}]}`;
+}
+function aiQueryPlannerPrompt(){
+  return `Sei un traduttore da domanda a query sui dati di un negozio di ottica. Dato lo schema e la domanda dell'utente, restituisci ESCLUSIVAMENTE un oggetto JSON valido con la query (nessun testo prima o dopo, niente markdown). Se la domanda NON richiede un calcolo sui dati (saluto, chiacchiera, richiesta di consiglio generico), restituisci esattamente la parola NONE.
+${aiQuerySchema()}
+Regola: usa SOLO i nomi di campo elencati. Rispondi con il solo JSON o NONE.`;
+}
+function renderQueryResult(spec,res){
+  if(!res||!res.rows||!res.rows.length)return'\n=== RISULTATO QUERY: nessun dato corrisponde ai criteri richiesti ===\n';
+  let out='\n=== RISULTATO ESATTO DELLA QUERY (calcolato dal sistema sui dati completi — usa questi numeri, sono corretti) ===\n';
+  out+=`(${res.matched} righe corrispondono ai filtri)\n`;
+  out+='| '+res.cols.join(' | ')+' |\n|'+res.cols.map(()=>'---').join('|')+'|\n';
+  res.rows.forEach(r=>{out+='| '+res.cols.map(c=>{const v=r[c];return typeof v==='number'?fmtN(v):(v==null?'—':v);}).join(' | ')+' |\n';});
+  out+='Rispondi alla domanda dell\'utente usando ESATTAMENTE questi risultati. Se ci sono più righe presentali in tabella markdown. Non ricalcolare, non aggiungere numeri non presenti qui.\n';
+  return out;
+}
+
 function aiMsgHtml(role,text,typing=false){
   const div=document.createElement('div');
   div.className=`ai-msg ${role}`;
@@ -3808,7 +3969,25 @@ async function sendAI(prefill){
   const recentCtx=AI_HISTORY.slice(-5).map(m=>m.content).join(' ')+' '+msg;
   const lastUserMsg=[...AI_HISTORY].reverse().find(m=>m.role==='user')?.content||'';
   const brandCtx=lastUserMsg+' '+msg;
-  const sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(brandCtx)+buildSalesLookup(brandCtx)+buildAnalyticsLookup(brandCtx);
+  let sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(brandCtx)+buildSalesLookup(brandCtx)+buildAnalyticsLookup(brandCtx);
+
+  // PASSO 1 — l'AI traduce la domanda in una query; il codice la esegue
+  // esatta sui dati completi. Se ci riesce, iniettiamo il risultato preciso
+  // nel contesto. Così può rispondere a domande arbitrarie senza fare i
+  // conti a mano. Se non produce una query valida, si prosegue col contesto
+  // standard (nessuna regressione).
+  if(LIVE_VEND){
+    try{
+      bub.innerHTML='<span style="font-size:12px;color:var(--d)">Interrogo i dati…</span>';
+      const plan=await callAI({model:'smart',messages:[{role:'system',content:aiQueryPlannerPrompt()},{role:'user',content:(lastUserMsg&&lastUserMsg!==msg?lastUserMsg+' — ':'')+msg}]},()=>{});
+      const raw=(plan.full||'').trim();
+      if(raw&&!/^NONE/i.test(raw)){
+        const m=raw.match(/\{[\s\S]*\}/);
+        if(m){const spec=JSON.parse(m[0]);const res=runDataQuery(spec);if(res)sysPrompt+=renderQueryResult(spec,res);}
+      }
+    }catch(e){console.warn('query planner skipped',e);}
+  }
+
   const payload={
     model:document.getElementById('ai-model-sel')?.value||'fast',
     messages:[{role:'system',content:sysPrompt},...AI_HISTORY.slice(-12)]
