@@ -3327,7 +3327,15 @@ REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
     | valore | valore |
     Metti sempre una riga per elemento confrontato e una colonna per ogni
     metrica rilevante (es. pezzi venduti, fatturato). Aggiungi 1-2 righe di
-    commento sotto la tabella su chi vince e perché, non prima\n\n`;
+    commento sotto la tabella su chi vince e perché, non prima
+13. VIETATO fare calcoli aritmetici a mano (somme, medie, percentuali). I
+    totali di cui hai bisogno sono GIÀ CALCOLATI dal sistema nelle sezioni
+    "=== DATI GIÀ CALCOLATI ===": copiali esattamente. Non scrivere mai
+    espressioni tipo "(4036+3215+2746)". Se un totale che ti serve non è tra
+    i dati calcolati, dillo, non inventarlo sommando righe parziali.
+14. Se una sezione "DATI GIÀ CALCOLATI — VENDITE PER MARCA" è presente, quei
+    numeri per marca sono i totali completi e corretti: usa quelli, non i
+    dati "Top marchi" del riepilogo (che sono solo YTD e parziali)\n\n`;
 
   if(LIVE_VEND&&LIVE_VEND.hasDate){
     const rows=LIVE_VEND.rows;
@@ -3365,6 +3373,21 @@ REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
     if(topMar.length)ctx+=`Top marchi: ${topMar.map(([n,v])=>`${n} €${Math.round(v).toLocaleString('it-IT')}`).join(', ')}\n`;
     if(topOp.length)ctx+=`Top operatori: ${topOp.map(([n,v])=>`${n} €${Math.round(v).toLocaleString('it-IT')}`).join(', ')}\n`;
     if(topTp.length)ctx+=`Tipi prodotto: ${topTp.map(([n,v])=>`${n} €${Math.round(v.v).toLocaleString('it-IT')} (${v.pz}pz)`).join(', ')}\n`;
+    // Top marche e modelli sull'INTERO storico (non solo YTD), per pezzi —
+    // così "quale marca/occhiale vende di più" ha una risposta pronta. Solo
+    // montature/sole (le lenti sono un mondo a parte, altrimenti Zeiss/Essilor
+    // dominerebbero la classifica delle marche di occhiali).
+    const frAll=rows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
+    const byRootAll={},byModAll={};
+    frAll.forEach(r=>{
+      const root=aiBrandRoot(r.mar);const mar=(r.mar||'').trim();
+      if(root){if(!byRootAll[root])byRootAll[root]={labels:{},pz:0,val:0};const a=byRootAll[root];if(mar)a.labels[mar]=(a.labels[mar]||0)+r.pz;a.pz+=r.pz;a.val+=r.val;}
+      const mk=(r.mar||'')+' '+(r.mod||'');if(r.mod){if(!byModAll[mk])byModAll[mk]={pz:0,val:0};byModAll[mk].pz+=r.pz;byModAll[mk].val+=r.val;}
+    });
+    const topRootAll=Object.values(byRootAll).sort((a,b)=>b.pz-a.pz).slice(0,10);
+    const topModAll=Object.entries(byModAll).sort((a,b)=>b[1].pz-a[1].pz).slice(0,10);
+    if(topRootAll.length)ctx+=`Top marche occhiali per pezzi venduti (storico, linee aggregate): ${topRootAll.map(p=>`${aiPickLabel(p.labels)} ${p.pz}pz (€${Math.round(p.val).toLocaleString('it-IT')})`).join(', ')}\n`;
+    if(topModAll.length)ctx+=`Top 10 modelli occhiali più venduti (storico): ${topModAll.map(([n,v])=>`${n.trim()} ${v.pz}pz (€${Math.round(v.val).toLocaleString('it-IT')})`).join(', ')}\n`;
     ctx+='\n';
   } else if(LIVE_VEND){
     ctx+=`=== VENDITE ===\nFile caricato ma senza date (analisi limitata). Clienti unici: ${LIVE_VEND.clienti}\n\n`;
@@ -3470,6 +3493,62 @@ function aiSearchWords(text){
 function aiSearchWordsLoose(text){
   return aiNorm(text).replace(/[^A-Z0-9\s-]/g,' ').split(/\s+/).map(w=>w.replace(/^-+|-+$/g,'')).filter(w=>w.length>=3&&!AI_STOPWORDS.has(w));
 }
+// Distanza di edit (Levenshtein) per tollerare piccoli refusi nei nomi di
+// marca ("guci"→"gucci", "oackley"→"oakley").
+function aiLev(a,b){
+  const m=a.length,n=b.length;if(!m)return n;if(!n)return m;
+  let prev=Array.from({length:n+1},(_,j)=>j),cur=new Array(n+1);
+  for(let i=1;i<=m;i++){cur[0]=i;for(let j=1;j<=n;j++){const c=a[i-1]===b[j-1]?0:1;cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+c);}[prev,cur]=[cur,prev];}
+  return prev[n];
+}
+// Chiave-radice della marca = prima parola normalizzata SENZA trattini
+// ("RAY-BAN VISTA" e "RAYBAN" → entrambe "RAYBAN"): aggrega tutte le linee di
+// una marca (Vista/Sole/Junior) e le varianti col/senza trattino sotto un
+// unico totale quando l'utente nomina la marca ombrello.
+function aiBrandRoot(mar){return aiNorm(mar||'').split(/\s+/)[0].replace(/-/g,'');}
+function aiBrandLabel(mar){return aiNorm(mar||'').split(/\s+/)[0];} // con trattino, per display
+// Sceglie l'etichetta ombrello di una marca da un conteggio {nomeOriginale:pz}:
+// meno parole possibile (la linea base, non "X Vista"), a parità più venduta
+// (così "Ray-Ban" batte la marca-fantasma "RAYBAN" da 1 pezzo).
+function aiPickLabel(counts){
+  const e=Object.entries(counts);if(!e.length)return'?';
+  e.sort((a,b)=>(a[0].split(/\s+/).length-b[0].split(/\s+/).length)||(b[1]-a[1]));
+  return e[0][0];
+}
+// Radici di marca nominate nella domanda (tollera refusi minori).
+function aiMatchBrandRoots(query){
+  if(!LIVE_VEND||!query)return[];
+  const roots=[...new Set(LIVE_VEND.rows.map(r=>aiBrandRoot(r.mar)).filter(r=>r&&r.length>=3))];
+  const tokens=aiSearchWordsLoose(query).map(t=>t.replace(/-/g,''));
+  const matched=new Set();
+  roots.forEach(root=>{
+    for(const t of tokens){
+      if(t.length<3)continue;
+      if(t===root){matched.add(root);break;}
+      if(t.length>=4&&root.startsWith(t)){matched.add(root);break;}
+      if(t.length>=4&&root.length>=4&&aiLev(t,root)<=1){matched.add(root);break;}
+    }
+  });
+  return [...matched];
+}
+// Aggrega le vendite per radice di marca → totali ESATTI (storico + anno
+// corrente + per sede). Il calcolo è fatto qui, non lasciato al modello.
+function aiSalesByRoot(roots){
+  const today=toISO(new Date());
+  const agg={};
+  LIVE_VEND.rows.forEach(r=>{
+    const root=aiBrandRoot(r.mar);
+    if(!roots.includes(root))return;
+    if(!agg[root])agg[root]={root,labels:{},pz:0,val:0,pzY:0,valY:0,f:{},mods:{}};
+    const a=agg[root];
+    const mar=(r.mar||'').trim();if(mar)a.labels[mar]=(a.labels[mar]||0)+r.pz;
+    a.pz+=r.pz;a.val+=r.val;a.f[r.fil]=(a.f[r.fil]||0)+r.pz;
+    const mk=r.mod||'—';if(!a.mods[mk])a.mods[mk]={mod:mk,pz:0,val:0};a.mods[mk].pz+=r.pz;a.mods[mk].val+=r.val;
+    if(r.dt&&r.dt>=CY+'-01-01'&&r.dt<=today){a.pzY+=r.pz;a.valY+=r.val;}
+  });
+  Object.values(agg).forEach(a=>{a.label=aiPickLabel(a.labels);});
+  return Object.values(agg).sort((x,y)=>y.pz-x.pz);
+}
 
 function buildClientLookup(query){
   if(!LIVE_CLI||!LIVE_CLI.hasOrders||!query)return'';
@@ -3509,72 +3588,70 @@ function buildClientLookup(query){
 function buildProductLookup(query){
   const mag=curMAG();
   if(!mag||!mag.rows?.length||!query)return'';
-  const words=aiSearchWordsLoose(query);
-  if(!words.length)return'';
   const norm=aiNorm;
-  const matches=mag.rows.filter(r=>{
-    const hay=norm((r.m||'')+' '+(r.mod||''));
-    return words.some(w=>hay.includes(w));
-  });
-  if(!matches.length)return'';
-  const agg={};
-  matches.forEach(r=>{
-    const k=`${r.m}|${r.mod}`;
-    if(!agg[k])agg[k]={m:r.m,mod:r.mod,q:0,v:0,f:{}};
-    agg[k].q+=r.q;agg[k].v+=r.v;agg[k].f[r.f]=(agg[k].f[r.f]||0)+r.q;
-  });
-  const list=Object.values(agg).sort((a,b)=>b.v-a.v).slice(0,15);
-  let out='\n=== PRODOTTI TROVATI IN MAGAZZINO — STOCK ATTUALE (ricerca automatica) ===\n';
-  list.forEach(p=>{
-    out+=`${p.m} ${p.mod}: ${p.q} pz in stock, valore €${fmtN(p.v)}, per sede: ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}pz`).join(' | ')}\n`;
-  });
+  // Se la domanda nomina delle marche, dai anche lo stock totale per marca
+  // (già sommato), oltre ai singoli modelli.
+  const roots=aiMatchBrandRoots(query);
+  let out='';
+  if(roots.length){
+    const byRoot={};
+    mag.rows.forEach(r=>{const root=aiBrandRoot(r.m);if(!roots.includes(root))return;if(!byRoot[root])byRoot[root]={root,q:0,v:0,f:{}};byRoot[root].q+=r.q;byRoot[root].v+=r.v;byRoot[root].f[r.f]=(byRoot[root].f[r.f]||0)+r.q;});
+    const list=Object.values(byRoot).sort((a,b)=>b.v-a.v);
+    if(list.length){
+      out+='\n=== DATI GIÀ CALCOLATI — STOCK MAGAZZINO PER MARCA (totali esatti, non ricalcolare) ===\n';
+      out+='| Marca | Pz in stock | Valore stock | Per sede (pz) |\n|---|---|---|---|\n';
+      list.forEach(p=>out+=`| ${p.root} | ${fmtN(p.q)} | €${fmtN(p.v)} | ${Object.entries(p.f).sort((a,b)=>b[1]-a[1]).map(([s,q])=>s+': '+fmtN(q)).join(', ')} |\n`);
+    }
+  }
+  const words=aiSearchWordsLoose(query);
+  if(words.length){
+    const matches=mag.rows.filter(r=>{const hay=norm((r.m||'')+' '+(r.mod||''));return words.some(w=>hay.includes(w));});
+    if(matches.length){
+      const agg={};
+      matches.forEach(r=>{const k=`${r.m}|${r.mod}`;if(!agg[k])agg[k]={m:r.m,mod:r.mod,q:0,v:0,f:{}};agg[k].q+=r.q;agg[k].v+=r.v;agg[k].f[r.f]=(agg[k].f[r.f]||0)+r.q;});
+      const list=Object.values(agg).sort((a,b)=>b.v-a.v).slice(0,12);
+      out+='\n=== MODELLI TROVATI IN MAGAZZINO — STOCK PER MODELLO ===\n';
+      list.forEach(p=>out+=`${p.m} ${p.mod}: ${p.q} pz in stock, valore €${fmtN(p.v)}, per sede: ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}pz`).join(' | ')}\n`);
+    }
+  }
   return out;
 }
 
-// Come buildProductLookup ma sulle VENDITE: quanti pezzi di un
-// modello/marca sono stati venduti (non quanti sono in stock). Serve per
-// le domande di confronto "quale modello ha venduto di più" richieste
-// esplicitamente in forma di tabella.
+// Ricerca sulle VENDITE (quanti pezzi venduti, non stock). Il sistema
+// calcola qui i totali esatti per marca e li fornisce già pronti: il
+// modello deve solo riportarli, MAI ricalcolarli o sommare righe a mano.
 function buildSalesLookup(query){
   if(!LIVE_VEND||!query)return'';
+  // 1) Se la domanda nomina una o più MARCHE → totali per marca (ombrello).
+  const roots=aiMatchBrandRoots(query);
+  if(roots.length){
+    const list=aiSalesByRoot(roots);
+    if(!list.length)return'';
+    let out='\n=== DATI GIÀ CALCOLATI DAL SISTEMA — VENDITE PER MARCA (totali esatti) ===\n';
+    out+='ATTENZIONE: questi totali sono già sommati e corretti dal sistema. Riportali ESATTAMENTE così come sono. NON ricalcolare, NON sommare righe di modelli a mano, NON stimare.\n';
+    out+='| Marca | Pz venduti (storico) | Fatturato (storico) | Pz '+CY+' | Fatturato '+CY+' | Per sede (pz) |\n|---|---|---|---|---|---|\n';
+    list.forEach(p=>{
+      out+=`| ${p.label} | ${fmtN(p.pz)} | €${fmtN(p.val)} | ${fmtN(p.pzY)} | €${fmtN(p.valY)} | ${Object.entries(p.f).sort((a,b)=>b[1]-a[1]).map(([s,q])=>s+': '+fmtN(q)).join(', ')} |\n`;
+    });
+    list.forEach(p=>{
+      const top=Object.values(p.mods).sort((a,b)=>b.pz-a.pz).slice(0,5);
+      if(top.length)out+=`Modelli ${p.label} più venduti: ${top.map(m=>`${m.mod} (${fmtN(m.pz)}pz, €${fmtN(m.val)})`).join('; ')}\n`;
+    });
+    out+='Se l\'utente chiede un confronto, presenta la tabella qui sopra tale e quale, poi 1-2 righe di commento su chi vince in volume e chi in fatturato/prezzo medio.\n';
+    return out;
+  }
+  // 2) Nessuna marca riconosciuta → cerca per modello/codice specifico.
   const words=aiSearchWordsLoose(query);
   if(!words.length)return'';
   const norm=aiNorm;
-  const matches=LIVE_VEND.rows.filter(r=>{
-    const hay=norm((r.mar||'')+' '+(r.mod||''));
-    return words.some(w=>hay.includes(w));
-  });
+  const matches=LIVE_VEND.rows.filter(r=>{const hay=norm((r.mar||'')+' '+(r.mod||''));return words.some(w=>hay.includes(w));});
   if(!matches.length)return'';
-  const brandsMatched=new Set(matches.map(r=>r.mar||'—'));
-  let out='\n=== PRODOTTI TROVATI NELLE VENDITE — QUANTITÀ VENDUTE (ricerca automatica) ===\n';
-  if(brandsMatched.size>=2&&brandsMatched.size<=8){
-    // Confronto tra più marche: un totale per marca, non modello per modello
-    // (altrimenti la marca con più modelli a catalogo nasconde le altre).
-    const byBrand={};
-    matches.forEach(r=>{
-      const k=r.mar||'—';
-      if(!byBrand[k])byBrand[k]={mar:k,pz:0,val:0,f:{}};
-      byBrand[k].pz+=r.pz;byBrand[k].val+=r.val;byBrand[k].f[r.fil]=(byBrand[k].f[r.fil]||0)+r.pz;
-    });
-    const list=Object.values(byBrand).sort((a,b)=>b.pz-a.pz);
-    out+='| Marca | Pz venduti | Fatturato | Per sede |\n|---|---|---|---|\n';
-    list.forEach(p=>{
-      out+=`| ${p.mar} | ${fmtN(p.pz)} | €${fmtN(p.val)} | ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}`).join(', ')} |\n`;
-    });
-  } else {
-    const agg={};
-    matches.forEach(r=>{
-      const k=`${r.mar||'—'}|${r.mod||'—'}`;
-      if(!agg[k])agg[k]={mar:r.mar||'—',mod:r.mod||'—',pz:0,val:0,f:{}};
-      agg[k].pz+=r.pz;agg[k].val+=r.val;agg[k].f[r.fil]=(agg[k].f[r.fil]||0)+r.pz;
-    });
-    const list=Object.values(agg).sort((a,b)=>b.pz-a.pz).slice(0,15);
-    out+='| Marca | Modello | Pz venduti | Fatturato | Per sede |\n|---|---|---|---|---|\n';
-    list.forEach(p=>{
-      out+=`| ${p.mar} | ${p.mod} | ${fmtN(p.pz)} | €${fmtN(p.val)} | ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}`).join(', ')} |\n`;
-    });
-  }
-  out+='(Se l\'utente chiede un confronto tra 2+ elementi, riproponi questi dati come tabella markdown nella risposta, non solo come testo.)\n';
+  const agg={};
+  matches.forEach(r=>{const k=`${r.mar||'—'}|${r.mod||'—'}`;if(!agg[k])agg[k]={mar:r.mar||'—',mod:r.mod||'—',pz:0,val:0};agg[k].pz+=r.pz;agg[k].val+=r.val;});
+  const list=Object.values(agg).sort((a,b)=>b.pz-a.pz).slice(0,15);
+  let out='\n=== DATI GIÀ CALCOLATI — MODELLI TROVATI NELLE VENDITE (totali esatti, non ricalcolare) ===\n';
+  out+='| Marca | Modello | Pz venduti | Fatturato |\n|---|---|---|---|\n';
+  list.forEach(p=>out+=`| ${p.mar} | ${p.mod} | ${fmtN(p.pz)} | €${fmtN(p.val)} |\n`);
   return out;
 }
 
@@ -3658,8 +3735,14 @@ async function sendAI(prefill){
   // Include anche gli ultimi scambi nella ricerca: una domanda di follow-up
   // ("quanto ha speso?") spesso non ripete il nome dell'entità di cui si
   // sta parlando, che va ripreso dal turno precedente.
+  // Clienti: cerca anche nella conversazione recente (i follow-up tipo
+  // "quanto ha speso?" non ripetono il nome). Marche/prodotti: cerca solo
+  // nel messaggio corrente + ultima domanda utente, per non trascinare
+  // marche citate in risposte precedenti in un confronto non richiesto.
   const recentCtx=AI_HISTORY.slice(-5).map(m=>m.content).join(' ')+' '+msg;
-  const sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(recentCtx)+buildSalesLookup(recentCtx);
+  const lastUserMsg=[...AI_HISTORY].reverse().find(m=>m.role==='user')?.content||'';
+  const brandCtx=lastUserMsg+' '+msg;
+  const sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(brandCtx)+buildSalesLookup(brandCtx);
   const payload={
     model:document.getElementById('ai-model-sel')?.value||'fast',
     messages:[{role:'system',content:sysPrompt},...AI_HISTORY.slice(-12)]
