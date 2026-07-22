@@ -3637,7 +3637,17 @@ function buildSalesLookup(query){
       const top=Object.values(p.mods).sort((a,b)=>b.pz-a.pz).slice(0,5);
       if(top.length)out+=`Modelli ${p.label} più venduti: ${top.map(m=>`${m.mod} (${fmtN(m.pz)}pz, €${fmtN(m.val)})`).join('; ')}\n`;
     });
-    out+='Se l\'utente chiede un confronto, presenta la tabella qui sopra tale e quale, poi 1-2 righe di commento su chi vince in volume e chi in fatturato/prezzo medio.\n';
+    // Ripartizione anno per anno di ogni marca cercata → risponde ai confronti
+    // "marca anno X vs anno Y" (es. "Oakley 25 vs 26") con dati esatti per
+    // ogni anno, non solo storico+anno corrente.
+    const years=[...new Set(LIVE_VEND.rows.map(r=>r.yr).filter(Boolean))].sort();
+    if(years.length>1){
+      const perYear={};
+      LIVE_VEND.rows.forEach(r=>{const root=aiBrandRoot(r.mar);if(!roots.includes(root)||!r.yr)return;(perYear[root]||(perYear[root]={}));(perYear[root][r.yr]||(perYear[root][r.yr]={pz:0,val:0}));perYear[root][r.yr].pz+=r.pz;perYear[root][r.yr].val+=r.val;});
+      out+='\nVENDITE PER ANNO (pezzi ed €, dato esatto per ogni anno):\n| Marca | '+years.join(' | ')+' |\n|'+['---'].concat(years.map(()=>'---')).join('|')+'|\n';
+      list.forEach(p=>{const cells=years.map(y=>{const d=perYear[p.root]&&perYear[p.root][y];return d?`${fmtN(d.pz)}pz (€${fmtN(d.val)})`:'0';});out+=`| ${p.label} | ${cells.join(' | ')} |\n`;});
+    }
+    out+='Se l\'utente chiede un confronto tra anni, usa la tabella "VENDITE PER ANNO" con i valori esatti di ciascun anno. Se chiede un confronto tra marche, usa la prima tabella. Non dire mai "non disponibile" per un anno che è presente nella tabella VENDITE PER ANNO.\n';
     return out;
   }
   // 2) Nessuna marca riconosciuta → cerca per modello/codice specifico.
@@ -3667,9 +3677,10 @@ function buildAnalyticsLookup(query){
   const today=toISO(new Date());
   let out='';
 
-  // Periodo
+  // Periodo — riconosce anche gli anni a 2 cifre ("25"→2025, "26"→2026).
   let from=null,to=null,periodLbl='intero storico';
-  const ym=q.match(/\b(20[12]\d)\b/);
+  let ym=q.match(/\b(20[12]\d)\b/);
+  if(!ym){const two=q.match(/\b(2[0-6])\b/);if(two)ym=[two[0],'20'+two[1]];}
   if(/QUESTO MESE|MESE CORRENTE/.test(q)){from=`${CY}-${String(CM+1).padStart(2,'0')}-01`;to=today;periodLbl=`${MESI[CM]} ${CY}`;}
   else if(/ANNO SCORSO|SCORSO ANNO|ANNO PRECEDENTE/.test(q)){from=`${CY-1}-01-01`;to=`${CY-1}-12-31`;periodLbl=`${CY-1}`;}
   else if(/QUEST ANNO|ANNO CORRENTE|\bYTD\b/.test(q)||(ym&&+ym[1]===CY)){from=`${CY}-01-01`;to=today;periodLbl=`${CY} (da inizio anno)`;}
@@ -3865,7 +3876,9 @@ ESEMPI:
 - "top 10 occhiali da sole venduti nel 2026" → {"dataset":"vendite","where":[{"field":"anno","op":"=","value":2026},{"field":"tipo","op":"=","value":"Occhiali sole"}],"groupBy":"modello","metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"}],"orderBy":{"by":"pezzi","dir":"desc"},"limit":10}
 - "quanto ha fatturato la filiale A" → {"dataset":"vendite","where":[{"field":"filiale","op":"=","value":"A"}],"metrics":[{"fn":"sum","field":"fatturato","as":"fatturato"}]}
 - "clienti persi che hanno speso più di 500 euro" → {"dataset":"clienti","where":[{"field":"status","op":"=","value":"perso"},{"field":"fatturato","op":">","value":500}],"orderBy":{"by":"fatturato","dir":"desc"},"limit":20}
-- "quante montature Gucci abbiamo in magazzino" → {"dataset":"magazzino","where":[{"field":"marca","op":"contains","value":"Gucci"}],"metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"}]}`;
+- "quante montature Gucci abbiamo in magazzino" → {"dataset":"magazzino","where":[{"field":"marca","op":"contains","value":"Gucci"}],"metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"}]}
+- "vendite Oakley 2025 vs 2026" (confronto tra anni di una marca) → {"dataset":"vendite","where":[{"field":"marca","op":"contains","value":"Oakley"}],"groupBy":"anno","metrics":[{"fn":"sum","field":"pezzi","as":"pezzi"},{"fn":"sum","field":"fatturato","as":"fatturato"}],"orderBy":{"by":"anno","dir":"asc"}}
+NOTA: gli anni a 2 cifre vanno espansi ("25"=2025, "26"=2026). Per confrontare più anni usa groupBy:"anno" così ottieni una riga per anno.`;
 }
 function aiQueryPlannerPrompt(){
   return `Sei un traduttore da domanda a query sui dati di un negozio di ottica. Dato lo schema e la domanda dell'utente, restituisci ESCLUSIVAMENTE un oggetto JSON valido con la query (nessun testo prima o dopo, niente markdown). Se la domanda NON richiede un calcolo sui dati (saluto, chiacchiera, richiesta di consiglio generico), restituisci esattamente la parola NONE.
@@ -3877,7 +3890,8 @@ function renderQueryResult(spec,res){
   let out='\n=== RISULTATO ESATTO DELLA QUERY (calcolato dal sistema sui dati completi — usa questi numeri, sono corretti) ===\n';
   out+=`(${res.matched} righe corrispondono ai filtri)\n`;
   out+='| '+res.cols.join(' | ')+' |\n|'+res.cols.map(()=>'---').join('|')+'|\n';
-  res.rows.forEach(r=>{out+='| '+res.cols.map(c=>{const v=r[c];return typeof v==='number'?fmtN(v):(v==null?'—':v);}).join(' | ')+' |\n';});
+  const rawCol=c=>/^(anno|mese|year|month|codice)$/i.test(c);
+  res.rows.forEach(r=>{out+='| '+res.cols.map(c=>{const v=r[c];if(v==null)return'—';if(typeof v==='number')return rawCol(c)?String(v):fmtN(v);return v;}).join(' | ')+' |\n';});
   out+='Rispondi alla domanda dell\'utente usando ESATTAMENTE questi risultati. Se ci sono più righe presentali in tabella markdown. Non ricalcolare, non aggiungere numeri non presenti qui.\n';
   return out;
 }
