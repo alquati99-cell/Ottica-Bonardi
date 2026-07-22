@@ -843,6 +843,11 @@ function filtVendRows(){
   else if(ST.vendTp==='LE') r = r.filter(x=>x.tp.startsWith('Lenti'));
   else if(ST.vendTp!=='all') r = r.filter(x=>x.tp===ST.vendTp);
   if(ST.vendMar!=='all')  r = r.filter(x=>x.mar===ST.vendMar);
+  if(ST.vendAnno&&ST.vendAnno!=='all'){
+    if(ST.vendAnno==='YTD')      r = r.filter(x=>x.yr===CY);
+    else if(ST.vendAnno==='last12'){ const cut=toISO(new Date(Date.now()-365*86400000)); r = r.filter(x=>x.dt&&x.dt>=cut); }
+    else r = r.filter(x=>x.yr===parseInt(ST.vendAnno));
+  }
   return r;
 }
 
@@ -1212,11 +1217,16 @@ function vendKPIs(){
   const todayDay=now.getDate();
   const moPYDay=String(Math.min(todayDay,daysInMoPY)).padStart(2,'0');
   const moPY=vendRange(frRows,`${CY-1}-${moStr}-01`,`${CY-1}-${moStr}-${moPYDay}`);
-  const dow=now.getDay()||7;
-  const monThis=new Date(now);monThis.setDate(now.getDate()-dow+1);monThis.setHours(0,0,0,0);
+  // La settimana è ancorata all'ultima data presente nei dati (non a "oggi"):
+  // se l'export è più vecchio della settimana corrente, evita di mostrare
+  // sempre 0 solo perché il calendario è avanzato oltre i dati disponibili.
+  const lastDataDt=frRows.reduce((mx,r)=>r.dt&&r.dt>mx?r.dt:mx,'');
+  const wkAnchor=lastDataDt?new Date(lastDataDt):now;
+  const dow=wkAnchor.getDay()||7;
+  const monThis=new Date(wkAnchor);monThis.setDate(wkAnchor.getDate()-dow+1);monThis.setHours(0,0,0,0);
   const monPrev=new Date(monThis);monPrev.setDate(monThis.getDate()-7);
   const sunPrev=new Date(monThis);sunPrev.setDate(monThis.getDate()-1);
-  const wk=vendRange(frRows,toISO(monThis),today);
+  const wk=vendRange(frRows,toISO(monThis),lastDataDt||today);
   const wkPrev=vendRange(frRows,toISO(monPrev),toISO(sunPrev));
   // KPI periodo selezionato (box 1)
   const periodo=ST.ovPeriodo||'YTD';
@@ -1282,13 +1292,6 @@ function acqFocusMese(mese){
   return{labels:keys,vals:keys.map(k=>Math.round(agg[k].val)),pzs:keys.map(k=>Math.round(agg[k].pz))};
 }
 
-function getObjTarget(type){return parseInt(localStorage.getItem(`ob_${type}_${CY}_${CM}`)||'0')||0;}
-function setObjTarget(type,val){localStorage.setItem(`ob_${type}_${CY}_${CM}`,String(parseInt(val)||0));renderPage();}
-function promptTarget(type,label){
-  const cur=getObjTarget(type);
-  const v=prompt(`Obiettivo ${label} per ${MESI[CM]} ${CY}:`,cur||'');
-  if(v!==null)setObjTarget(type,v);
-}
 const SC={B1:["#5ac8fa","rgba(90,200,250,.18)"],B2:["#30d158","rgba(48,209,88,.18)"],B3:["#fbbf24","rgba(251,191,36,.18)"]};
 const PRI_LABEL={U:"🔴 Urgente",A:"🟠 Alta",M:"🟡 Media",O:"✅ OK",N:"⚪ Senza data"};
 const PRI_SUB={U:"oltre 5 anni",A:"3–5 anni",M:"2–3 anni",O:"ultimi 24 mesi",N:"data mancante"};
@@ -1395,8 +1398,8 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   magTab:"stock",magBrand:"all",magSed:"all",magCat:"all",magForn:"all",magDateFrom:"",magDateTo:"",magFocus:"all",magSearch:"",magSort:"v",magAsc:false,magPage:0,
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"val",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,cliStoricoDrill:null,
-  vendFil:"all",vendTp:"all",vendMar:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",ovObjPct:10,lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12};
+  vendFil:"all",vendTp:"all",vendMar:"all",vendAnno:"all",
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12};
 let charts={};
 const PER=30;
 
@@ -1546,18 +1549,29 @@ function rOv(){
   const moPYPz=kpis?kpis.moPY.pz:0;
   const perPYPz=kpis?kpis.perPY.pz:0;
 
-  const pct=ST.ovObjPct||10;
   const moFullPY=kpis?.moFullPY||{val:0,pz:0};
-  const autoObPz=moFullPY.pz>0?Math.round(moFullPY.pz*(1+pct/100)):0;
-  const autoObVal=moFullPY.val>0?Math.round(moFullPY.val*(1+pct/100)):0;
-  const manualObPz=parseInt(localStorage.getItem(`ob_pz_${CY}_${CM}`)||'0')||0;
-  const manualObVal=parseInt(localStorage.getItem(`ob_val_${CY}_${CM}`)||'0')||0;
-  const obPz=manualObPz>0?manualObPz:autoObPz;
-  const obVal=manualObVal>0?manualObVal:autoObVal;
-  const isAutoOb=!manualObPz&&!manualObVal;
-  const gapVal=obVal>0?obVal-moVal:null, gapPz=obPz>0?obPz-moPz:null;
   const daysLeft=kpis?kpis.daysLeft:0;
-  const dailyNeed=gapVal!==null&&daysLeft>0?Math.round(gapVal/daysLeft):null;
+
+  // ── Insight: top brand del periodo + confronto sedi (sostituisce l'obiettivo) ──
+  const perRowsIns=hasVendDate?(()=>{
+    const now2=new Date();
+    let from;
+    if(ST.ovPeriodo==='MTD')from=`${CY}-${String(CM+1).padStart(2,'0')}-01`;
+    else if(['Q1','Q2','Q3','Q4'].includes(ST.ovPeriodo)){const qs={Q1:1,Q2:4,Q3:7,Q4:10};from=`${CY}-${String(qs[ST.ovPeriodo]).padStart(2,'0')}-01`;}
+    else if(ST.ovPeriodo==='PY'){from=`${CY-1}-01-01`;}
+    else from=`${CY}-01-01`;
+    const to=ST.ovPeriodo==='PY'?`${CY-1}-12-31`:toISO(now2);
+    return LIVE_VEND.rows.filter(r=>r.dt&&r.dt>=from&&r.dt<=to);
+  })():[];
+  const topBrandIns=(()=>{
+    const m={};
+    perRowsIns.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').forEach(r=>{if(!r.mar)return;if(!m[r.mar])m[r.mar]={pz:0,val:0};m[r.mar].pz+=r.pz;m[r.mar].val+=r.val;});
+    const arr=Object.entries(m).sort((a,b)=>b[1].val-a[1].val);
+    return arr[0]?{n:arr[0][0],pz:Math.round(arr[0][1].pz),val:Math.round(arr[0][1].val)}:null;
+  })();
+  const sedeInsA=perRowsIns.filter(r=>r.fil==='A').reduce((a,r)=>a+r.pz,0);
+  const sedeInsB=perRowsIns.filter(r=>r.fil==='B').reduce((a,r)=>a+r.pz,0);
+  const sedeInsTot=sedeInsA+sedeInsB||1;
 
   const stepBtn=(v,lbl)=>`<button class="tp${ST.ovTrendStep===v?' on':''}" onclick="ST.ovTrendStep='${v}';ST.ovTrendRange=(v==='M'?12:v==='W'?13:v==='D'?30:null);renderPage()">${lbl}</button>`;
   const rangeBtn=(v,lbl)=>`<button class="tp${ST.ovTrendRange===v?' on':''}" onclick="ST.ovTrendRange=${v===null?'null':v};renderPage()" style="font-size:10px">${lbl}</button>`;
@@ -1705,32 +1719,19 @@ ${usingProxy?`<div style="background:rgba(165,180,252,.05);border:0.5px solid rg
         <div style="font-size:20px;font-weight:700;color:var(--t)">${(hasVendDate||hasAcq)?fmt(moVal):'—'}</div>
         <div style="font-size:13px;color:var(--m)">${(hasVendDate||hasAcq)?fmtN(moPz)+' pz':'—'}</div>
       </div>
-      ${obVal>0?`<div style="margin-top:6px;height:3px;background:var(--b);border-radius:2px"><div style="height:100%;width:${Math.min(100,Math.round(moVal/obVal*100))}%;background:var(--ac);border-radius:2px;transition:width .4s"></div></div><div style="font-size:10px;color:var(--d);margin-top:4px">${Math.round(moVal/obVal*100)}% dell'obiettivo</div>`:''}
+      ${moFullPY.val>0?`<div style="font-size:11px;color:var(--m);margin-top:6px">vs ${MESI[CM]} ${CY-1}: <b style="color:${moVal>=moFullPY.val?'var(--em)':'var(--ro)'}">${moVal>=moFullPY.val?'↑':'↓'}${Math.abs(Math.round((moVal-moFullPY.val)/moFullPY.val*100))}%</b> · ${daysLeft} giorni rimanenti</div>`:`<div style="font-size:11px;color:var(--d);margin-top:6px">${daysLeft} giorni rimanenti nel mese</div>`}
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d)">Gap obiettivo</div>
-          ${isAutoOb?`<div style="display:flex;gap:3px">${[5,10,20].map(p=>`<button onclick="ST.ovObjPct=${p};renderPage()" style="background:${pct===p?'rgba(165,180,252,.2)':'rgba(255,255,255,.05)'};border:0.5px solid ${pct===p?'rgba(165,180,252,.4)':'rgba(255,255,255,.1)'};color:${pct===p?'var(--ac)':'var(--m)'};border-radius:5px;padding:1px 7px;font-size:10px;cursor:pointer">+${p}%</button>`).join('')}</div>`:''}
-        </div>
-        <div style="display:flex;gap:5px;align-items:center">
-          ${!isAutoOb?`<button onclick="localStorage.removeItem('ob_pz_${CY}_${CM}');localStorage.removeItem('ob_val_${CY}_${CM}');renderPage()" style="background:transparent;border:none;color:var(--d);font-size:10px;cursor:pointer">↺ auto</button>`:''}
-          <button onclick="promptTarget('val','fatturato vista+sole (€)');promptTarget('pz','pezzi vista+sole')" style="background:rgba(165,180,252,.1);border:0.5px solid rgba(165,180,252,.2);color:var(--ac);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">✏ manuale</button>
-        </div>
-      </div>
-      ${isAutoOb&&autoObPz>0?`<div style="font-size:10px;color:var(--d);margin-bottom:6px">base: ${MESI[CM]} ${CY-1} · ${fmtN(moFullPY.pz)} pz · ${fmt(moFullPY.val)}</div>`:''}
-      ${obVal>0||obPz>0?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">€ mancanti</div><div style="font-size:18px;font-weight:700;color:${gapVal!==null?(gapVal<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapVal!==null?(gapVal<=0?'✓ ok':fmt(gapVal)):'—'}</div><div style="font-size:10px;color:var(--d);margin-top:2px">ob. ${fmt(obVal)}</div></div>
-        <div><div style="font-size:11px;color:var(--d);margin-bottom:2px">pz mancanti</div><div style="font-size:18px;font-weight:700;color:${gapPz!==null?(gapPz<=0?'var(--em)':'var(--ac)'):'var(--d)'}">${gapPz!==null?(gapPz<=0?'✓ ok':fmtN(gapPz)+' pz'):'—'}</div><div style="font-size:10px;color:var(--d);margin-top:2px">ob. ${fmtN(obPz)} pz</div></div>
-      </div>`:`<div style="font-size:12px;color:var(--d)">Nessun dato anno precedente per calcolo automatico</div>`}
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Brand top · ${perLabel}</div>
+      ${topBrandIns?`<div style="font-size:17px;font-weight:700;color:var(--t);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${topBrandIns.n}</div>
+      <div style="font-size:12px;color:var(--m)">${fmt(topBrandIns.val)} · ${fmtN(topBrandIns.pz)} pz</div>`:`<div style="font-size:12px;color:var(--d)">Nessun dato brand per il periodo</div>`}
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fine mese</div>
-      <div style="display:flex;align-items:baseline;gap:8px">
-        <div style="font-size:24px;font-weight:700;color:var(--t)">${daysLeft}</div>
-        <div style="font-size:13px;color:var(--m)">giorni al ${new Date(CY,CM+1,0).getDate()} ${MESI[CM]}</div>
-      </div>
-      ${dailyNeed!==null?`<div style="font-size:12px;color:var(--m);margin-top:4px">ritmo necessario: <b style="color:var(--ac)">${fmt(dailyNeed)}/giorno</b></div>`:''}
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Confronto sedi · ${perLabel} · pezzi</div>
+      ${(sedeInsA+sedeInsB)>0?`
+      <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(sedeInsA/sedeInsTot*100)}%"></div></div><div class="sv">${fmtN(sedeInsA)} pz</div><div class="sp2">${Math.round(sedeInsA/sedeInsTot*100)}%</div></div>
+      <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(sedeInsB/sedeInsTot*100)}%"></div></div><div class="sv">${fmtN(sedeInsB)} pz</div><div class="sp2">${Math.round(sedeInsB/sedeInsTot*100)}%</div></div>`
+      :`<div style="font-size:12px;color:var(--d)">Nessun dato per il periodo</div>`}
     </div>
   </div>
 </div>
@@ -1780,8 +1781,9 @@ function rVend(){
   fRows.forEach(r=>{if(!r.op)return;if(!opMap[r.op])opMap[r.op]=0;opMap[r.op]+=r.pz;});
   const byOp=Object.entries(opMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,pz])=>({n,pz:Math.round(pz)}));
   // Filtri attivi
-  const anyFilter=ST.vendFil!=='all'||ST.vendTp!=='all'||ST.vendMar!=='all';
+  const anyFilter=ST.vendFil!=='all'||ST.vendTp!=='all'||ST.vendMar!=='all'||ST.vendAnno!=='all';
   const allMarchi=LIVE_VEND.allMarchi;
+  const anniDisponibili=[...new Set(LIVE_VEND.rows.map(r=>r.yr).filter(Boolean))].sort((a,b)=>b-a);
   // Stacked bar data
   window.__vend={brands,tipoDisp};
   const tpBtn=(v,lbl)=>`<button class="tp${ST.vendTp===v?' on':''}" onclick="ST.vendTp='${v}';ST.vendMar='all';renderPage()">${lbl}</button>`;
@@ -1791,13 +1793,19 @@ function rVend(){
   <div class="page-title">Vendite <span class="pt-badge">📂 ${UPLOAD_NAME_VEND}</span></div>
 </div>
 <div class="controls fi" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+  <select class="sel" onchange="ST.vendAnno=this.value;renderPage()">
+    <option value="all"${ST.vendAnno==='all'?' selected':''}>Tutti gli anni</option>
+    <option value="YTD"${ST.vendAnno==='YTD'?' selected':''}>Anno corrente (${CY})</option>
+    <option value="last12"${ST.vendAnno==='last12'?' selected':''}>Ultimi 12 mesi</option>
+    ${anniDisponibili.map(y=>`<option value="${y}"${ST.vendAnno===String(y)?' selected':''}>${y}</option>`).join('')}
+  </select>
   <div class="tpill" style="gap:0">${tpBtn('all','Tutto')}${tpBtn('MV','Vista')}${tpBtn('OS','Sole')}${tpBtn('FR','Frame')}${tpBtn('LE','Lenti')}</div>
   <div class="tpill" style="gap:0">${filBtn('all','A+B')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}</div>
   <select class="sel sel-brand" onchange="ST.vendMar=this.value;renderPage()">
     <option value="all"${ST.vendMar==='all'?' selected':''}>— Tutti i marchi —</option>
     ${allMarchi.map(m=>`<option value="${m}"${ST.vendMar===m?' selected':''}>${m}</option>`).join('')}
   </select>
-  ${anyFilter?`<button class="pbtn" style="border-color:rgba(251,113,133,.4);color:var(--ro)" onclick="ST.vendFil='all';ST.vendTp='all';ST.vendMar='all';renderPage()">✕ Reset filtri</button>`:''}
+  ${anyFilter?`<button class="pbtn" style="border-color:rgba(251,113,133,.4);color:var(--ro)" onclick="ST.vendFil='all';ST.vendTp='all';ST.vendMar='all';ST.vendAnno='all';renderPage()">✕ Reset filtri</button>`:''}
 </div>
 <div class="kg k4 fi">
   <div class="g kc"><div class="ki">🏷</div><div class="kl">Pezzi venduti</div><div class="kv gcy">${fmtN(kpi.totPz)}</div><div class="ks">operazioni VEN filtrate</div></div>
@@ -2863,30 +2871,37 @@ function initCharts(){
     const showLabels=td.labels.length<=24;
     const showPzLabels=step==='A'||td.labels.length<=12;
     const lblSz=td.labels.length<=12?10:td.labels.length<=18?9:8;
+    const ovL=document.documentElement.classList.contains('light');
+    const ovGrid=ovL?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
+    const ovTick=ovL?"rgba(15,23,42,.5)":"rgba(240,244,255,.3)";
+    const ovLeg=ovL?"rgba(15,23,42,.6)":"rgba(240,244,255,.45)";
+    const ovDlColor=ovL?"rgba(15,23,42,.92)":"rgba(232,237,245,.95)";
+    const ovTtBg=ovL?"rgba(255,255,255,.97)":"rgba(8,13,26,.95)";
+    const ovTtBd=ovL?"rgba(15,23,42,.14)":"rgba(255,255,255,.1)";
     const ovOpts={
       responsive:true,maintainAspectRatio:false,
       layout:{padding:{top:28,right:8}},
       interaction:{mode:'index',intersect:false},
       plugins:{
-        legend:{display:true,position:"top",align:"end",labels:{color:"rgba(240,244,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
+        legend:{display:true,position:"top",align:"end",labels:{color:ovLeg,font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
         datalabels:{
           display:ctx=>ctx.datasetIndex===0?showLabels&&ctx.dataset.data[ctx.dataIndex]>0:showPzLabels&&ctx.dataset.data[ctx.dataIndex]>0,
           anchor:ctx=>ctx.datasetIndex===0?'end':'center',
           align:ctx=>ctx.datasetIndex===0?'start':'top',
           offset:ctx=>ctx.datasetIndex===0?6:5,
-          color:'rgba(232,237,245,.95)',
-          backgroundColor:ctx=>ctx.datasetIndex===0?'rgba(6,30,20,.68)':'rgba(90,200,250,.25)',
+          color:ovDlColor,
+          backgroundColor:ctx=>ctx.datasetIndex===0?(ovL?'rgba(21,128,61,.16)':'rgba(6,30,20,.68)'):(ovL?'rgba(8,145,178,.16)':'rgba(90,200,250,.25)'),
           borderRadius:5,
           padding:{top:2,bottom:2,left:6,right:6},
           font:ctx=>({family:"'DM Mono',monospace",size:ctx.datasetIndex===0?12:11,weight:'600'}),
           formatter:(v,ctx)=>ctx.datasetIndex===0?fmtShort(v):fmtShortPz(v)+' pz'
         },
-        tooltip:{backgroundColor:"rgba(8,13,26,.95)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(240,244,255,.9)",bodyColor:"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
+        tooltip:{backgroundColor:ovTtBg,borderColor:ovTtBd,borderWidth:1,padding:11,titleColor:ovL?"rgba(15,23,42,.92)":"rgba(240,244,255,.9)",bodyColor:ovL?"rgba(15,23,42,.65)":"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
       },
       scales:{
-        x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
-        y:{position:"left",grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(240,244,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}},
-        y1:{position:"right",grid:{display:false},ticks:{color:"rgba(90,200,250,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtN(v)+' pz'},border:{display:false}}
+        x:{grid:{color:ovGrid},ticks:{color:ovTick,font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
+        y:{position:"left",grid:{color:ovGrid},ticks:{color:ovTick,font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmt(v)},border:{display:false}},
+        y1:{position:"right",grid:{display:false},ticks:{color:ovL?"rgba(8,145,178,.75)":"rgba(90,200,250,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtN(v)+' pz'},border:{display:false}}
       }
     };
     mkChart("ch_ov_trend","bar",td.labels,[
@@ -2956,6 +2971,9 @@ function initCharts(){
       const sz=ln.trendKeys.length;
       const showLbl=sz<=24;
       const lblSz=sz<=12?10:sz<=18?9:8;
+      const lnL=document.documentElement.classList.contains('light');
+      const lnGrid=lnL?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
+      const lnTick=lnL?"rgba(15,23,42,.5)":"rgba(255,255,255,.3)";
       const lentiTrendOpts={
         responsive:true,maintainAspectRatio:false,
         layout:{padding:{top:28,right:8}},
@@ -2966,19 +2984,19 @@ function initCharts(){
             anchor:ctx=>ctx.datasetIndex===0?'end':'center',
             align:ctx=>ctx.datasetIndex===0?'start':'top',
             offset:ctx=>ctx.datasetIndex===0?6:5,
-            color:'rgba(232,237,245,.95)',
-            backgroundColor:ctx=>ctx.datasetIndex===0?'rgba(6,30,20,.68)':'rgba(90,200,250,.28)',
+            color:lnL?"rgba(15,23,42,.92)":'rgba(232,237,245,.95)',
+            backgroundColor:ctx=>ctx.datasetIndex===0?(lnL?'rgba(21,128,61,.16)':'rgba(6,30,20,.68)'):(lnL?'rgba(8,145,178,.16)':'rgba(90,200,250,.28)'),
             borderRadius:5,padding:{top:2,bottom:2,left:6,right:6},
             font:ctx=>({family:"'DM Mono',monospace",size:ctx.datasetIndex===0?12:11,weight:'600'}),
             formatter:(v,ctx)=>ctx.datasetIndex===0?fmtShort(v):fmtShortPz(v)+' pz'
           },
-          legend:{display:true,position:"top",align:"end",labels:{color:"rgba(255,255,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
-          tooltip:{backgroundColor:"rgba(0,0,0,.9)",borderColor:"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:"rgba(255,255,255,.9)",bodyColor:"rgba(255,255,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
+          legend:{display:true,position:"top",align:"end",labels:{color:lnL?"rgba(15,23,42,.6)":"rgba(255,255,255,.45)",font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
+          tooltip:{backgroundColor:lnL?"rgba(255,255,255,.97)":"rgba(0,0,0,.9)",borderColor:lnL?"rgba(15,23,42,.14)":"rgba(255,255,255,.1)",borderWidth:1,padding:11,titleColor:lnL?"rgba(15,23,42,.92)":"rgba(255,255,255,.9)",bodyColor:lnL?"rgba(15,23,42,.65)":"rgba(255,255,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12}}
         },
         scales:{
-          x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(255,255,255,.3)",font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
-          y:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"rgba(255,255,255,.3)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtShort(v)},border:{display:false}},
-          y1:{position:"right",grid:{display:false},ticks:{color:"rgba(90,200,250,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtShortPz(v)+' pz'},border:{display:false}}
+          x:{grid:{color:lnGrid},ticks:{color:lnTick,font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
+          y:{grid:{color:lnGrid},ticks:{color:lnTick,font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtShort(v)},border:{display:false}},
+          y1:{position:"right",grid:{display:false},ticks:{color:lnL?"rgba(8,145,178,.75)":"rgba(90,200,250,.5)",font:{family:"'DM Mono',monospace",size:10},callback:v=>v===0?'':fmtShortPz(v)+' pz'},border:{display:false}}
         }
       };
       mkChart("ch_lenti_trend","bar",ln.trendLabels,[
@@ -3004,7 +3022,9 @@ function initCharts(){
   // CLIENTI
   if(ST.page==="clienti"&&window.__cli){
     const cl=window.__cli;
-    const coRet={...CO,plugins:{...CO.plugins,legend:{display:false},datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>0,anchor:'end',align:'top',offset:2,color:'rgba(232,237,245,.85)',font:{family:"'DM Mono',monospace",size:10,weight:'600'},formatter:v=>v}},layout:{padding:{top:22,right:8}},scales:{x:{...CO.scales?.x,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(255,255,255,.45)',font:{size:10}}},y:{...CO.scales?.y,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(255,255,255,.4)',font:{size:10},callback:v=>v}}}};
+    const clL=document.documentElement.classList.contains('light');
+    const clGrid=clL?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
+    const coRet={...CO,plugins:{...CO.plugins,legend:{display:false},datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>0,anchor:'end',align:'top',offset:2,color:clL?"rgba(15,23,42,.85)":'rgba(232,237,245,.85)',font:{family:"'DM Mono',monospace",size:10,weight:'600'},formatter:v=>v}},layout:{padding:{top:22,right:8}},scales:{x:{...CO.scales?.x,grid:{color:clGrid},ticks:{color:clL?"rgba(15,23,42,.55)":'rgba(255,255,255,.45)',font:{size:10}}},y:{...CO.scales?.y,grid:{color:clGrid},ticks:{color:clL?"rgba(15,23,42,.5)":'rgba(255,255,255,.4)',font:{size:10},callback:v=>v}}}};
     // Recency bar chart
     if(cl.hasVend&&document.getElementById('ch_cli_ret')){
       const bkColors=['rgba(48,209,88,.7)','rgba(48,209,88,.45)','rgba(255,159,10,.55)','rgba(255,69,58,.5)','rgba(255,69,58,.75)'];
@@ -3022,7 +3042,7 @@ function initCharts(){
         {label:'Lenti',data:brs.map(b=>cl.etaData[b].nLenti),backgroundColor:'rgba(48,209,88,.6)',borderRadius:4,borderSkipped:false},
         {label:'Sole',data:brs.map(b=>cl.etaData[b].nSole),backgroundColor:'rgba(255,159,10,.6)',borderRadius:4,borderSkipped:false},
         {label:'Vista',data:brs.map(b=>cl.etaData[b].nVista),backgroundColor:'rgba(90,200,250,.6)',borderRadius:4,borderSkipped:false}
-      ],{...CO,plugins:{...CO.plugins,legend:{display:true,labels:{color:'rgba(255,255,255,.65)',font:{size:10},boxWidth:10}},datalabels:{display:false}},scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(255,255,255,.45)',font:{size:10}}},y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'rgba(255,255,255,.4)',font:{size:10}}}}});
+      ],{...CO,plugins:{...CO.plugins,legend:{display:true,labels:{color:clL?'rgba(15,23,42,.65)':'rgba(255,255,255,.65)',font:{size:10},boxWidth:10}},datalabels:{display:false}},scales:{x:{stacked:true,grid:{color:clGrid},ticks:{color:clL?'rgba(15,23,42,.55)':'rgba(255,255,255,.45)',font:{size:10}}},y:{stacked:true,grid:{color:clGrid},ticks:{color:clL?'rgba(15,23,42,.5)':'rgba(255,255,255,.4)',font:{size:10}}}}});
     }
   }
 }
