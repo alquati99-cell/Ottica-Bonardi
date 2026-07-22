@@ -304,6 +304,11 @@ html.light .ai-ctx-card,html.light .ai-prompts-card{background:rgba(15,23,42,.02
 .ai-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:0;background:var(--gl);border:0.5px solid var(--b);border-top:0.5px solid rgba(255,255,255,.16);border-radius:var(--r);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 24px 64px rgba(0,0,0,.4);}
 .ai-msgs{flex:1;overflow-y:auto;padding:20px 22px 12px;display:flex;flex-direction:column;gap:14px;min-height:0;}
 .ai-msgs::-webkit-scrollbar{width:4px}.ai-msgs::-webkit-scrollbar-track{background:transparent}.ai-msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
+.ai-table{border-collapse:collapse;font-size:12.5px;width:100%;min-width:340px}
+.ai-table th{text-align:left;padding:6px 12px;background:rgba(165,180,252,.12);color:var(--ac);font-weight:700;white-space:nowrap;border-bottom:1px solid rgba(165,180,252,.25)}
+.ai-table td{padding:6px 12px;border-bottom:0.5px solid var(--b);font-family:'DM Mono',monospace;white-space:nowrap}
+.ai-table tr:last-child td{border-bottom:none}
+html.light .ai-table th{background:rgba(79,70,229,.1);color:#4338ca;border-bottom-color:rgba(79,70,229,.25)}
 .ai-msg{display:flex;gap:10px;align-items:flex-start;}
 .ai-msg.user{flex-direction:row-reverse;}
 .ai-msg-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
@@ -3306,11 +3311,22 @@ REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
 8. I numeri in €: usa formato italiano (€12.500, non $12,500)
 9. Sii CONCISO: massimo 4-5 bullet per sezione, niente testo ridondante
 10. Chiudi le analisi generali con 1-2 "Prossimi passi" concreti e prioritizzati
-11. Se dopo questo messaggio trovi una sezione "=== CLIENTI TROVATI ===" o
-    "=== PRODOTTI TROVATI ===", sono il risultato di una ricerca automatica
-    fatta ORA sull'archivio reale in base alla domanda dell'utente: usa quei
-    dati come fonte primaria e più aggiornata per rispondere a domande su
-    quel cliente/prodotto specifico\n\n`;
+11. Se dopo questo messaggio trovi una sezione "=== CLIENTI TROVATI ===",
+    "=== PRODOTTI TROVATI IN MAGAZZINO ===" o "=== PRODOTTI TROVATI NELLE
+    VENDITE ===", sono il risultato di una ricerca automatica fatta ORA
+    sull'archivio reale in base alla domanda (e alla conversazione recente):
+    usa SEMPRE quei dati come fonte primaria per rispondere su quel
+    cliente/prodotto specifico, anche se il nome non è nell'ultimo messaggio
+    ma in uno precedente della stessa conversazione
+12. Se l'utente chiede di CONFRONTARE 2 o più prodotti, modelli, marche o
+    clienti (es. "quale vende di più tra X e Y", "confronta A e B"), rispondi
+    SEMPRE con una tabella in formato markdown, così:
+    | Colonna | Colonna |
+    |---|---|
+    | valore | valore |
+    Metti sempre una riga per elemento confrontato e una colonna per ogni
+    metrica rilevante (es. pezzi venduti, fatturato). Aggiungi 1-2 righe di
+    commento sotto la tabella su chi vince e perché, non prima\n\n`;
 
   if(LIVE_VEND&&LIVE_VEND.hasDate){
     const rows=LIVE_VEND.rows;
@@ -3434,20 +3450,37 @@ REGOLE DI RISPOSTA (rispetta sempre queste, sono vincolanti):
   return ctx;
 }
 
-// Cerca un cliente specifico nominato nella domanda dell'utente e ne inietta
-// i dati reali nel contesto per quella singola richiesta. Il riepilogo
-// statico (buildAIContext) contiene solo le top-10 liste aggregate — senza
-// questa ricerca mirata, qualsiasi cliente fuori dalla top 10 risulterebbe
-// "sconosciuto" anche se è presente nei 23mila+ record caricati.
+// ── Ricerca mirata condivisa (client-side "RAG" su dati strutturati) ───────
+// Le funzioni buildXxxLookup() qui sotto cercano in tempo reale nell'intero
+// archivio caricato (non solo nelle top-10 del riepilogo statico) le entità
+// nominate nella domanda, e iniettano i loro dati veri nel prompt di quella
+// singola richiesta. La ricerca usa l'intera conversazione recente (non solo
+// l'ultimo messaggio): "chi ha comprato di più?" → "quanto ha speso?" deve
+// continuare a trovare la stessa persona anche se il nome non è ripetuto.
+const AI_STOPWORDS=new Set(['CLIENTE','CLIENTI','VENDITE','MAGAZZINO','ACQUISTI','QUESTO','QUESTA','QUESTI','QUESTE','QUANTO','QUANTI','QUANTE','COME','COSA','CHI','CHE','QUALE','QUALI','QUANDO','PERCHE','DOVE','SONO','ANNO','MESE','OGGI','IERI','TOTALE','FATTURATO','OCCHIALI','LENTI','LENTE','VISTA','SOLE','MARCA','MARCHIO','BRAND','NEGOZIO','SEDE','FILIALE','GRAZIE','CIAO','DIMMI','DAMMI','FAMMI','VOGLIO','VORREI','PUOI','POTRESTI','ABBIAMO','STOCK','PRODOTTO','PRODOTTI','MODELLO','MODELLI','VENDUTO','VENDUTI','VENDUTE','COMPRATO','SPESO','SPESA','CONFRONTO','CONFRONTA','PARAGONE','TABELLA','DIFFERENZA','MEGLIO','PIU','MENO','TRA','LORO','CON','PER','DEL','DELLA','DELLO','DEGLI','DELLE','NON','UNA','UNO','SUL','SULLA','NEL','NELLA','GLI','LEI','LUI','LORO','ORDINI','ORDINE','REGISTRATI','REGISTRATO','VISITE','VISITA','TOTALI'].map(w=>w));
+function aiNorm(s){return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function aiSearchWords(text){
+  // Tiene anche le cifre (codici modello tipo "RB2140") oltre alle lettere.
+  return aiNorm(text).replace(/[^A-Z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>=4&&!AI_STOPWORDS.has(w));
+}
+// Versione più permissiva per marchi/modelli: soglia più bassa (Dior, YSL…
+// sono corti) e mantiene i trattini (Ray-Ban) invece di spezzarli in
+// frammenti troppo corti per essere cercati.
+function aiSearchWordsLoose(text){
+  return aiNorm(text).replace(/[^A-Z0-9\s-]/g,' ').split(/\s+/).map(w=>w.replace(/^-+|-+$/g,'')).filter(w=>w.length>=3&&!AI_STOPWORDS.has(w));
+}
+
 function buildClientLookup(query){
   if(!LIVE_CLI||!LIVE_CLI.hasOrders||!query)return'';
-  const stop=new Set(['CLIENTE','CLIENTI','VENDITE','MAGAZZINO','ACQUISTI','QUESTO','QUESTA','QUESTI','QUESTE','QUANTO','QUANTI','QUANTE','COME','QUALE','QUALI','QUANDO','PERCHE','DOVE','SONO','ANNO','MESE','OGGI','IERI','TOTALE','FATTURATO','OCCHIALI','LENTI','LENTE','VISTA','SOLE','MARCA','MARCHIO','BRAND','NEGOZIO','SEDE','FILIALE','GRAZIE','CIAO','DIMMI','DAMMI','FAMMI','VOGLIO','VORREI','PUOI','POTRESTI']);
-  const norm=s=>s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-  const words=norm(query).replace(/[^A-Z\s]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!stop.has(w));
+  const words=aiSearchWords(query);
   if(!words.length)return'';
+  const norm=aiNorm;
+  // Confronto per parola intera (o prefisso di una parola del nome), non
+  // sottostringa libera: altrimenti parole comuni come "che" combaciano per
+  // caso dentro nomi come "MiCHEle"/"MiCHEla", falsando la ricerca.
   const scored=LIVE_CLI.cliList.map(c=>{
-    const cn=norm(c.nome);
-    const hits=words.filter(w=>cn.includes(w)).length;
+    const nameWords=norm(c.nome).split(/\s+/);
+    const hits=words.filter(w=>nameWords.some(nw=>nw===w||nw.startsWith(w))).length;
     return{c,hits};
   }).filter(x=>x.hits>0).sort((a,b)=>b.hits-a.hits).slice(0,5);
   if(!scored.length)return'';
@@ -3475,10 +3508,9 @@ function buildClientLookup(query){
 function buildProductLookup(query){
   const mag=curMAG();
   if(!mag||!mag.rows?.length||!query)return'';
-  const stop=new Set(['CLIENTE','CLIENTI','VENDITE','MAGAZZINO','ACQUISTI','QUESTO','QUESTA','QUESTI','QUESTE','QUANTO','QUANTI','QUANTE','COME','QUALE','QUALI','QUANDO','PERCHE','DOVE','SONO','ANNO','MESE','OGGI','IERI','TOTALE','FATTURATO','OCCHIALI','LENTI','LENTE','VISTA','SOLE','MARCA','MARCHIO','BRAND','NEGOZIO','SEDE','FILIALE','GRAZIE','CIAO','DIMMI','DAMMI','FAMMI','VOGLIO','VORREI','PUOI','POTRESTI','ABBIAMO','MAGAZZINO','STOCK','PRODOTTO','PRODOTTI']);
-  const norm=s=>s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-  const words=norm(query).replace(/[^A-Z\s]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!stop.has(w));
+  const words=aiSearchWordsLoose(query);
   if(!words.length)return'';
+  const norm=aiNorm;
   const matches=mag.rows.filter(r=>{
     const hay=norm((r.m||'')+' '+(r.mod||''));
     return words.some(w=>hay.includes(w));
@@ -3491,10 +3523,57 @@ function buildProductLookup(query){
     agg[k].q+=r.q;agg[k].v+=r.v;agg[k].f[r.f]=(agg[k].f[r.f]||0)+r.q;
   });
   const list=Object.values(agg).sort((a,b)=>b.v-a.v).slice(0,15);
-  let out='\n=== PRODOTTI TROVATI IN MAGAZZINO (ricerca automatica per nome nella domanda) ===\n';
+  let out='\n=== PRODOTTI TROVATI IN MAGAZZINO — STOCK ATTUALE (ricerca automatica) ===\n';
   list.forEach(p=>{
     out+=`${p.m} ${p.mod}: ${p.q} pz in stock, valore €${fmtN(p.v)}, per sede: ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}pz`).join(' | ')}\n`;
   });
+  return out;
+}
+
+// Come buildProductLookup ma sulle VENDITE: quanti pezzi di un
+// modello/marca sono stati venduti (non quanti sono in stock). Serve per
+// le domande di confronto "quale modello ha venduto di più" richieste
+// esplicitamente in forma di tabella.
+function buildSalesLookup(query){
+  if(!LIVE_VEND||!query)return'';
+  const words=aiSearchWordsLoose(query);
+  if(!words.length)return'';
+  const norm=aiNorm;
+  const matches=LIVE_VEND.rows.filter(r=>{
+    const hay=norm((r.mar||'')+' '+(r.mod||''));
+    return words.some(w=>hay.includes(w));
+  });
+  if(!matches.length)return'';
+  const brandsMatched=new Set(matches.map(r=>r.mar||'—'));
+  let out='\n=== PRODOTTI TROVATI NELLE VENDITE — QUANTITÀ VENDUTE (ricerca automatica) ===\n';
+  if(brandsMatched.size>=2&&brandsMatched.size<=8){
+    // Confronto tra più marche: un totale per marca, non modello per modello
+    // (altrimenti la marca con più modelli a catalogo nasconde le altre).
+    const byBrand={};
+    matches.forEach(r=>{
+      const k=r.mar||'—';
+      if(!byBrand[k])byBrand[k]={mar:k,pz:0,val:0,f:{}};
+      byBrand[k].pz+=r.pz;byBrand[k].val+=r.val;byBrand[k].f[r.fil]=(byBrand[k].f[r.fil]||0)+r.pz;
+    });
+    const list=Object.values(byBrand).sort((a,b)=>b.pz-a.pz);
+    out+='| Marca | Pz venduti | Fatturato | Per sede |\n|---|---|---|---|\n';
+    list.forEach(p=>{
+      out+=`| ${p.mar} | ${fmtN(p.pz)} | €${fmtN(p.val)} | ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}`).join(', ')} |\n`;
+    });
+  } else {
+    const agg={};
+    matches.forEach(r=>{
+      const k=`${r.mar||'—'}|${r.mod||'—'}`;
+      if(!agg[k])agg[k]={mar:r.mar||'—',mod:r.mod||'—',pz:0,val:0,f:{}};
+      agg[k].pz+=r.pz;agg[k].val+=r.val;agg[k].f[r.fil]=(agg[k].f[r.fil]||0)+r.pz;
+    });
+    const list=Object.values(agg).sort((a,b)=>b.pz-a.pz).slice(0,15);
+    out+='| Marca | Modello | Pz venduti | Fatturato | Per sede |\n|---|---|---|---|---|\n';
+    list.forEach(p=>{
+      out+=`| ${p.mar} | ${p.mod} | ${fmtN(p.pz)} | €${fmtN(p.val)} | ${Object.entries(p.f).map(([s,q])=>`${s}: ${q}`).join(', ')} |\n`;
+    });
+  }
+  out+='(Se l\'utente chiede un confronto tra 2+ elementi, riproponi questi dati come tabella markdown nella risposta, non solo come testo.)\n';
   return out;
 }
 
@@ -3511,9 +3590,31 @@ function aiMsgHtml(role,text,typing=false){
   return{el:div,bub};
 }
 
+// Rende anche le tabelle markdown (| Col | Col |) come <table> vere — servono
+// per i confronti "modello A vs modello B" che l'utente chiede all'AI.
 function aiMarkdown(t){
   if(!t)return'';
-  return t
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>');
+
+  const lines=t.split('\n');
+  const tables=[];
+  const kept=[];
+  const isRow=l=>/^\s*\|.*\|\s*$/.test(l);
+  const isSep=l=>/^\s*\|?(\s*:?-{2,}:?\s*\|)+\s*:?-{2,}:?\s*\|?\s*$/.test(l);
+  for(let i=0;i<lines.length;i++){
+    if(isRow(lines[i])&&lines[i+1]&&isSep(lines[i+1])){
+      const cells=l=>l.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
+      const head=cells(lines[i]);
+      let j=i+2;const rows=[];
+      while(j<lines.length&&isRow(lines[j])){rows.push(cells(lines[j]));j++;}
+      const idx=tables.length;
+      tables.push(`<div style="overflow-x:auto;margin:8px 0"><table class="ai-table"><thead><tr>${head.map(c=>`<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+      kept.push(`\x00TBL${idx}\x00`);
+      i=j-1;
+    } else kept.push(lines[i]);
+  }
+  let html=kept.join('\n')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/`([^`]+)`/g,'<code>$1</code>')
@@ -3522,6 +3623,8 @@ function aiMarkdown(t){
     .replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>')
     .replace(/\n{2,}/g,'</p><p style="margin:6px 0 0">')
     .replace(/\n/g,'<br>');
+  tables.forEach((tbl,idx)=>{html=html.replace(`\x00TBL${idx}\x00`,tbl);});
+  return html;
 }
 
 function scrollAI(){const m=document.getElementById('ai-msgs');if(m)m.scrollTop=m.scrollHeight;}
@@ -3551,7 +3654,11 @@ async function sendAI(prefill){
   const sendBtn=document.getElementById('ai-send');
   if(sendBtn)sendBtn.disabled=true;
 
-  const sysPrompt=buildAIContext()+buildClientLookup(msg)+buildProductLookup(msg);
+  // Include anche gli ultimi scambi nella ricerca: una domanda di follow-up
+  // ("quanto ha speso?") spesso non ripete il nome dell'entità di cui si
+  // sta parlando, che va ripreso dal turno precedente.
+  const recentCtx=AI_HISTORY.slice(-5).map(m=>m.content).join(' ')+' '+msg;
+  const sysPrompt=buildAIContext()+buildClientLookup(recentCtx)+buildProductLookup(recentCtx)+buildSalesLookup(recentCtx);
   const payload={
     model:document.getElementById('ai-model-sel')?.value||'fast',
     messages:[{role:'system',content:sysPrompt},...AI_HISTORY.slice(-12)]
