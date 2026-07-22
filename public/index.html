@@ -3206,7 +3206,7 @@ function rAI(){
         <option value="smart" selected>✦ Llama 3.3 70B · smart (consigliato)</option>
         <option value="fast">✦ Llama 3.1 8B · veloce</option>
       </select>
-      <button onclick="clearAIChat()" style="background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.12);border-radius:10px;color:var(--m);cursor:pointer;padding:6px 12px;font-size:12px;font-family:inherit">↺ Nuova chat</button>
+      <button onclick="clearAIChat()" title="Cancella la conversazione e ricomincia" style="background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.12);border-radius:10px;color:var(--m);cursor:pointer;padding:6px 12px;font-size:12px;font-family:inherit">🗑️ Pulisci chat</button>
     </div>
   </div>
   <div class="ai-body">
@@ -3436,11 +3436,21 @@ function buildClientLookup(query){
     return{c,hits};
   }).filter(x=>x.hits>0).sort((a,b)=>b.hits-a.hits).slice(0,5);
   if(!scored.length)return'';
+  // Fatturato/status reali: la stessa fonte (vendite datate) usata dalla
+  // scheda cliente in Clienti → Retention, non lo storico ordini (che ha
+  // gli importi quasi sempre a zero e darebbe un fatturato fuorviante).
+  const ret=(LIVE_VEND&&LIVE_VEND.hasDate)?computeRetention(360,'agg'):null;
+  const retByCode=ret?Object.fromEntries(ret.retClients.map(r=>[r.cli,r])):{};
+  const statusLbl={attivo:'attivo',rischio:'a rischio abbandono',perso:'perso (assente da tempo)',nuovo:'nuovo (1 sola visita)'};
   let out='\n=== CLIENTI TROVATI (ricerca automatica per nome nella domanda) ===\n';
   scored.forEach(({c})=>{
-    out+=`${c.nome} (cod. ${c.cod}, filiale ${c.filiale||'—'}): ${c.nOrdini} ordini registrati, prima visita ${c.firstDt||'—'}, ultima visita ${c.lastDt||'—'}, brand preferito: ${c.brandFav||'—'}, lente preferita: ${c.lenteFav||'—'}, spesa storica registrata: €${fmtN(c.totSpeso)}, vista: ${c.nVista||0}, sole: ${c.nSole||0}, lenti: ${c.nLenti||0}\n`;
+    const rc=retByCode[c.cod];
+    out+=`${c.nome} (cod. ${c.cod}, filiale ${c.filiale||'—'}): ${c.nOrdini} ordini registrati, prima visita ${c.firstDt||'—'}, ultima visita ${c.lastDt||'—'}, brand preferito: ${c.brandFav||'—'}, lente preferita: ${c.lenteFav||'—'}, vista: ${c.nVista||0}, sole: ${c.nSole||0}, lenti: ${c.nLenti||0}`;
+    if(rc)out+=` | FATTURATO REALE (da vendite): €${fmtN(rc.totVal)}, ${rc.nVisits} visite registrate, status: ${statusLbl[rc.status]||rc.status}`;
+    else out+=` | fatturato non disponibile nelle vendite datate per questo codice cliente`;
+    out+='\n';
   });
-  out+='(Se il nome cercato dall\'utente non compare esattamente in questa lista, NON è nell\'archivio caricato: dillo chiaramente invece di confonderlo con uno dei nomi simili sopra.)\n';
+  out+='(Per il fatturato usa SEMPRE il valore "FATTURATO REALE" quando presente, è quello mostrato nella scheda cliente dell\'app. Se il nome cercato non compare esattamente in questa lista, il cliente NON è nell\'archivio: dillo chiaramente invece di confonderlo con uno dei nomi simili sopra.)\n';
   return out;
 }
 
