@@ -287,7 +287,56 @@ html.light #ai-inp:focus{border-color:rgba(141,4,57,.45);background:rgba(141,4,5
 html.light .ai-foot{border-top-color:rgba(15,23,42,.08)}
 html.light .ai-ctx-card,html.light .ai-prompts-card{background:rgba(15,23,42,.025);border-color:rgba(15,23,42,.09)}
 @media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.sb{display:none}.forn-grid{grid-template-columns:1fr}}
+
+/* ── MOBILE NAV (iPhone/telefono) ──────────────────────────────────────────
+   Nascosta di default (desktop invariato). Sotto i 700px prende il posto
+   della sidebar: barra in alto col brand, barra in basso stile iOS con le
+   4 sezioni principali + "Altro" che apre un foglio con il resto. */
+.mtop,.mnav,.msheet,.msheet-backdrop{display:none}
+@media(max-width:700px){
+  .sb{display:none}
+  .forn-grid{grid-template-columns:1fr}
+  .main{padding:64px 12px calc(78px + env(safe-area-inset-bottom)) 12px}
+  .k4,.k3{grid-template-columns:repeat(2,1fr)}
+  .kg{gap:8px}
+  .g2,.g3,.g13{grid-template-columns:1fr}
+  .kv{font-size:20px}
+
+  .mtop{display:flex;position:fixed;top:0;left:0;right:0;z-index:60;height:52px;align-items:center;justify-content:space-between;padding:0 14px;background:rgba(10,5,7,.86);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border-bottom:0.5px solid rgba(255,255,255,.08)}
+  html.light .mtop{background:rgba(255,255,255,.86);border-bottom-color:rgba(15,23,42,.08)}
+  .mtop-brand{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;color:var(--t)}
+  .mtop-icon{width:26px;height:26px;border-radius:8px;overflow:hidden;flex-shrink:0}
+  .mtop-icon img{width:100%;height:100%;object-fit:cover}
+  .mtop-btn{width:32px;height:32px;border-radius:9px;border:0.5px solid var(--b);background:rgba(255,255,255,.05);color:var(--m);font-size:18px;line-height:1;cursor:pointer}
+  html.light .mtop-btn{background:rgba(15,23,42,.04)}
+
+  .mnav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;padding:6px 4px calc(6px + env(safe-area-inset-bottom));background:rgba(10,5,7,.9);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border-top:0.5px solid rgba(255,255,255,.08)}
+  html.light .mnav{background:rgba(255,255,255,.92);border-top-color:rgba(15,23,42,.08)}
+  .mnb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;background:none;border:none;color:var(--d);font-family:'Sora',sans-serif;cursor:pointer}
+  .mnb.active{color:var(--ac)}
+  .mnb-ic{font-size:19px;line-height:1}
+  .mnb-lbl{font-size:9.5px;font-weight:500;white-space:nowrap}
+
+  .msheet-backdrop{display:block;position:fixed;inset:0;z-index:65;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s ease}
+  .msheet-backdrop.show{opacity:1;pointer-events:auto}
+  .msheet{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:0;z-index:70;padding:10px 18px calc(20px + env(safe-area-inset-bottom));background:var(--bg2);border-radius:20px 20px 0 0;border:0.5px solid rgba(255,255,255,.1);border-bottom:none;box-shadow:0 -20px 50px rgba(0,0,0,.5);transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+  .msheet.show{transform:translateY(0)}
+  .msheet-handle{width:36px;height:4px;border-radius:2px;background:var(--b);margin:2px auto 12px}
+  .mnb-full{display:flex;align-items:center;gap:12px;width:100%;padding:12px 6px;background:none;border:none;border-bottom:0.5px solid var(--b);color:var(--t);font-size:14px;font-family:'Sora',sans-serif;text-align:left;cursor:pointer}
+  .mnb-full:last-of-type{border-bottom:none}
+  .mnb-full .nb-ic{font-size:16px;width:22px;text-align:center}
+  .msheet-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin:14px 0 8px}
+  .msheet .theme-sw{margin-top:12px}
+
+  /* Tabelle: forza lo scroll orizzontale invece di schiacciare il testo */
+  table{font-size:12px}
+  /* Le righe di pulsanti nelle intestazioni dei grafici (Trend/Per mese,
+     Anno/Mese/Sett/Giorno, 6m/12m/24m...) vanno a capo invece di essere
+     tagliate a bordo schermo. */
+  .ch{overflow:visible}
+  .ch [style*="display:flex"]{flex-wrap:wrap;row-gap:6px}
+  .ch [style*="margin-left:auto"]{margin-left:0!important;align-items:flex-start!important}
+}
 /* ── AI Advisor page ─────────────────────────────────────────────────────── */
 .ai-page{display:flex;flex-direction:column;height:calc(100vh - 120px);max-height:calc(100vh - 120px);}
 .ai-page-hdr{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
@@ -382,6 +431,39 @@ html.light .ai-table th{background:rgba(141,4,57,.1);color:#8d0439;border-bottom
     </button>
   </div>
 </nav>
+
+<!-- ═══ MOBILE UI (nascosta su desktop, attiva sotto i 700px) ═══════════ -->
+<div class="mtop" id="mtop">
+  <div class="mtop-brand"><div class="mtop-icon"><img src="logo.png" alt=""></div><span>Ottica Bonardi</span></div>
+  <button class="mtop-btn" onclick="toggleMobileSheet()" aria-label="Altre opzioni">⋯</button>
+</div>
+<div class="msheet-backdrop" id="msheetBackdrop" onclick="toggleMobileSheet(false)"></div>
+<div class="msheet" id="msheet">
+  <div class="msheet-handle"></div>
+  <button class="mnb-full" onclick="mnav('dati')"><span class="nb-ic">⬆</span>Carica dati</button>
+  <button class="mnb-full" onclick="mnav('lenti')"><span class="nb-ic">🔬</span>Lenti</button>
+  <button class="mnb-full" onclick="mnav('ai')"><span class="nb-ic">✦</span>AI Advisor</button>
+  <div class="msheet-label">Vista dati</div>
+  <div class="sede-pills" id="sedePillsM">
+    <button class="sp s-agg on" onclick="setSede('agg')">Aggregate</button>
+    <button class="sp s-spl" onclick="setSede('split')">Per sede</button>
+    <button class="sp s-b1" onclick="setSede('A')">A</button>
+    <button class="sp s-b2" onclick="setSede('B')">B</button>
+    <button class="sp s-b3" onclick="setSede('C')">C</button>
+  </div>
+  <button class="theme-sw" onclick="toggleTheme()" style="margin-top:12px">
+    <span class="theme-track"><span class="theme-knob"></span></span>
+    <span id="themeLblM">Tema scuro</span>
+  </button>
+</div>
+<nav class="mnav" id="mnav">
+  <button class="mnb active" onclick="nav('overview')" id="mnb-overview"><span class="mnb-ic">⬡</span><span class="mnb-lbl">Overview</span></button>
+  <button class="mnb" onclick="nav('vendite')" id="mnb-vendite"><span class="mnb-ic">◈</span><span class="mnb-lbl">Vendite</span></button>
+  <button class="mnb" onclick="nav('magazzino')" id="mnb-magazzino"><span class="mnb-ic">◫</span><span class="mnb-lbl">Magazzino</span></button>
+  <button class="mnb" onclick="nav('clienti')" id="mnb-clienti"><span class="mnb-ic">◎</span><span class="mnb-lbl">Clienti</span></button>
+  <button class="mnb" onclick="toggleMobileSheet()" id="mnb-altro"><span class="mnb-ic">⋯</span><span class="mnb-lbl">Altro</span></button>
+</nav>
+
 <div class="main"><div id="root"></div></div>
 </div>
 
@@ -447,8 +529,9 @@ let UPLOAD_NAME_CLI_ANAG = null;
 function applyTheme(t,rerender){
   document.documentElement.classList.toggle('light',t==='light');
   try{localStorage.setItem('ob-theme',t);}catch(e){}
-  const lbl=document.getElementById('themeLbl');
-  if(lbl)lbl.textContent=t==='light'?'Tema chiaro':'Tema scuro';
+  const lblTxt=t==='light'?'Tema chiaro':'Tema scuro';
+  const lbl=document.getElementById('themeLbl');if(lbl)lbl.textContent=lblTxt;
+  const lblM=document.getElementById('themeLblM');if(lblM)lblM.textContent=lblTxt;
   if(rerender){buildChartOpts();renderPage();}
 }
 window.toggleTheme=()=>applyTheme(document.documentElement.classList.contains('light')?'dark':'light',true);
@@ -1466,8 +1549,25 @@ function nav(p){
   ST.page=p;ST.magPage=0;ST.agPage=0;
   document.querySelectorAll(".nb").forEach(b=>b.classList.remove("active"));
   const el=document.getElementById("nb-"+p);if(el)el.classList.add("active");
+  // Barra mobile: solo 4 voci principali hanno un pulsante dedicato — le
+  // altre pagine (Carica dati, Lenti, AI) si aprono dal foglio "Altro",
+  // in quel caso teniamo evidenziato il pulsante "Altro" stesso.
+  document.querySelectorAll(".mnb").forEach(b=>b.classList.remove("active"));
+  const mel=document.getElementById("mnb-"+p);
+  if(mel)mel.classList.add("active");
+  else document.getElementById("mnb-altro")?.classList.add("active");
   renderPage();
 }
+// Apre/chiude il foglio mobile "Altro" (pagine secondarie + sede + tema).
+function toggleMobileSheet(force){
+  const sheet=document.getElementById('msheet'),bd=document.getElementById('msheetBackdrop');
+  if(!sheet)return;
+  const show=force!==undefined?force:!sheet.classList.contains('show');
+  sheet.classList.toggle('show',show);
+  bd?.classList.toggle('show',show);
+}
+// Naviga da dentro il foglio mobile e lo richiude.
+function mnav(p){ toggleMobileSheet(false); nav(p); }
 function setSede(mode){
   ST.sedeMode=mode;
   const mp={agg:"s-agg",split:"s-spl",A:"s-b1",B:"s-b2",C:"s-b3"};
@@ -2910,8 +3010,13 @@ function initCharts(){
       ?((window.__ov.hasVendDate?vendFocusMese(fm):null)||(window.__ov.hasAcq?acqFocusMese(fm):null))
       :((window.__ov.hasVendDate?vendTrend(step,range):null)||acqTrend(step,range));
     if(!td||!td.labels.length) return;
-    const showLabels=td.labels.length<=24;
-    const showPzLabels=step==='A'||td.labels.length<=12;
+    // Su schermo stretto (telefono) le etichette sopra le barre si accavallano
+    // se ce ne sono troppe: mostriamo solo il fatturato (non anche i pezzi) e
+    // una barra sì/una no oltre le 6.
+    const isNarrow=window.innerWidth<640;
+    const showLabels=isNarrow?td.labels.length<=6:td.labels.length<=24;
+    const showLabelsAlt=isNarrow&&td.labels.length>6; // una barra ogni due
+    const showPzLabels=!isNarrow&&(step==='A'||td.labels.length<=12);
     const lblSz=td.labels.length<=12?10:td.labels.length<=18?9:8;
     const ovL=document.documentElement.classList.contains('light');
     const ovGrid=ovL?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
@@ -2927,7 +3032,12 @@ function initCharts(){
       plugins:{
         legend:{display:true,position:"top",align:"end",labels:{color:ovLeg,font:{family:"'DM Mono',monospace",size:10},boxWidth:8,padding:10,usePointStyle:true}},
         datalabels:{
-          display:ctx=>ctx.datasetIndex===0?showLabels&&ctx.dataset.data[ctx.dataIndex]>0:showPzLabels&&ctx.dataset.data[ctx.dataIndex]>0,
+          display:ctx=>{
+            if(ctx.dataset.data[ctx.dataIndex]<=0)return false;
+            if(ctx.datasetIndex!==0)return showPzLabels;
+            if(showLabels)return true;
+            return showLabelsAlt&&ctx.dataIndex%2===0;
+          },
           anchor:ctx=>ctx.datasetIndex===0?'end':'center',
           align:ctx=>ctx.datasetIndex===0?'start':'top',
           offset:ctx=>ctx.datasetIndex===0?6:5,
