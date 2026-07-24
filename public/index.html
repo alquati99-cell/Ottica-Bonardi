@@ -17,6 +17,20 @@
 html.light{--bg:#f7f1f3;--bg2:#ffffff;--gl:rgba(141,4,57,.03);--b:rgba(80,12,36,.12);--bb:rgba(80,12,36,.26);--t:#2a0a16;--m:rgba(80,22,42,.62);--d:rgba(80,22,42,.4);--ac:#8d0439;--acl:rgba(141,4,57,.1);--acs:rgba(141,4,57,.05);--cy:#0891b2;--em:#15803d;--am:#b45309;--vi:#7e22ce;--ro:#b91c1c;--gr:#15803d;--grl:rgba(21,128,61,.12);--pri-u:#b91c1c;--pri-a:#b45309;--pri-m:#7e22ce;--pri-o:#15803d;--brand:#8d0439}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;transition:background .35s ease,color .35s ease}
+/* ── Feedback al tocco + accessibilità (applica a tutti i controlli) ──────
+   Leggero "affondamento" al click/tap, per dare la sensazione che l'app
+   risponda subito anche prima che l'azione produca un risultato visibile. */
+button,.nb,.mnb,.sp,.tp,.tab,.pbtn,.qbtn,.mnb-full,.forn-card,.cav,.theme-sw{-webkit-tap-highlight-color:transparent}
+button:not(:disabled):active,.nb:active,.mnb:active,.sp:active,.tp:active,.pbtn:active,.qbtn:active,.mnb-full:active,.theme-sw:active{transform:scale(.96);transition-duration:.08s}
+.tab{transition:color .15s ease,border-color .15s ease}
+.tab:active{opacity:.7}
+/* Outline visibile solo per navigazione da tastiera, non per il click/tap
+   col mouse — evita il "riquadro" indesiderato dopo ogni click. */
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:4px}
+/* Dissolvenza leggera ad ogni cambio pagina/tab, invece dello scatto secco
+   di un innerHTML sostituito di colpo. */
+#root{transition:opacity .16s ease}
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 100% 80% at -8% -8%,rgba(220,90,130,.18) 0%,transparent 52%),radial-gradient(ellipse 80% 60% at 108% 108%,rgba(74,222,128,.12) 0%,transparent 50%),radial-gradient(ellipse 60% 45% at 52% 115%,rgba(192,132,252,.1) 0%,transparent 48%),radial-gradient(ellipse 40% 30% at 105% 10%,rgba(103,232,249,.07) 0%,transparent 40%),#0a0507}
 .bg::after{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(236,123,160,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(236,123,160,.025) 1px,transparent 1px);background-size:52px 52px;mask-image:radial-gradient(ellipse 100% 100% at 50% 50%,black 40%,transparent 100%)}
 html{scroll-behavior:smooth}
@@ -1588,6 +1602,10 @@ function renderPage(){
     focusId=active.id;
     selStart=active.selectionStart;selEnd=active.selectionEnd;
   }
+  // Dissolvenza leggera ad ogni cambio pagina — ma non mentre si sta
+  // digitando in un campo di ricerca: lì il refresh dev'essere istantaneo,
+  // altrimenti il tremolio ad ogni carattere disturba più che aiutare.
+  if(!focusId)r.style.opacity='0';
   if(ST.page==="overview")r.innerHTML=rOv();
   else if(ST.page==="vendite")r.innerHTML=rVend();
   else if(ST.page==="magazzino")r.innerHTML=rMag();
@@ -1598,6 +1616,8 @@ function renderPage(){
   if(focusId){
     const el=document.getElementById(focusId);
     if(el){el.focus();if(selStart!==null){try{el.setSelectionRange(selStart,selEnd);}catch(e){}}}
+  } else {
+    requestAnimationFrame(()=>{r.style.opacity='1';});
   }
   setTimeout(()=>{initCharts();animKV();},60);
 }
