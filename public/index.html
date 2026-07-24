@@ -132,6 +132,7 @@ html{scroll-behavior:smooth}
 .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
 .dcy{background:var(--ac)}.dam{background:var(--am)}
 .dvi{background:var(--vi)}.dem{background:var(--em)}.dro{background:var(--ro)}
+.op-ins-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cw{position:relative;height:220px}.cw-lg{height:260px}.cw-sm{height:175px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
@@ -300,7 +301,7 @@ html.light #ai-inp{background:rgba(15,23,42,.04);border-color:rgba(15,23,42,.14)
 html.light #ai-inp:focus{border-color:rgba(141,4,57,.45);background:rgba(141,4,57,.04)}
 html.light .ai-foot{border-top-color:rgba(15,23,42,.08)}
 html.light .ai-ctx-card,html.light .ai-prompts-card{background:rgba(15,23,42,.025);border-color:rgba(15,23,42,.09)}
-@media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.op-ins-grid{grid-template-columns:1fr}}
 
 /* ── MOBILE NAV (iPhone/telefono) ──────────────────────────────────────────
    Nascosta di default (desktop invariato). Sotto i 700px prende il posto
@@ -1682,6 +1683,113 @@ function splitBar(){
 }
 
 // ═══ OVERVIEW ═══════════════════════════════════════════════════════════════
+// ── INSIGHT OPERATIVI (Overview) ──────────────────────────────────────────
+// 5 insight pratici per la gestione quotidiana del negozio:
+// 1) clienti a rischio da richiamare, 3) marche in trend (12m vs 12m prec.),
+// 7) VIP che stanno rallentando la cadenza d'acquisto, 8) clienti nella
+// finestra naturale di riacquisto occhiali (540-900gg), 9) concentrazione
+// del fatturato sui top clienti (Pareto).
+function rOpInsights(){
+  if(!LIVE_VEND||!LIVE_VEND.hasDate) return '';
+  const cliByCode=LIVE_CLI?.byCode||{};
+  const cliName=cod=>cliByCode[cod]?.nome||cod;
+  const rows=sedeRows(LIVE_VEND.rows);
+  const today=new Date();
+  const todayISO=toISO(today);
+
+  const ret=computeRetention(365,ST.sedeMode);
+
+  // 1) Clienti da richiamare ORA
+  const daRichiamare=ret.retClients.filter(c=>c.status==='rischio').sort((a,b)=>b.totVal-a.totVal).slice(0,6);
+
+  // 3) Marche in crescita/calo: ultimi 12 mesi vs 12 mesi precedenti
+  const d365=new Date(today);d365.setDate(d365.getDate()-365);
+  const d730=new Date(today);d730.setDate(d730.getDate()-730);
+  const cur365=toISO(d365), cur730=toISO(d730);
+  const brandAgg={};
+  rows.forEach(r=>{
+    if(!r.dt||!r.mar)return;
+    const root=aiBrandRoot(r.mar);if(!root||root.length<3)return;
+    if(!brandAgg[root])brandAgg[root]={root,labels:{},curVal:0,curPz:0,prevVal:0,prevPz:0};
+    const a=brandAgg[root];
+    const mar=(r.mar||'').trim();if(mar)a.labels[mar]=(a.labels[mar]||0)+r.pz;
+    if(r.dt>cur365&&r.dt<=todayISO){a.curVal+=r.val;a.curPz+=r.pz;}
+    else if(r.dt>cur730&&r.dt<=cur365){a.prevVal+=r.val;a.prevPz+=r.pz;}
+  });
+  const brandTrend=Object.values(brandAgg).filter(a=>a.prevVal>=500||a.curVal>=500).map(a=>{
+    a.label=aiPickLabel(a.labels);
+    a.delta=a.prevVal>0?Math.round((a.curVal-a.prevVal)/a.prevVal*100):(a.curVal>0?100:0);
+    return a;
+  });
+  const marcheCrescita=[...brandTrend].sort((x,y)=>y.delta-x.delta).slice(0,3).filter(a=>a.delta>0);
+  const marcheCalo=[...brandTrend].sort((x,y)=>x.delta-y.delta).slice(0,3).filter(a=>a.delta<0);
+
+  // 7) Clienti VIP che rallentano: top 10% per spesa, con gap attuale >=1.6x la loro cadenza media
+  const vipRows=ret.retClients.filter(c=>c.nVisits>=2&&c.totVal>0);
+  const vipRank=[...vipRows].sort((a,b)=>b.totVal-a.totVal).slice(0,Math.max(20,Math.round(vipRows.length*0.1)));
+  const vipRallentano=vipRank.map(c=>{
+    const span=(new Date(c.lastDt)-new Date(c.firstDt))/86400000;
+    const avgGap=c.nVisits>1?span/(c.nVisits-1):0;
+    return{...c,avgGap,ratio:avgGap>0?c.daysSince/avgGap:0};
+  }).filter(c=>c.avgGap>=20&&c.ratio>=1.6&&c.status!=='perso').sort((a,b)=>b.totVal-a.totVal).slice(0,6);
+
+  // 8) Riacquisto naturale in scadenza: ultima visita 540-900gg fa (ciclo tipico occhiali)
+  const riacquisto=ret.retClients.filter(c=>c.daysSince>=540&&c.daysSince<=900).sort((a,b)=>b.totVal-a.totVal).slice(0,6);
+
+  // 9) Concentrazione fatturato: quota top 10%/20% clienti sul totale
+  const allByVal=[...ret.retClients].sort((a,b)=>b.totVal-a.totVal);
+  const totFatt=allByVal.reduce((a,c)=>a+c.totVal,0);
+  const n10=Math.max(1,Math.round(allByVal.length*0.1));
+  const n20=Math.max(1,Math.round(allByVal.length*0.2));
+  const val10=allByVal.slice(0,n10).reduce((a,c)=>a+c.totVal,0);
+  const val20=allByVal.slice(0,n20).reduce((a,c)=>a+c.totVal,0);
+  const pct10=totFatt>0?Math.round(val10/totFatt*100):0;
+  const pct20=totFatt>0?Math.round(val20/totFatt*100):0;
+
+  const card=(dotCls,title,body)=>`<div class="g card"><div class="ch"><div class="ct"><span class="dot ${dotCls}"></span>${title}</div></div>${body}</div>`;
+  const clientRow=(c,extra)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid var(--b);font-size:12.5px">
+    <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%"><b style="color:var(--t)">${cliName(c.cli)}</b></div>
+    <div style="color:var(--m);text-align:right;white-space:nowrap">${extra}</div>
+  </div>`;
+  const brandLine=(a,up)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid var(--b);font-size:12.5px">
+    <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%"><b style="color:var(--t)">${a.label}</b></div>
+    <div style="color:${up?'var(--em)':'var(--ro)'};font-weight:700;white-space:nowrap">${up?'↑':'↓'}${Math.abs(a.delta)}%</div>
+  </div>`;
+
+  const body1=daRichiamare.length?daRichiamare.map(c=>clientRow(c,`${fmt(c.totVal)} · ${c.daysSince}gg fa`)).join(''):`<div style="font-size:12px;color:var(--d);padding:8px 0">Nessun cliente a rischio al momento 👍</div>`;
+
+  const body3=brandTrend.length?`
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--d);margin:4px 0 2px">In crescita</div>
+    ${marcheCrescita.length?marcheCrescita.map(a=>brandLine(a,true)).join(''):`<div style="font-size:12px;color:var(--d);padding:4px 0">Nessuna marca in crescita</div>`}
+    ${marcheCalo.length?`<div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--d);margin:10px 0 2px">In calo</div>${marcheCalo.map(a=>brandLine(a,false)).join('')}`:''}
+  `:`<div style="font-size:12px;color:var(--d);padding:8px 0">Servono almeno 12 mesi di storico per calcolare il trend</div>`;
+
+  const body7=vipRallentano.length?vipRallentano.map(c=>clientRow(c,`${fmt(c.totVal)} · ${c.daysSince}gg (media ${Math.round(c.avgGap)}gg)`)).join(''):`<div style="font-size:12px;color:var(--d);padding:8px 0">Nessun VIP in rallentamento</div>`;
+
+  const body8=riacquisto.length?riacquisto.map(c=>clientRow(c,`${fmt(c.totVal)} · ${c.daysSince}gg fa`)).join(''):`<div style="font-size:12px;color:var(--d);padding:8px 0">Nessun cliente in questa fascia</div>`;
+
+  const body9=totFatt>0?`
+    <div style="display:flex;align-items:baseline;gap:10px;margin:4px 0 10px">
+      <div style="font-size:24px;font-weight:800;color:var(--t)">${pct20}%</div>
+      <div style="font-size:12px;color:var(--m)">del fatturato viene dal top 20% clienti (${fmtN(n20)} su ${fmtN(allByVal.length)})</div>
+    </div>
+    <div style="height:6px;border-radius:4px;background:var(--gl);overflow:hidden;margin-bottom:6px"><div style="height:100%;width:${pct20}%;background:linear-gradient(90deg,#ec7ba0,#8d0439)"></div></div>
+    <div style="font-size:11.5px;color:var(--d)">Top 10% clienti (${fmtN(n10)}) valgono il <b style="color:var(--t)">${pct10}%</b> del fatturato totale.</div>
+  `:`<div style="font-size:12px;color:var(--d);padding:8px 0">Dati insufficienti</div>`;
+
+  return `
+<div class="fi">
+  <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin:18px 0 10px;display:flex;align-items:center;gap:8px"><span style="font-size:14px">🎯</span>Insights operativi</div>
+  <div class="op-ins-grid">
+    ${card('dro','Clienti da richiamare ORA',body1)}
+    ${card('dcy','Marche in crescita/calo (12m)',body3)}
+    ${card('dvi','Clienti VIP che rallentano',body7)}
+    ${card('dam','Riacquisto naturale in scadenza',body8)}
+    ${card('dem','Concentrazione fatturato',body9)}
+  </div>
+</div>`;
+}
+
 function rOv(){
   const mag=curMAG();
   const magSedi=(ST.sedeMode==='agg'||ST.sedeMode==='split')?['A','B','C']:[ST.sedeMode];
@@ -1897,6 +2005,7 @@ ${usingProxy?`<div style="background:rgba(236,123,160,.05);border:0.5px solid rg
     </div>
   </div>
 </div>
+${rOpInsights()}
 <div class="g card fi" id="ov-ai-card" style="border-top:1.5px solid rgba(236,123,160,.22)">
   <div class="ch" style="flex-wrap:wrap;gap:10px">
     <div style="display:flex;align-items:center;gap:10px">
