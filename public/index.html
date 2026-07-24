@@ -142,6 +142,10 @@ html{scroll-behavior:smooth}
 .tab.on{color:var(--t);font-weight:500;border-bottom-color:var(--t)}
 .abar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
 .srch{background:rgba(255,255,255,.06);border:0.5px solid var(--b);border-radius:9px;padding:6px 12px;font-size:12px;color:var(--t);font-family:'Sora',sans-serif;outline:none;width:190px}
+.bud-inp{background:rgba(255,255,255,.06);border:0.5px solid var(--b);border-radius:9px;padding:9px 12px;font-size:14px;font-weight:600;color:var(--t);font-family:'DM Mono',monospace;outline:none;width:100%;transition:border-color .15s}
+.bud-inp:focus{border-color:var(--ac)}
+.bud-field{display:flex;flex-direction:column;gap:6px}
+.bud-field label{font-size:11px;color:var(--m);display:flex;align-items:center;gap:6px}
 .srch::placeholder{color:var(--d)}
 .tw{border-radius:var(--r);overflow:hidden}
 .th2{padding:14px 18px;border-bottom:0.5px solid var(--b);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
@@ -301,7 +305,7 @@ html.light #ai-inp{background:rgba(15,23,42,.04);border-color:rgba(15,23,42,.14)
 html.light #ai-inp:focus{border-color:rgba(141,4,57,.45);background:rgba(141,4,57,.04)}
 html.light .ai-foot{border-top-color:rgba(15,23,42,.08)}
 html.light .ai-ctx-card,html.light .ai-prompts-card{background:rgba(15,23,42,.025);border-color:rgba(15,23,42,.09)}
-@media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.op-ins-grid{grid-template-columns:1fr}}
+@media(max-width:1100px){.k4{grid-template-columns:repeat(2,1fr)}.g2,.g3,.g13{grid-template-columns:1fr}.forn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.op-ins-grid{grid-template-columns:1fr}.bud-input-grid{grid-template-columns:1fr}.bud-gap-grid{grid-template-columns:1fr!important}}
 
 /* ── MOBILE NAV (iPhone/telefono) ──────────────────────────────────────────
    Nascosta di default (desktop invariato). Sotto i 700px prende il posto
@@ -429,6 +433,7 @@ html.light .ai-table th{background:rgba(141,4,57,.1);color:#8d0439;border-bottom
     <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span><span class="nb-label">Clienti</span></button>
     <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span><span class="nb-label">Carica dati</span></button>
     <button class="nb" onclick="nav('lenti')" id="nb-lenti"><span class="nb-ic">🔬</span><span class="nb-label">Lenti</span></button>
+    <button class="nb" onclick="nav('budget')" id="nb-budget"><span class="nb-ic">🎯</span><span class="nb-label">Budget</span></button>
     <button class="nb" onclick="nav('ai')" id="nb-ai"><span class="nb-ic">✦</span><span class="nb-label">AI Advisor</span></button>
   </div>
   <div class="sb-vista">
@@ -457,6 +462,7 @@ html.light .ai-table th{background:rgba(141,4,57,.1);color:#8d0439;border-bottom
   <div class="msheet-handle"></div>
   <button class="mnb-full" onclick="mnav('dati')"><span class="nb-ic">⬆</span>Carica dati</button>
   <button class="mnb-full" onclick="mnav('lenti')"><span class="nb-ic">🔬</span>Lenti</button>
+  <button class="mnb-full" onclick="mnav('budget')"><span class="nb-ic">🎯</span>Budget</button>
   <button class="mnb-full" onclick="mnav('ai')"><span class="nb-ic">✦</span>AI Advisor</button>
   <div class="msheet-label">Vista dati</div>
   <div class="sede-pills" id="sedePillsM">
@@ -550,6 +556,21 @@ function applyTheme(t,rerender){
   if(rerender){buildChartOpts();renderPage();}
 }
 window.toggleTheme=()=>applyTheme(document.documentElement.classList.contains('light')?'dark':'light',true);
+
+// ═══ BUDGET / SIMULATORE — config persistita (costi fissi + obiettivo) ═════
+const BUDGET_KEY='ob-budget-cfg';
+function defaultBudgetCfg(){return{affitto:0,personale:0,utenze:0,altri:0,growthPct:10};}
+function loadBudgetCfg(){
+  try{const raw=localStorage.getItem(BUDGET_KEY);if(raw)return{...defaultBudgetCfg(),...JSON.parse(raw)};}catch(e){}
+  return defaultBudgetCfg();
+}
+function saveBudgetCfg(){try{localStorage.setItem(BUDGET_KEY,JSON.stringify(ST.budget));}catch(e){}}
+function setBudgetField(field,raw){
+  const n=parseFloat(String(raw).replace(',','.'));
+  ST.budget[field]=isNaN(n)?0:n;
+  saveBudgetCfg();
+  renderPage();
+}
 
 // ═══ TOAST NOTIFICHE ════════════════════════════════════════════════════════
 function toast(msg,type='ok',ms=3500){
@@ -1524,7 +1545,8 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   agPri:"all",agSed:"all",agSearch:"",agSort:"mesi",agAsc:false,agPage:0,agChartMode:"v",
   cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"val",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,cliStoricoDrill:null,
   vendFil:"all",vendTp:"all",vendMar:"all",vendAnno:"all",
-  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12};
+  ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12,
+  budget:loadBudgetCfg()};
 let charts={};
 const PER=30;
 
@@ -1613,6 +1635,7 @@ function renderPage(){
   else if(ST.page==="clienti")r.innerHTML=rCli();
   else if(ST.page==="dati")r.innerHTML=rDati();
   else if(ST.page==="lenti")r.innerHTML=rLenti();
+  else if(ST.page==="budget")r.innerHTML=rBudget();
   else if(ST.page==="ai"){r.innerHTML=rAI();initAIPage();}
   if(focusId){
     const el=document.getElementById(focusId);
@@ -3126,9 +3149,262 @@ function rLenti(){
 </div>`;
 }
 
+// ═══ BUDGET / SIMULATORE ═══════════════════════════════════════════════════
+// Aggrega vendite e acquisti per mese (chiave YYYY-MM) → serie storica reale
+// su cui si basano sia il riepilogo "cosa hai fatto" sia il backtest.
+function budgetMonthlyAgg(rows){
+  const agg={};
+  (rows||[]).forEach(r=>{
+    if(!r.dt)return;
+    const k=r.dt.slice(0,7);
+    // Alcune righe (soprattutto negli acquisti) hanno la data con giorno e
+    // mese invertiti a monte (es. "2026-31-07"): scartiamo le chiavi con
+    // mese fuori range 01-12 per non falsare l'ordinamento "ultimi N mesi".
+    const mo=parseInt(k.slice(5,7),10);
+    if(!mo||mo<1||mo>12)return;
+    if(!agg[k])agg[k]={val:0,pz:0};
+    agg[k].val+=r.val;agg[k].pz+=r.pz;
+  });
+  return agg;
+}
+function budgetMonthLabel(k){const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}
+
+function rBudget(){
+  const hasVendDate=!!LIVE_VEND&&LIVE_VEND.hasDate;
+  const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
+  if(!hasVendDate){
+    return `<div class="g card fi" style="padding:40px;text-align:center;color:var(--d)">
+      <div style="font-size:32px;margin-bottom:10px">🎯</div>
+      <div style="font-size:14px;color:var(--m)">Servono le vendite con data per costruire il budget.</div>
+      <div style="font-size:12px;margin-top:6px">Carica i file Excel dalla sezione <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div>
+    </div>`;
+  }
+
+  const vendAgg=budgetMonthlyAgg(sedeRows(LIVE_VEND.rows));
+  const acqAgg=hasAcq?budgetMonthlyAgg(sedeRows(LIVE_ACQ.rows)):{};
+  const allKeys=[...new Set([...Object.keys(vendAgg),...Object.keys(acqAgg)])].sort();
+  const monthly=allKeys.map(k=>{
+    const revenue=vendAgg[k]?.val||0, pz=vendAgg[k]?.pz||0, cogs=acqAgg[k]?.val||0;
+    const margin=revenue-cogs;
+    return{key:k,label:budgetMonthLabel(k),revenue,pz,cogs,margin,marginPct:revenue>0?margin/revenue:0};
+  });
+
+  const last12=monthly.slice(-12);
+  const totRev12=last12.reduce((a,m)=>a+m.revenue,0);
+  const totPz12=last12.reduce((a,m)=>a+m.pz,0);
+  const totCogs12=last12.reduce((a,m)=>a+m.cogs,0);
+  const totMargin12=totRev12-totCogs12;
+  const avgMarginPct=totRev12>0?totMargin12/totRev12:0.55; // fallback prudente se manca lo storico acquisti
+  const avgMonthlyRev=last12.length?totRev12/last12.length:0;
+  const avgPricePz=totPz12>0?totRev12/totPz12:0;
+
+  // ── 1) COSTI FISSI (input persistito) ──────────────────────────────────
+  const B=ST.budget;
+  const fixedMonthly=(B.affitto||0)+(B.personale||0)+(B.utenze||0)+(B.altri||0);
+  const breakEvenRevenue=avgMarginPct>0?fixedMonthly/avgMarginPct:null;
+
+  // ── 2) OBIETTIVO ─────────────────────────────────────────────────────
+  const growthPct=B.growthPct||0;
+  const baseAnnual=totRev12;
+  const targetAnnual=baseAnnual*(1+growthPct/100);
+  const targetMonthlyAvg=targetAnnual/12;
+
+  // ── 3) BACKTEST: negli ultimi mesi, quante volte avresti centrato
+  // questo stesso obiettivo di crescita anno su anno? ────────────────────
+  const byKey=Object.fromEntries(monthly.map(m=>[m.key,m]));
+  const yoyChecks=[];
+  monthly.forEach(m=>{
+    const[y,mo]=m.key.split('-');
+    const prev=byKey[(parseInt(y)-1)+'-'+mo];
+    if(prev&&prev.revenue>0){
+      const g=(m.revenue-prev.revenue)/prev.revenue*100;
+      yoyChecks.push({key:m.key,label:m.label,g,hit:g>=growthPct});
+    }
+  });
+  const yoyRecent=yoyChecks.slice(-12);
+  const hits=yoyRecent.filter(c=>c.hit).length;
+  const successRate=yoyRecent.length?Math.round(hits/yoyRecent.length*100):null;
+
+  // ── 4) COSA MANCA: proietta l'obiettivo sull'anno in corso e confronta
+  // con quanto già fatturato, per capire il ritmo mensile necessario per
+  // il resto dell'anno. ───────────────────────────────────────────────────
+  // Mesi trascorsi = mese solare corrente (non il conteggio delle chiavi
+  // con dati: gli acquisti possono includere ordini con consegna futura
+  // già datati nei mesi a venire, che non vanno contati come "trascorsi").
+  const curYearMonths=monthly.filter(m=>m.key.startsWith(String(CY))&&m.key<=`${CY}-${String(CM+1).padStart(2,'0')}`);
+  const ytdActual=curYearMonths.reduce((a,m)=>a+m.revenue,0);
+  const monthsElapsed=CM+1;
+  const monthsRemaining=Math.max(0,12-monthsElapsed);
+  const ytdTargetShare=targetAnnual*(monthsElapsed/12);
+  const gapVsPace=ytdTargetShare-ytdActual;
+  const requiredRemainingTotal=Math.max(0,targetAnnual-ytdActual);
+  const requiredMonthlyAvgRemaining=monthsRemaining>0?requiredRemainingTotal/monthsRemaining:0;
+  const deltaVsCurrentPace=requiredMonthlyAvgRemaining-avgMonthlyRev;
+  const extraPzMonthly=avgPricePz>0?deltaVsCurrentPace/avgPricePz:0;
+  const onTrack=gapVsPace<=0;
+
+  const inp=(field,label,icon)=>`<div class="bud-field">
+    <label><span>${icon}</span>${label}</label>
+    <input class="bud-inp" type="text" inputmode="decimal" value="${B[field]?fmtN(B[field]):''}" placeholder="0"
+      onfocus="this.value=${B[field]||0}" onblur="setBudgetField('${field}',this.value)"
+      onkeydown="if(event.key==='Enter')this.blur()">
+  </div>`;
+
+  return `
+<div class="fi">
+  <div style="margin-bottom:18px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);font-weight:700;margin-bottom:4px">1 · La tua situazione attuale</div>
+    <div style="font-size:13px;color:var(--m)">Cosa hai fatto negli ultimi 12 mesi — dati reali, nessun input richiesto.</div>
+  </div>
+  <div class="k4" style="margin-bottom:22px">
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fatturato ultimi 12 mesi</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t)">${fmt(totRev12)}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">${fmtN(totPz12)} pz · media ${fmt(avgMonthlyRev)}/mese</div>
+    </div>
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Costo merce (acquisti)</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t)">${hasAcq?fmt(totCogs12):'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">${hasAcq?'ultimi 12 mesi':'nessun dato acquisti caricato'}</div>
+    </div>
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Margine lordo</div>
+      <div style="font-size:22px;font-weight:800;color:${totMargin12>=0?'var(--em)':'var(--ro)'}">${hasAcq?fmt(totMargin12):'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">${hasAcq?Math.round(avgMarginPct*100)+'% sul fatturato':'stima 55% (imposta gli acquisti per il dato reale)'}</div>
+    </div>
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Prezzo medio al pezzo</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t)">${fmt(avgPricePz)}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">usato per tradurre gli obiettivi in pezzi</div>
+    </div>
+  </div>
+  <div class="g card" style="margin-bottom:22px">
+    <div class="ch"><div class="ct"><span class="dot dcy"></span>Andamento mensile · fatturato reale</div></div>
+    <div class="cw cw-lg"><canvas id="ch_budget_trend"></canvas></div>
+  </div>
+
+  <div style="margin-bottom:18px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);font-weight:700;margin-bottom:4px">2 · I tuoi input</div>
+    <div style="font-size:13px;color:var(--m)">Costi fissi mensili e obiettivo di crescita — si salvano da soli, cambiali quando vuoi.</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin-bottom:22px" class="bud-input-grid">
+    <div class="g card">
+      <div class="ch"><div class="ct"><span class="dot dam"></span>Costi fissi mensili</div><div style="font-size:11px;color:var(--m)">totale: <b style="color:var(--t)">${fmt(fixedMonthly)}</b>/mese</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        ${inp('affitto','Affitto','🏠')}
+        ${inp('personale','Personale','👥')}
+        ${inp('utenze','Utenze','💡')}
+        ${inp('altri','Altri costi fissi','📋')}
+      </div>
+    </div>
+    <div class="g card">
+      <div class="ch"><div class="ct"><span class="dot dvi"></span>Obiettivo di crescita</div></div>
+      <div class="bud-field" style="margin-bottom:4px">
+        <label><span>📈</span>Crescita annua desiderata vs ultimi 12 mesi</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input class="bud-inp" style="width:90px" type="text" inputmode="decimal" value="${B.growthPct}"
+            onfocus="this.value=${B.growthPct||0}" onblur="setBudgetField('growthPct',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()">
+          <span style="font-size:18px;font-weight:700;color:var(--m)">%</span>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:10px;line-height:1.5">
+        Base di partenza: <b style="color:var(--t)">${fmt(baseAnnual)}</b> (ultimi 12 mesi)<br>
+        Obiettivo annuo: <b style="color:var(--ac)">${fmt(targetAnnual)}</b> · ${fmt(targetMonthlyAvg)}/mese
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:18px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);font-weight:700;margin-bottom:4px">3 · Simulazione</div>
+    <div style="font-size:13px;color:var(--m)">Cosa dicono i tuoi dati su questo obiettivo — punto di pareggio e backtest storico.</div>
+  </div>
+  <div class="k4" style="margin-bottom:22px">
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Punto di pareggio mensile</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t)">${breakEvenRevenue!=null?fmt(breakEvenRevenue):'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">fatturato minimo per coprire i costi fissi</div>
+    </div>
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Margine sopra il pareggio</div>
+      <div style="font-size:22px;font-weight:800;color:${avgMonthlyRev-breakEvenRevenue>=0?'var(--em)':'var(--ro)'}">${breakEvenRevenue!=null?fmt(avgMonthlyRev-breakEvenRevenue):'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">al ritmo attuale (${fmt(avgMonthlyRev)}/mese)</div>
+    </div>
+    <div class="g card" style="padding:16px 18px;grid-column:span 2">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Backtest — ultimi 12 mesi con confronto anno su anno</div>
+      ${yoyRecent.length?`
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+        <div style="font-size:22px;font-weight:800;color:var(--t)">${hits}/${yoyRecent.length}</div>
+        <div style="font-size:12px;color:var(--m)">mesi avrebbero centrato un +${growthPct}% vs stesso mese anno prima (${successRate}%)</div>
+      </div>
+      <div style="height:6px;border-radius:4px;background:var(--gl);overflow:hidden"><div style="height:100%;width:${successRate}%;background:linear-gradient(90deg,#ec7ba0,#8d0439)"></div></div>
+      `:`<div style="font-size:12px;color:var(--d)">Serve almeno un anno di storico per confrontare anno su anno.</div>`}
+    </div>
+  </div>
+
+  <div style="margin-bottom:18px">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);font-weight:700;margin-bottom:4px">4 · Cosa manca per arrivarci</div>
+    <div style="font-size:13px;color:var(--m)">La strada da qui a fine ${CY} per centrare l'obiettivo.</div>
+  </div>
+  <div class="g card fi" style="border-top:1.5px solid rgba(236,123,160,.22)">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+      <div style="font-size:30px;font-weight:800;color:${onTrack?'var(--em)':'var(--ac)'}">${onTrack?'✅ In linea':fmt(Math.abs(gapVsPace))}</div>
+      <div style="font-size:13px;color:var(--m)">${onTrack?`Sei avanti (o in linea) rispetto al ritmo necessario per l'obiettivo di ${CY}.`:`di fatturato mancante rispetto al ritmo necessario per l'obiettivo di ${CY} (fatto finora: ${fmt(ytdActual)} su un atteso di ${fmt(ytdTargetShare)})`}</div>
+    </div>
+    ${monthsRemaining>0?`
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;border-top:0.5px solid var(--b);padding-top:14px" class="bud-gap-grid">
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--d);margin-bottom:6px">Ritmo necessario</div>
+        <div style="font-size:17px;font-weight:700;color:var(--t)">${fmt(requiredMonthlyAvgRemaining)}/mese</div>
+        <div style="font-size:11px;color:var(--m);margin-top:2px">nei prossimi ${monthsRemaining} mesi</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--d);margin-bottom:6px">Rispetto al ritmo attuale</div>
+        <div style="font-size:17px;font-weight:700;color:${deltaVsCurrentPace<=0?'var(--em)':'var(--ro)'}">${deltaVsCurrentPace<=0?'✓ già sufficiente':'+'+fmt(deltaVsCurrentPace)+'/mese'}</div>
+        <div style="font-size:11px;color:var(--m);margin-top:2px">oggi fai in media ${fmt(avgMonthlyRev)}/mese</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--d);margin-bottom:6px">Tradotto in pezzi</div>
+        <div style="font-size:17px;font-weight:700;color:var(--t)">${deltaVsCurrentPace>0&&avgPricePz>0?'+'+Math.ceil(extraPzMonthly)+' pz/mese':'—'}</div>
+        <div style="font-size:11px;color:var(--m);margin-top:2px">al prezzo medio di ${fmt(avgPricePz)}</div>
+      </div>
+    </div>`:`<div style="font-size:12px;color:var(--d)">Anno concluso — confronta il risultato con l'obiettivo impostato.</div>`}
+  </div>
+</div>`;
+}
+
 // ═══ CHARTS INIT ════════════════════════════════════════════════════════════
 function initCharts(){
   if(!window.Chart)return;
+
+  // BUDGET — andamento mensile fatturato reale (ultimi 24 mesi)
+  if(ST.page==="budget"&&document.getElementById('ch_budget_trend')){
+    const rows=sedeRows(LIVE_VEND?.rows||[]);
+    const agg=budgetMonthlyAgg(rows);
+    const keys=Object.keys(agg).sort().slice(-24);
+    if(keys.length){
+      const bL=document.documentElement.classList.contains('light');
+      const bGrid=bL?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
+      const bTick=bL?"rgba(15,23,42,.5)":"rgba(240,244,255,.3)";
+      const bTtBg=bL?"rgba(255,255,255,.97)":"rgba(8,13,26,.95)";
+      const bTtBd=bL?"rgba(15,23,42,.14)":"rgba(255,255,255,.1)";
+      const bOpts={
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          datalabels:{display:false},
+          tooltip:{backgroundColor:bTtBg,borderColor:bTtBd,borderWidth:1,padding:11,titleColor:bL?"rgba(15,23,42,.92)":"rgba(240,244,255,.9)",bodyColor:bL?"rgba(15,23,42,.65)":"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>fmt(ctx.parsed.y)}}
+        },
+        scales:{
+          x:{grid:{color:bGrid},ticks:{color:bTick,font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
+          y:{grid:{color:bGrid},ticks:{color:bTick,font:{family:"'DM Mono',monospace",size:10},callback:v=>fmtShort(v)},border:{display:false}}
+        }
+      };
+      mkChart("ch_budget_trend","bar",keys.map(budgetMonthLabel),[
+        {label:"Fatturato",data:keys.map(k=>Math.round(agg[k].val)),backgroundColor:"rgba(236,123,160,.28)",borderColor:"#ec7ba0",borderWidth:1.5,borderRadius:4}
+      ],bOpts);
+    }
+  }
 
   // OVERVIEW — trend vendite (reale se hasDate, altrimenti proxy acquisti)
   if(ST.page==="overview"&&window.__ov&&(window.__ov.hasAcq||window.__ov.hasVendDate)){
