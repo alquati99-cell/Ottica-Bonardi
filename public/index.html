@@ -3169,20 +3169,21 @@ function budgetMonthlyAgg(rows){
 }
 function budgetMonthLabel(k){const[y,m]=k.split('-');return MESI[parseInt(m)-1]+"'"+y.slice(2);}
 
-function rBudget(){
+// Aggregazione condivisa tra rBudget() e il grafico break-even in initCharts():
+// un'unica fonte per "ultimi 12 mesi" evita che le due viste divergano (è già
+// successo con le date di acquisto giorno/mese invertite — vedi commento sopra).
+function budgetCore(){
   const hasVendDate=!!LIVE_VEND&&LIVE_VEND.hasDate;
   const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
-  if(!hasVendDate){
-    return `<div class="g card fi" style="padding:40px;text-align:center;color:var(--d)">
-      <div style="font-size:32px;margin-bottom:10px">🎯</div>
-      <div style="font-size:14px;color:var(--m)">Servono le vendite con data per costruire il budget.</div>
-      <div style="font-size:12px;margin-top:6px">Carica i file Excel dalla sezione <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div>
-    </div>`;
-  }
+  if(!hasVendDate)return null;
 
   const vendAgg=budgetMonthlyAgg(sedeRows(LIVE_VEND.rows));
   const acqAgg=hasAcq?budgetMonthlyAgg(sedeRows(LIVE_ACQ.rows)):{};
-  const allKeys=[...new Set([...Object.keys(vendAgg),...Object.keys(acqAgg)])].sort();
+  // Gli acquisti possono includere ordini con consegna futura già datati nei
+  // mesi a venire: li escludiamo dalla serie storica, altrimenti il mese
+  // corrente in poi apparirebbe con fatturato a zero (nessuna vendita futura).
+  const curKey=`${CY}-${String(CM+1).padStart(2,'0')}`;
+  const allKeys=[...new Set([...Object.keys(vendAgg),...Object.keys(acqAgg)])].filter(k=>k<=curKey).sort();
   const monthly=allKeys.map(k=>{
     const revenue=vendAgg[k]?.val||0, pz=vendAgg[k]?.pz||0, cogs=acqAgg[k]?.val||0;
     const margin=revenue-cogs;
@@ -3198,10 +3199,25 @@ function rBudget(){
   const avgMonthlyRev=last12.length?totRev12/last12.length:0;
   const avgPricePz=totPz12>0?totRev12/totPz12:0;
 
-  // ── 1) COSTI FISSI (input persistito) ──────────────────────────────────
   const B=ST.budget;
   const fixedMonthly=(B.affitto||0)+(B.personale||0)+(B.utenze||0)+(B.altri||0);
   const breakEvenRevenue=avgMarginPct>0?fixedMonthly/avgMarginPct:null;
+
+  return{hasVendDate,hasAcq,monthly,last12,totRev12,totPz12,totCogs12,totMargin12,avgMarginPct,avgMonthlyRev,avgPricePz,B,fixedMonthly,breakEvenRevenue};
+}
+
+function rBudget(){
+  const core=budgetCore();
+  if(!core){
+    return `<div class="g card fi" style="padding:40px;text-align:center;color:var(--d)">
+      <div style="font-size:32px;margin-bottom:10px">🎯</div>
+      <div style="font-size:14px;color:var(--m)">Servono le vendite con data per costruire il budget.</div>
+      <div style="font-size:12px;margin-top:6px">Carica i file Excel dalla sezione <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div>
+    </div>`;
+  }
+  const{hasAcq,monthly,last12,totRev12,totPz12,totCogs12,totMargin12,avgMarginPct,avgMonthlyRev,avgPricePz,B,fixedMonthly,breakEvenRevenue}=core;
+  const safetyMarginPct=(breakEvenRevenue!=null&&avgMonthlyRev>0)?(avgMonthlyRev-breakEvenRevenue)/avgMonthlyRev:null;
+  const monthsBelowBE=breakEvenRevenue!=null?last12.filter(m=>m.revenue<breakEvenRevenue).length:null;
 
   // ── 2) OBIETTIVO ─────────────────────────────────────────────────────
   const growthPct=B.growthPct||0;
@@ -3316,30 +3332,40 @@ function rBudget(){
   </div>
 
   <div style="margin-bottom:18px">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);font-weight:700;margin-bottom:4px">3 · Simulazione</div>
-    <div style="font-size:13px;color:var(--m)">Cosa dicono i tuoi dati su questo obiettivo — punto di pareggio e backtest storico.</div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);font-weight:700;margin-bottom:4px">3 · Analisi di break-even</div>
+    <div style="font-size:13px;color:var(--m)">Soglia di pareggio, margine di sicurezza e verifica storica dell'obiettivo di crescita sui dati mensili.</div>
   </div>
-  <div class="k4" style="margin-bottom:22px">
+  <div class="k4" style="margin-bottom:14px">
     <div class="g card" style="padding:16px 18px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Punto di pareggio mensile</div>
-      <div style="font-size:22px;font-weight:800;color:var(--t)">${breakEvenRevenue!=null?fmt(breakEvenRevenue):'—'}</div>
-      <div style="font-size:11.5px;color:var(--m);margin-top:4px">fatturato minimo per coprire i costi fissi</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Punto di pareggio (break-even)</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t);font-family:'DM Mono',monospace">${breakEvenRevenue!=null?fmt(breakEvenRevenue):'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">fatturato mensile minimo a copertura dei costi fissi</div>
     </div>
     <div class="g card" style="padding:16px 18px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Margine sopra il pareggio</div>
-      <div style="font-size:22px;font-weight:800;color:${avgMonthlyRev-breakEvenRevenue>=0?'var(--em)':'var(--ro)'}">${breakEvenRevenue!=null?fmt(avgMonthlyRev-breakEvenRevenue):'—'}</div>
-      <div style="font-size:11.5px;color:var(--m);margin-top:4px">al ritmo attuale (${fmt(avgMonthlyRev)}/mese)</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Margine di sicurezza</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t);font-family:'DM Mono',monospace">${safetyMarginPct!=null?(safetyMarginPct*100).toFixed(1).replace('.',',')+'%':'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">${breakEvenRevenue!=null?fmt(avgMonthlyRev-breakEvenRevenue)+' oltre il pareggio, al ritmo attuale':'—'}</div>
     </div>
-    <div class="g card" style="padding:16px 18px;grid-column:span 2">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Backtest — ultimi 12 mesi con confronto anno su anno</div>
-      ${yoyRecent.length?`
-      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
-        <div style="font-size:22px;font-weight:800;color:var(--t)">${hits}/${yoyRecent.length}</div>
-        <div style="font-size:12px;color:var(--m)">mesi avrebbero centrato un +${growthPct}% vs stesso mese anno prima (${successRate}%)</div>
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Mesi sotto la soglia</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t);font-family:'DM Mono',monospace">${monthsBelowBE!=null?monthsBelowBE+'/'+last12.length:'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">mesi con fatturato inferiore al break-even, ultimi 12</div>
+    </div>
+    <div class="g card" style="padding:16px 18px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Verifica storica obiettivo</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t);font-family:'DM Mono',monospace">${yoyRecent.length?hits+'/'+yoyRecent.length:'—'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">${yoyRecent.length?`mesi con crescita ≥ ${growthPct}% a/a (${successRate}%)`:'storico insufficiente per il confronto a/a'}</div>
+    </div>
+  </div>
+  <div class="g card" style="margin-bottom:22px">
+    <div class="ch">
+      <div class="ct"><span class="dot dem"></span>Fatturato mensile vs punto di pareggio</div>
+      <div style="display:flex;align-items:center;gap:14px;font-size:11px;color:var(--m)">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:2px;background:var(--t);display:inline-block"></span>Fatturato</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:0;border-top:1.5px dashed var(--d);display:inline-block"></span>Break-even</span>
       </div>
-      <div style="height:6px;border-radius:4px;background:var(--gl);overflow:hidden"><div style="height:100%;width:${successRate}%;background:linear-gradient(90deg,#ec7ba0,#8d0439)"></div></div>
-      `:`<div style="font-size:12px;color:var(--d)">Serve almeno un anno di storico per confrontare anno su anno.</div>`}
     </div>
+    <div class="cw cw-lg"><canvas id="ch_budget_breakeven"></canvas></div>
   </div>
 
   <div style="margin-bottom:18px">
@@ -3403,6 +3429,41 @@ function initCharts(){
       mkChart("ch_budget_trend","bar",keys.map(budgetMonthLabel),[
         {label:"Fatturato",data:keys.map(k=>Math.round(agg[k].val)),backgroundColor:"rgba(236,123,160,.28)",borderColor:"#ec7ba0",borderWidth:1.5,borderRadius:4}
       ],bOpts);
+    }
+  }
+
+  // BUDGET — fatturato mensile vs punto di pareggio (grafico break-even)
+  if(ST.page==="budget"&&document.getElementById('ch_budget_breakeven')){
+    const core=budgetCore();
+    if(core&&core.breakEvenRevenue!=null){
+      const keys=core.monthly.map(m=>m.key).slice(-24);
+      const byKey=Object.fromEntries(core.monthly.map(m=>[m.key,m]));
+      const beL=document.documentElement.classList.contains('light');
+      const beGrid=beL?"rgba(15,23,42,.07)":"rgba(255,255,255,.04)";
+      const beTick=beL?"rgba(15,23,42,.5)":"rgba(240,244,255,.3)";
+      const beTtBg=beL?"rgba(255,255,255,.97)":"rgba(8,13,26,.95)";
+      const beTtBd=beL?"rgba(15,23,42,.14)":"rgba(255,255,255,.1)";
+      const beInk=beL?"#2a0a16":"#f7eef1";
+      const beDash=beL?"rgba(80,22,42,.4)":"rgba(236,214,222,.3)";
+      const beGood=beL?"#15803d":"#4ade80";
+      const beBad=beL?"#b91c1c":"#f87171";
+      const beOpts={
+        responsive:true,maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{display:false},
+          datalabels:{display:false},
+          tooltip:{backgroundColor:beTtBg,borderColor:beTtBd,borderWidth:1,padding:11,titleColor:beL?"rgba(15,23,42,.92)":"rgba(240,244,255,.9)",bodyColor:beL?"rgba(15,23,42,.65)":"rgba(240,244,255,.65)",titleFont:{family:"'Sora',sans-serif",size:12,weight:"600"},bodyFont:{family:"'DM Mono',monospace",size:12},callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`}}
+        },
+        scales:{
+          x:{grid:{color:beGrid},ticks:{color:beTick,font:{family:"'DM Mono',monospace",size:10},maxRotation:45},border:{display:false}},
+          y:{grid:{color:beGrid},ticks:{color:beTick,font:{family:"'DM Mono',monospace",size:10},callback:v=>fmtShort(v)},border:{display:false}}
+        }
+      };
+      mkChart("ch_budget_breakeven","line",keys.map(budgetMonthLabel),[
+        {label:"Fatturato",data:keys.map(k=>Math.round(byKey[k]?.revenue||0)),borderColor:beInk,borderWidth:2,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:beInk,tension:0.25,fill:{target:1,above:beGood+'20',below:beBad+'20'}},
+        {label:"Punto di pareggio",data:keys.map(()=>Math.round(core.breakEvenRevenue)),borderColor:beDash,borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false}
+      ],beOpts);
     }
   }
 
