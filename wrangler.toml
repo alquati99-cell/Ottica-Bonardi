@@ -1,4 +1,4 @@
-name = "122"
+name = "dashboard"
 compatibility_date = "2025-05-01"
 main = "src/worker.js"
 
