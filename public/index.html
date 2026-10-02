@@ -502,7 +502,7 @@ details.more>summary:hover{color:var(--t);border-color:var(--bb)}
 tr.det td{animation:detIn .35s ease both}
 @keyframes detIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .cmodal{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(5,2,4,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:fadeInBg .22s ease both}
-.cmodal>.g{animation:modalPop .38s cubic-bezier(.34,1.4,.64,1) both}
+.cmodal>.g{background:var(--bg2)!important;animation:modalPop .38s cubic-bezier(.34,1.4,.64,1) both}
 .cmodal.out{animation:fadeOutBg .2s ease both}
 .cmodal-x{position:absolute;top:16px;right:20px;width:36px;height:36px;border-radius:50%;border:0.5px solid var(--bb);background:var(--bg2);color:var(--t);font-size:15px;cursor:pointer;z-index:2}
 @keyframes fadeInBg{from{opacity:0}to{opacity:1}}
@@ -565,6 +565,31 @@ html.light .nb.active .nb-ic{filter:drop-shadow(0 0 5px rgba(141,4,57,.35))}
 .sb-vista{margin:0 10px 10px;border:0.5px solid var(--b);border-radius:18px;background:var(--gl);padding:12px}
 .sb.collapsed .sb-vista{opacity:0;transform:translateY(10px);pointer-events:none}
 .sb-toggle{border-radius:10px;background:rgba(255,255,255,.07)}
+
+/* Strumenti widget: più visibili + variante fluttuante per KPI/pannelli */
+.ctools{opacity:.7}
+.g:hover>.ch .ctools,.g:hover>.ctools{opacity:1}
+.ctools.fl{position:absolute;top:8px;right:8px;z-index:3;margin:0;padding:2px;border-radius:10px;background:var(--bg2);border:0.5px solid var(--b);opacity:0}
+.g:hover>.ctools.fl{opacity:1}
+.ibtn{width:28px;height:28px;font-size:14px}
+.g.cc>*:not(.ch):not(.ctools){display:none!important}
+.g.cc>.ch{margin-bottom:0}
+.cmodal-bar{position:absolute;top:16px;right:20px;display:flex;gap:8px;z-index:3}
+.cmodal-bar .ibtn{width:38px;height:38px;border-radius:50%;background:var(--bg2);color:var(--t);font-size:16px}
+.pal{position:fixed;inset:0;z-index:300;display:flex;align-items:flex-start;justify-content:center;padding-top:14vh;background:rgba(5,2,4,.55);backdrop-filter:blur(8px);animation:fadeInBg .18s ease both}
+.pal-box{width:min(620px,92vw);background:var(--bg2);border:0.5px solid var(--bb);border-radius:18px;box-shadow:0 30px 90px rgba(0,0,0,.55);overflow:hidden;animation:modalPop .3s cubic-bezier(.34,1.4,.64,1) both}
+#pal-in{width:100%;border:0;border-bottom:0.5px solid var(--b);background:none;color:var(--t);font:500 16px 'Sora',sans-serif;padding:18px 20px;outline:none}
+.pal-it{display:flex;justify-content:space-between;gap:12px;padding:11px 20px;font-size:13.5px;cursor:pointer;color:var(--t)}
+.pal-it em{font-style:normal;font-size:11px;color:var(--d)}
+.pal-it.sel,.pal-it:hover{background:var(--acl);color:var(--ac)}
+.pal-foot{padding:9px 20px;font-size:10.5px;color:var(--d);border-top:0.5px solid var(--b)}
+.sb-search{display:flex;align-items:center;gap:10px;width:100%;margin:2px 0 4px;padding:10px 12px;border-radius:14px;border:0.5px solid var(--b);background:var(--gl);color:var(--m);font:500 13px 'Sora',sans-serif;cursor:pointer;transition:all .2s}
+.sb-search:hover{color:var(--t);border-color:var(--bb)}
+.sb-search svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.sb-search .nb-label{flex:1;text-align:left}
+.sb-search kbd{font:600 10px 'DM Mono',monospace;border:0.5px solid var(--bb);border-radius:6px;padding:2px 6px;color:var(--d)}
+.sb.collapsed .sb-search{justify-content:center;padding:10px 0;gap:0}
+.sb.collapsed .sb-search kbd{display:none}
 /* Spaziatura uniforme tra i blocchi (prima molte righe di card erano incollate) */
 #root .kg,#root .g2,#root .g3,#root .g13,#root .op-ins-grid{gap:16px}
 #root .kg,#root .g2,#root .g3,#root .g13{margin-bottom:16px!important}
@@ -600,6 +625,7 @@ html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transpa
     </button>
   </div>
   <div class="sb-nav">
+    <button class="sb-search" onclick="openPalette()" title="Cerca (Cmd/Ctrl+K)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="nb-label">Cerca…</span><kbd>⌘K</kbd></button>
     <div class="nb-sec"><span>Analisi</span></div>
     <button class="nb active" onclick="nav('overview')" id="nb-overview" data-tip="Overview"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg></span><span class="nb-label">Overview</span></button>
     <button class="nb" onclick="nav('vendite')" id="nb-vendite" data-tip="Vendite"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg></span><span class="nb-label">Vendite</span></button>
@@ -2202,39 +2228,72 @@ function renderPage(){
 
 
 // ═══ FUNZIONI SULLE CARD: espandi a tutto schermo, scarica CSV ════════════
+function cardTitle(card){return (card.querySelector('.ct,.kl')?.innerText||'widget').trim().replace(/[^\w\-àèéìòù ]+/gi,'').replace(/\s+/g,'_').slice(0,40)||'widget';}
 function decorateCards(){
-  document.querySelectorAll('#root .g.card').forEach(c=>{
-    if(c.dataset.deco)return;
-    const ch=c.querySelector(':scope>.ch');if(!ch)return;
+  document.querySelectorAll('#root .g').forEach(c=>{
+    if(c.dataset.deco||c.closest('#cardModal'))return;
+    if(c.querySelector('.g'))return;                       // contenitori di altri widget
+    const r=c.getBoundingClientRect();if(r.width<150||r.height<70)return;
     c.dataset.deco='1';
-    const t=document.createElement('div');t.className='ctools';
-    t.innerHTML=`<button class="ibtn" title="Espandi" aria-label="Espandi" onclick="expandCard(this)">⤢</button>`+(c.querySelector('table')?`<button class="ibtn" title="Scarica CSV" aria-label="Scarica CSV" onclick="cardCsv(this)">⭳</button>`:'');
-    ch.appendChild(t);
+    const ch=c.querySelector(':scope>.ch');
+    const hasCanvas=!!c.querySelector('canvas'),hasTable=!!c.querySelector('table');
+    const t=document.createElement('div');t.className='ctools'+(ch?'':' fl');
+    t.innerHTML=`<button class="ibtn" title="Ingrandisci (o doppio clic sulla card)" aria-label="Ingrandisci" onclick="expandCard(this)">⤢</button>`
+      +(hasCanvas?`<button class="ibtn" title="Scarica il grafico come immagine" aria-label="Scarica immagine" onclick="cardPng(this)">🖼</button>`:'')
+      +(hasTable?`<button class="ibtn" title="Scarica la tabella in CSV" aria-label="Scarica CSV" onclick="cardCsv(this)">⭳</button>`:'')
+      +(ch?`<button class="ibtn" title="Riduci / apri la card" aria-label="Riduci" onclick="cardFold(this)">▾</button>`:'');
+    (ch||c).appendChild(t);
+    c.addEventListener('dblclick',e=>{if(e.target.closest('button,input,select,a,th,td,.tp,.sp,.qbtn'))return;const b=c.querySelector('.ctools .ibtn');if(b)expandCard(b);});
   });
 }
-function closeCardModal(){const m=document.getElementById('cardModal');if(m){m.classList.add('out');setTimeout(()=>m.remove(),220);}}
+function cardFold(btn){
+  const c=btn.closest('.g');c.classList.toggle('cc');
+  btn.textContent=c.classList.contains('cc')?'▸':'▾';
+}
+function cardPng(btn){
+  const c=btn.closest('.g');const cv=c.querySelector('canvas');if(!cv)return;
+  let url='';try{url=Chart.getChart(cv)?.toBase64Image('image/png',1);}catch(e){}
+  if(!url)url=cv.toDataURL('image/png');
+  const a=document.createElement('a');a.href=url;a.download=cardTitle(c)+'.png';document.body.appendChild(a);a.click();a.remove();
+}
+function closeCardModal(){
+  if(document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});
+  const m=document.getElementById('cardModal');if(m){m.classList.add('out');setTimeout(()=>m.remove(),220);}
+}
 function expandCard(btn){
-  const card=btn.closest('.g.card');if(!card)return;
+  const card=btn.closest('.g');if(!card)return;
   closeCardModal();
   const clone=card.cloneNode(true);
   clone.querySelectorAll('.ctools').forEach(x=>x.remove());
+  clone.classList.remove('cc');
   const srcC=[...card.querySelectorAll('canvas')],dstC=[...clone.querySelectorAll('canvas')];
+  const live=[];
   dstC.forEach((cv,i)=>{
-    let url='';try{url=Chart.getChart(srcC[i])?.toBase64Image('image/png',1)||'';}catch(e){}
-    const img=document.createElement('img');img.src=url;img.style.cssText='width:100%;height:auto;max-height:70vh;object-fit:contain';
-    if(url)cv.replaceWith(img);else cv.remove();
+    const ch=Chart.getChart(srcC[i]);
+    if(ch&&ch.config&&ch.config._config){live.push({cv,cfg:ch.config._config});cv.removeAttribute('id');cv.parentElement.style.cssText='position:relative;height:66vh';return;}
+    cv.remove();
   });
   clone.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
-  clone.querySelectorAll('.cw').forEach(x=>{x.style.height='auto';});
-  clone.style.cssText='margin:0;max-height:86vh;overflow:auto;width:min(1100px,94vw)';
+  clone.querySelectorAll('.cw').forEach(x=>{if(!x.querySelector('canvas'))x.style.height='auto';});
+  clone.style.cssText='margin:0;max-height:88vh;overflow:auto;width:min(1180px,94vw);transform:none';
+  clone.querySelectorAll('.kv,.hero-fig').forEach(x=>{x.style.fontSize='clamp(40px,7vw,84px)';});
   const m=document.createElement('div');m.id='cardModal';m.className='cmodal';
-  m.innerHTML='<button class="cmodal-x" aria-label="Chiudi">✕</button>';
-  m.appendChild(clone);
-  m.addEventListener('click',e=>{if(e.target===m||e.target.classList.contains('cmodal-x'))closeCardModal();});
+  const bar=document.createElement('div');bar.className='cmodal-bar';
+  const hasTable=!!card.querySelector('table'),hasCanvas=srcC.length>0;
+  bar.innerHTML=(hasCanvas?'<button class="ibtn" data-a="png" title="Scarica immagine">🖼</button>':'')+(hasTable?'<button class="ibtn" data-a="csv" title="Scarica CSV">⭳</button>':'')+'<button class="ibtn" data-a="fs" title="Schermo intero">⛶</button><button class="ibtn" data-a="x" title="Chiudi (Esc)">✕</button>';
+  m.appendChild(bar);m.appendChild(clone);
+  m.addEventListener('click',e=>{
+    const a=e.target.closest('[data-a]')?.dataset.a;
+    if(e.target===m||a==='x')closeCardModal();
+    else if(a==='png'){const mc=m.querySelector('canvas');if(mc){const u=Chart.getChart(mc)?.toBase64Image('image/png',1);if(u){const l=document.createElement('a');l.href=u;l.download=cardTitle(card)+'.png';document.body.appendChild(l);l.click();l.remove();return;}}cardPng(btn);}
+    else if(a==='csv')cardCsv(btn);
+    else if(a==='fs'){if(document.fullscreenElement)document.exitFullscreen();else m.requestFullscreen?.().catch(()=>{});}
+  });
   document.body.appendChild(m);
+  live.forEach(({cv,cfg})=>{try{new Chart(cv,{type:cfg.type,data:{labels:cfg.data.labels,datasets:cfg.data.datasets.map(d=>({...d,data:[...d.data]}))},options:cfg.options});}catch(e){cv.remove();}});
 }
 function cardCsv(btn){
-  const card=btn.closest('.g.card');const tb=card&&card.querySelector('table');if(!tb)return;
+  const card=btn.closest('.g');const tb=card&&card.querySelector('table');if(!tb)return;
   const esc=v=>`"${String(v).replace(/\s+/g,' ').trim().replace(/"/g,'""')}"`;
   const lines=[...tb.querySelectorAll('tr')].filter(r=>r.style.display!=='none'&&!r.classList.contains('det')).map(r=>[...r.children].map(c=>esc(c.innerText)).join(';'));
   const title=(card.querySelector('.ct')?.innerText||'tabella').trim().replace(/[^\w\-àèéìòù ]+/gi,'').replace(/\s+/g,'_').slice(0,40)||'tabella';
@@ -2242,6 +2301,46 @@ function cardCsv(btn){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=title+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCardModal();});
+
+
+// ═══ RICERCA RAPIDA (Cmd/Ctrl+K): pagine, azioni, marchi ══════════════════
+function paletteItems(){
+  const items=[];
+  [['overview','Overview'],['vendite','Vendite'],['magazzino','Magazzino'],['clienti','Clienti'],['lenti','Lenti'],['acquisti','Prepara acquisti'],['budget','Budget'],['dati','Carica dati'],['ai','AI Advisor']]
+    .forEach(([k,l])=>items.push({t:'Vai a '+l,h:'pagina',run:()=>nav(k)}));
+  items.push({t:'Cambia tema chiaro / scuro',h:'azione',run:()=>toggleTheme()});
+  items.push({t:'Blocca / sblocca il menu laterale',h:'azione',run:()=>toggleSidebar()});
+  items.push({t:'Esporta PDF campagna acquisti',h:'azione',run:()=>{nav('acquisti');setTimeout(exportAcqPdf,600);}});
+  try{const c=stockSalesCore('l12');if(c)c.brands.filter(b=>b.soldPz>0||b.stockPz>0).forEach(b=>items.push({t:b.label,h:'marchio · '+b.group,run:()=>{ST.acqGroup=b.group;ST.acqOpen={[b.key]:true};nav('acquisti');}}));}catch(e){}
+  return items;
+}
+let PAL_SEL=0,PAL_LIST=[];
+function openPalette(){
+  if(document.getElementById('palette'))return closePalette();
+  const m=document.createElement('div');m.id='palette';m.className='pal';
+  m.innerHTML='<div class="pal-box"><input id="pal-in" placeholder="Cerca una pagina, un marchio, un\'azione…" autocomplete="off"><div id="pal-list"></div><div class="pal-foot">↑↓ per scegliere · Invio per aprire · Esc per chiudere</div></div>';
+  m.addEventListener('click',e=>{if(e.target===m)closePalette();});
+  document.body.appendChild(m);
+  const all=paletteItems(),inp=document.getElementById('pal-in');
+  const draw=()=>{
+    const q=aiNorm(inp.value.trim());
+    PAL_LIST=all.filter(i=>!q||aiNorm(i.t).includes(q)).slice(0,9);PAL_SEL=Math.min(PAL_SEL,Math.max(0,PAL_LIST.length-1));
+    document.getElementById('pal-list').innerHTML=PAL_LIST.map((i,n)=>`<div class="pal-it${n===PAL_SEL?' sel':''}" data-n="${n}"><span>${i.t}</span><em>${i.h}</em></div>`).join('')||'<div class="pal-it" style="color:var(--d)">Nessun risultato</div>';
+  };
+  inp.addEventListener('input',()=>{PAL_SEL=0;draw();});
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){PAL_SEL=Math.min(PAL_LIST.length-1,PAL_SEL+1);draw();e.preventDefault();}
+    else if(e.key==='ArrowUp'){PAL_SEL=Math.max(0,PAL_SEL-1);draw();e.preventDefault();}
+    else if(e.key==='Enter'){const it=PAL_LIST[PAL_SEL];closePalette();if(it)it.run();}
+  });
+  document.getElementById('pal-list').addEventListener('click',e=>{const n=e.target.closest('.pal-it')?.dataset.n;if(n!=null){const it=PAL_LIST[+n];closePalette();if(it)it.run();}});
+  PAL_SEL=0;draw();inp.focus();
+}
+function closePalette(){document.getElementById('palette')?.remove();}
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();}
+  else if(e.key==='Escape')closePalette();
+});
 
 // ═══ SIDEBAR: indicatore che scivola sulla voce scelta ════════════════════
 function moveNavIndicator(pop){
