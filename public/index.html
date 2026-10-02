@@ -485,6 +485,11 @@ html:not(.light) .g:has(>.ov-headline){background:linear-gradient(rgba(14,7,11,.
 @keyframes fadeIn{to{opacity:1}}
 @media(max-width:700px){.hero{grid-template-columns:1fr}.hero-fig{font-size:44px}.blob{filter:blur(60px);opacity:.4}.page-title{font-size:21px}}
 
+details.more>summary{cursor:pointer;list-style:none;font-size:13px;font-weight:600;color:var(--m);padding:12px 16px;border:0.5px solid var(--b);border-radius:12px;background:var(--gl);transition:color .2s,border-color .2s}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:'▸ ';color:var(--ac)}
+details.more[open]>summary::before{content:'▾ '}
+details.more>summary:hover{color:var(--t);border-color:var(--bb)}
 /* Sidebar: voce attiva con alone, hover più vivo */
 .nb.active{background:linear-gradient(90deg,rgba(236,123,160,.14),transparent)}
 html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transparent)}
@@ -516,6 +521,7 @@ html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transpa
     <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span><span class="nb-label">Clienti</span></button>
     <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span><span class="nb-label">Carica dati</span></button>
     <button class="nb" onclick="nav('lenti')" id="nb-lenti"><span class="nb-ic">🔬</span><span class="nb-label">Lenti</span></button>
+    <button class="nb" onclick="nav('acquisti')" id="nb-acquisti"><span class="nb-ic">🛒</span><span class="nb-label">Prepara acquisti</span></button>
     <button class="nb" onclick="nav('budget')" id="nb-budget"><span class="nb-ic">🎯</span><span class="nb-label">Budget</span></button>
     <button class="nb" onclick="nav('ai')" id="nb-ai"><span class="nb-ic">✦</span><span class="nb-label">AI Advisor</span></button>
   </div>
@@ -545,6 +551,7 @@ html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transpa
   <div class="msheet-handle"></div>
   <button class="mnb-full" onclick="mnav('dati')"><span class="nb-ic">⬆</span>Carica dati</button>
   <button class="mnb-full" onclick="mnav('lenti')"><span class="nb-ic">🔬</span>Lenti</button>
+  <button class="mnb-full" onclick="mnav('acquisti')"><span class="nb-ic">🛒</span>Prepara acquisti</button>
   <button class="mnb-full" onclick="mnav('budget')"><span class="nb-ic">🎯</span>Budget</button>
   <button class="mnb-full" onclick="mnav('ai')"><span class="nb-ic">✦</span>AI Advisor</button>
   <div class="msheet-label">Vista dati</div>
@@ -639,6 +646,169 @@ function applyTheme(t,rerender){
   if(rerender){buildChartOpts();renderPage();}
 }
 window.toggleTheme=()=>applyTheme(document.documentElement.classList.contains('light')?'dark':'light',true);
+
+
+// ═══ PREPARA ACQUISTI ═══════════════════════════════════════════════════════
+// Incrocia vendite (cosa gira) e magazzino (cosa hai) per marchio, raggruppati
+// per gruppo fornitore (Kering, Thélios, Luxottica…). Il gruppo di un marchio
+// si ricava dal fornitore con cui è in magazzino.
+const SUPPLIER_STOP=new Set(['spa','srl','s','p','a','r','l','italia','italy','holding','sa','ag','international','group','di','the','assistenza']);
+function supplierGroup(raw){
+  const s=String(raw||'').trim();
+  if(!s||/^\d+$/.test(s))return'Altro';
+  const w=s.replace(/[.,\-–]/g,' ').split(/\s+/).filter(Boolean);
+  const first=w.find(x=>!SUPPLIER_STOP.has(x.toLowerCase()))||w[0];
+  return first.charAt(0).toUpperCase()+first.slice(1).toLowerCase();
+}
+// Chiave marchio: toglie solo le varianti linea (Vista/Sole) per non spezzare Ray-Ban in due
+function acqBrandKey(mar){return aiNorm(mar||'').replace(/\s+(VISTA|SOLE|SUN)$/,'').replace(/[\s\-]/g,'');}
+function acqPeriodInfo(period,anchor){
+  const a=new Date(anchor),y=a.getFullYear();
+  let from,to=anchor,label;
+  if(period==='cy'){from=`${y}-01-01`;label=`${y} (da gennaio)`;}
+  else if(period==='py'){from=`${y-1}-01-01`;to=`${y-1}-12-31`;label=`anno ${y-1}`;}
+  else{const f=new Date(a);f.setFullYear(f.getFullYear()-1);f.setDate(f.getDate()+1);from=toISO(f);label='ultimi 12 mesi';}
+  const months=Math.max(1,(new Date(to)-new Date(from))/86400000/30.44);
+  return{from,to,months,label};
+}
+function stockSalesCore(period){
+  if(!LIVE_VEND||!LIVE_VEND.hasDate)return null;
+  const todayIso=toISO(new Date());
+  const frames=sedeRows(LIVE_VEND.rows).filter(r=>(r.tp==='Montature vista'||r.tp==='Occhiali sole')&&r.dt&&r.mar);
+  if(!frames.length)return null;
+  let anchor='';frames.forEach(r=>{if(r.dt>anchor&&r.dt<=todayIso)anchor=r.dt;});
+  if(!anchor)return null;
+  const per=acqPeriodInfo(period||'l12',anchor);
+  const sm=ST.sedeMode;
+  let magRows=curMAG().rows.map(enrichMagRow);
+  if(sm==='A'||sm==='B'||sm==='C')magRows=magRows.filter(r=>r.f===sm);
+  const B={};
+  const get=(k,raw)=>{const b=B[k]||(B[k]={key:k,labels:{},grp:{},soldPz:0,soldVal:0,soldAcq:0,soldAcqPz:0,vistaPz:0,solePz:0,stockPz:0,stockVal:0,stockVista:0,stockSole:0,staleVal:0});if(raw)b.labels[raw]=(b.labels[raw]||0)+1;return b;};
+  magRows.forEach(r=>{
+    const k=acqBrandKey(r.m);if(!k)return;
+    const b=get(k,String(r.m).trim());
+    const g=supplierGroup(r.forn);b.grp[g]=(b.grp[g]||0)+(r.v||r.q||1);
+    b.stockPz+=r.q;b.stockVal+=r.v;
+    if(r.cat==='M')b.stockVista+=r.q;else b.stockSole+=r.q;
+    if(typeof r.mesi==='number'&&r.mesi>=36)b.staleVal+=r.v;
+  });
+  frames.forEach(r=>{
+    if(r.dt<per.from||r.dt>per.to)return;
+    const k=acqBrandKey(r.mar);if(!k)return;
+    const b=get(k,String(r.mar).trim());
+    b.soldPz+=r.pz;b.soldVal+=r.val;
+    if(r.acq>0&&r.val>0){b.soldAcq+=r.acq;b.soldAcqPz+=r.val;}
+    if(r.tp==='Montature vista')b.vistaPz+=r.pz;else b.solePz+=r.pz;
+  });
+  const monthsOf=per.months;
+  const brands=Object.values(B).map(b=>{
+    b.label=aiPickLabel(b.labels);
+    const ge=Object.entries(b.grp).sort((x,y)=>y[1]-x[1])[0];
+    b.group=ge?ge[0]:'Non in magazzino';
+    b.avgPrice=b.soldPz>0?b.soldVal/b.soldPz:0;
+    b.margPct=b.soldAcqPz>0?Math.round((b.soldAcqPz-b.soldAcq)/b.soldAcqPz*100):null;
+    b.stockAvgCost=b.stockPz>0?b.stockVal/b.stockPz:0;
+    const rate=b.soldPz/monthsOf;
+    b.cover=rate>0?b.stockPz/rate:(b.stockPz>0?Infinity:0);
+    b.verdict=acqVerdict(b);
+    return b;
+  });
+  const groups={};
+  brands.forEach(b=>{
+    const g=groups[b.group]||(groups[b.group]={name:b.group,soldPz:0,soldVal:0,stockPz:0,stockVal:0,staleVal:0,vistaPz:0,solePz:0,stockVista:0,stockSole:0,n:0});
+    g.soldPz+=b.soldPz;g.soldVal+=b.soldVal;g.stockPz+=b.stockPz;g.stockVal+=b.stockVal;g.staleVal+=b.staleVal;
+    g.vistaPz+=b.vistaPz;g.solePz+=b.solePz;g.stockVista+=b.stockVista;g.stockSole+=b.stockSole;g.n++;
+  });
+  Object.values(groups).forEach(g=>{const r=g.soldPz/monthsOf;g.cover=r>0?g.stockPz/r:(g.stockPz>0?Infinity:0);});
+  return{brands,groups,per,anchor};
+}
+function acqVerdict(b){
+  if(b.soldPz<=0&&b.stockPz>0)return{st:'bad',icon:'🔴',word:'Fermo · non riordinare',k:'ferma'};
+  if(b.soldPz>0&&b.stockPz<=0)return{st:'warn',icon:'🟠',word:'Esaurito · riordina',k:'riordina'};
+  if(b.cover<3)return{st:'warn',icon:'🟠',word:'Scorta bassa · riordina',k:'riordina'};
+  if(b.cover<=12)return{st:'good',icon:'🟢',word:'In linea',k:'ok'};
+  if(b.cover<=24)return{st:'neutral',icon:'⚪',word:'Abbondante',k:'abb'};
+  return{st:'bad',icon:'🔴',word:'Eccesso · non riordinare',k:'eccesso'};
+}
+const fmtCover=c=>c===Infinity?'∞':c<1?'<1 mese':c<24?`${Math.round(c)} mesi`:`${(c/12).toFixed(1).replace('.',',')} anni`;
+
+function rAcq(){
+  const core=stockSalesCore(ST.acqPeriod);
+  if(!core)return`<div class="topbar fi"><div class="page-title">Prepara acquisti</div></div>
+<div class="g card fi" style="padding:40px;text-align:center;color:var(--d)"><div style="font-size:32px;margin-bottom:10px">🛒</div><div style="font-size:14px;color:var(--m)">Servono vendite con data e magazzino caricati.</div><div style="font-size:12px;margin-top:6px">Vai a <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div></div>`;
+  const{brands,groups,per}=core;
+  const groupList=Object.values(groups).filter(g=>g.soldPz>0||g.stockPz>0).sort((a,b)=>(b.stockVal+b.soldVal)-(a.stockVal+a.soldVal));
+  if(!ST.acqGroup||!groups[ST.acqGroup])ST.acqGroup=(groupList.find(g=>g.name!=='Non in magazzino'&&g.name!=='Altro')||groupList[0]||{}).name;
+  const G=groups[ST.acqGroup];
+  if(!G)return`<div class="topbar fi"><div class="page-title">Prepara acquisti</div></div><div class="g card fi" style="padding:30px;text-align:center;color:var(--d)">Nessun dato per costruire il piano acquisti.</div>`;
+  const gb=brands.filter(b=>b.group===G.name&&(b.soldPz>0||b.stockPz>0));
+  const sorters={sold:(a,b)=>b.soldPz-a.soldPz,least:(a,b)=>(a.soldPz-b.soldPz)||(b.stockVal-a.stockVal),stock:(a,b)=>b.stockVal-a.stockVal};
+  const rows=[...gb].sort(sorters[ST.acqSort||'sold']);
+  const maxSold=Math.max(1,...gb.map(b=>b.soldPz));
+  const reorder=gb.filter(b=>b.verdict.k==='riordina').sort((a,b)=>b.soldPz-a.soldPz).slice(0,4);
+  const noBuy=gb.filter(b=>b.verdict.k==='eccesso'||b.verdict.k==='ferma').sort((a,b)=>b.stockVal-a.stockVal).slice(0,4);
+  const top3=[...gb].sort(sorters.sold).slice(0,3).filter(b=>b.soldPz>0);
+  const gv=G.soldPz<=0&&G.stockPz>0?{st:'bad',icon:'🔴',t:'Nessuna vendita'}:G.cover<3?{st:'warn',icon:'🟠',t:'Scorte basse'}:G.cover<=12?{st:'good',icon:'🟢',t:'Stock in linea'}:G.cover<=24?{st:'neutral',icon:'⚪',t:'Stock abbondante'}:{st:'bad',icon:'🔴',t:'Stock in eccesso'};
+  const avgP=G.soldPz>0?G.soldVal/G.soldPz:0;
+  const pill=(k,l)=>`<button class="tp${ST.acqPeriod===k?' on':''}" onclick="ST.acqPeriod='${k}';renderPage()">${l}</button>`;
+  const spill=(k,l)=>`<button class="tp${(ST.acqSort||'sold')===k?' on':''}" onclick="ST.acqSort='${k}';renderPage()">${l}</button>`;
+  const chips=(arr)=>arr.length?arr.map(b=>`<span class="pill pdm" style="font-size:11px">${b.label} · ${fmtN(b.soldPz)} venduti / ${fmtN(b.stockPz)} in stock</span>`).join(' '):`<span style="color:var(--d);font-size:12px">nessuno</span>`;
+  const split=(a,b,la,lb)=>{const t=a+b||1;return`<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--b);margin:6px 0"><div style="width:${a/t*100}%;background:var(--ac)"></div><div style="width:${b/t*100}%;background:var(--am)"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--m)"><span>${la} ${fmtN(a)} (${Math.round(a/t*100)}%)</span><span>${lb} ${fmtN(b)} (${Math.round(b/t*100)}%)</span></div>`;};
+  const sedeTxt=(ST.sedeMode==='agg'||ST.sedeMode==='split')?'tutte le sedi':'sede '+ST.sedeMode;
+  return`
+<div class="topbar fi" style="flex-wrap:wrap;gap:8px">
+  <div class="page-title">Prepara acquisti <span class="pt-badge">${sedeTxt}</span></div>
+  <div class="controls" style="gap:8px">
+    <select class="sel" onchange="ST.acqGroup=this.value;renderPage()">${groupList.map(g=>`<option value="${g.name}"${g.name===G.name?' selected':''}>${g.name} · ${fmtN(g.soldPz)} venduti · ${fmtN(g.stockPz)} in stock</option>`).join('')}</select>
+    <div class="tpill" style="gap:0">${pill('l12','Ultimi 12 mesi')}${pill('cy','Quest\'anno')}${pill('py','Anno scorso')}</div>
+  </div>
+</div>
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ov-headline">
+    <span class="st-pill st-${gv.st}" style="font-size:13px;padding:7px 14px">${gv.icon} ${gv.t}</span>
+    <div class="ov-headline-text">
+      Con <b style="color:var(--ac)">${G.name}</b> negli ${per.label} hai venduto <b style="color:var(--t)">${fmtN(G.soldPz)} pezzi</b> (${fmt(G.soldVal)})${top3.length?`, trainati da ${top3.map(b=>`<b style="color:var(--t)">${b.label}</b>`).join(', ')}`:''}. In magazzino hai <b style="color:var(--t)">${fmtN(G.stockPz)} pezzi</b> (${fmt(G.stockVal)}), cioè scorte per <b style="color:var(--t)">${fmtCover(G.cover)}</b> di vendite.
+    </div>
+  </div>
+  <div class="ov-action" style="align-items:flex-start;flex-direction:column;gap:8px">
+    <div><b style="color:var(--t)">🟠 Da riordinare:</b> ${chips(reorder)}</div>
+    <div><b style="color:var(--t)">🔴 Non riordinare (troppo stock o fermi):</b> ${chips(noBuy)}</div>
+  </div>
+</div>
+<div class="kg k4 fi">
+  <div class="g kc"><div class="kl">Venduti ${per.label}</div><div class="kv">${fmtN(G.soldPz)}</div><div class="ks">${fmt(G.soldVal)} · ${G.n} marchi</div></div>
+  <div class="g kc"><div class="kl">In magazzino</div><div class="kv">${fmtN(G.stockPz)}</div><div class="ks">${fmt(G.stockVal)} di valore</div></div>
+  <div class="g kc"><div class="kl">Copertura scorte</div><div class="kv">${fmtCover(G.cover)}</div><div class="ks">stock ÷ vendita media mensile</div></div>
+  <div class="g kc"><div class="kl">Prezzo medio venduto</div><div class="kv">${fmt(avgP)}</div><div class="ks">${G.stockPz>0?'costo medio stock '+fmt(G.stockVal/G.stockPz):'—'}</div></div>
+</div>
+<div class="g2 fi">
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dcy"></span>Vista vs Sole — venduti</div></div>${split(G.vistaPz,G.solePz,'Vista','Sole')}</div>
+  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Vista vs Sole — in magazzino</div></div>${split(G.stockVista,G.stockSole,'Vista','Sole')}</div>
+</div>
+<div class="g card fi" style="margin-bottom:12px">
+  <div class="ch"><div class="ct"><span class="dot dem"></span>Marchi ${G.name} — vendite e stock</div>
+    <div class="tpill" style="gap:0">${spill('sold','Più venduti')}${spill('least','Meno venduti')}${spill('stock','Più stock')}</div></div>
+  <div style="overflow-x:auto"><table style="min-width:820px">
+    <thead><tr><th>Marchio</th><th>Venduti</th><th>Vista/Sole</th><th>Prezzo medio</th><th>Margine</th><th>In stock</th><th>Valore stock</th><th>Copertura</th><th>Cosa fare</th></tr></thead>
+    <tbody>${rows.map(b=>`<tr>
+      <td style="font-weight:600">${b.label}</td>
+      <td style="min-width:130px"><div class="mn" style="margin-bottom:3px">${fmtN(b.soldPz)} pz</div><div style="height:4px;background:var(--b);border-radius:2px;overflow:hidden"><div style="height:100%;width:${b.soldPz/maxSold*100}%;background:var(--ac)"></div></div></td>
+      <td class="mn" style="color:var(--m)">${fmtN(b.vistaPz)} / ${fmtN(b.solePz)}</td>
+      <td class="mn">${b.soldPz>0?fmt(b.avgPrice):'—'}</td>
+      <td class="mn" style="color:${b.margPct==null?'var(--d)':b.margPct>=50?'var(--em)':b.margPct>=30?'var(--am)':'var(--ro)'}">${b.margPct==null?'—':b.margPct+'%'}</td>
+      <td class="mn">${fmtN(b.stockPz)} <span style="color:var(--d);font-size:10px">(${fmtN(b.stockVista)}V/${fmtN(b.stockSole)}S)</span></td>
+      <td class="mn">${fmt(b.stockVal)}</td>
+      <td class="mn">${fmtCover(b.cover)}</td>
+      <td><span class="st-pill st-${b.verdict.st}" style="font-size:11px;padding:3px 9px">${b.verdict.icon} ${b.verdict.word}</span></td>
+    </tr>`).join('')||`<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--d)">Nessun marchio</td></tr>`}</tbody>
+  </table></div>
+</div>
+<div class="g card fi" style="margin-bottom:12px;border-left:3px solid var(--am)">
+  <div style="font-size:13px;color:var(--t);font-weight:600;margin-bottom:4px">👤 Uomo / donna</div>
+  <div style="font-size:12px;color:var(--m);line-height:1.6">Nei file caricati non c'è l'informazione uomo/donna per prodotto, quindi non posso dividerla in modo affidabile. Se aggiungi una colonna <b>Genere</b> (Uomo / Donna / Unisex) agli export di vendite e magazzino, la includo in questa tabella. Per ora i marchi con "Man/Woman" nel nome (es. Dior Woman) restano separati.</div>
+</div>
+<div style="font-size:11px;color:var(--d);margin-top:6px">Copertura = pezzi in magazzino ÷ pezzi venduti al mese nel periodo scelto. Il gruppo di un marchio è quello del fornitore con cui lo hai in magazzino: i marchi venduti ma ora non in stock compaiono sotto "Non in magazzino".</div>`;
+}
 
 // ═══ BUDGET / SIMULATORE — config persistita (costi fissi + obiettivo) ═════
 const BUDGET_KEY='ob-budget-cfg';
@@ -1640,6 +1810,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"val",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,cliStoricoDrill:null,
   vendFil:"all",vendTp:"all",vendMar:"all",vendAnno:"all",
   ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12,
+  acqGroup:null,acqPeriod:'l12',acqSort:'sold',
   budget:loadBudgetCfg()};
 let charts={};
 const PER=30;
@@ -1730,6 +1901,7 @@ function renderPage(){
   else if(ST.page==="dati")r.innerHTML=rDati();
   else if(ST.page==="lenti")r.innerHTML=rLenti();
   else if(ST.page==="budget")r.innerHTML=rBudget();
+  else if(ST.page==="acquisti")r.innerHTML=rAcq();
   else if(ST.page==="ai"){r.innerHTML=rAI();initAIPage();}
   if(focusId){
     const el=document.getElementById(focusId);
@@ -1790,7 +1962,10 @@ function buildChartOpts(){
 }
 buildChartOpts();
 
-function mkChart(id,type,labels,datasets,opts){const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type,data:{labels,datasets},options:opts||CO});}
+function mkChart(id,type,labels,datasets,opts){const el=document.getElementById(id);if(!el)return;
+  // Due renderPage ravvicinati possono lanciare initCharts due volte sullo stesso canvas: ripulisco prima.
+  try{const old=Chart.getChart(el);if(old)old.destroy();}catch(e){}
+  charts[id]=new Chart(el,{type,data:{labels,datasets},options:opts||CO});}
 
 // ═══ SHARED ═════════════════════════════════════════════════════════════════
 function kpiVal(arr,bk){
@@ -2424,6 +2599,18 @@ function rMag(){
     critPct,critV
   }:null;
 
+  // ── Insight data-driven: incrocia stock e vendite degli ultimi 12 mesi ──
+  const magCore=stockSalesCore('l12');
+  const magIns=magCore?(()=>{
+    const bs=magCore.brands.filter(b=>b.stockPz>0||b.soldPz>0);
+    const riordina=bs.filter(b=>b.verdict.k==='riordina'&&b.soldPz>=5).sort((a,b)=>b.soldPz-a.soldPz).slice(0,5);
+    const eccesso=bs.filter(b=>b.verdict.k==='eccesso'||b.verdict.k==='ferma').sort((a,b)=>b.stockVal-a.stockVal).slice(0,5);
+    const eccVal=bs.filter(b=>b.verdict.k==='eccesso'||b.verdict.k==='ferma').reduce((a,b)=>a+b.stockVal,0);
+    const totStockVal=bs.reduce((a,b)=>a+b.stockVal,0);
+    const fermi=Object.values(magCore.groups).filter(g=>g.staleVal>0).sort((a,b)=>b.staleVal-a.staleVal).slice(0,5);
+    return{riordina,eccesso,eccVal,eccPct:totStockVal>0?Math.round(eccVal/totStockVal*100):0,fermi};
+  })():null;
+
   // Tabella stock
   let tRows=[...rows];
   tRows.sort((a,b)=>ST.magAsc?(a[ST.magSort]>b[ST.magSort]?1:-1):(a[ST.magSort]<b[ST.magSort]?1:-1));
@@ -2490,6 +2677,25 @@ ${magHeadline?`
     <span style="font-size:16px">👉</span>
     <span>Vedi quali prodotti e decidi cosa smaltire</span>
     <button onclick="ST.magTab='aging';renderPage()" style="margin-left:auto;background:rgba(236,123,160,.12);border:0.5px solid rgba(236,123,160,.3);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Vai ad Aging & Priorità →</button>
+  </div>
+</div>`:''}
+${magIns?`
+<div class="g3 fi" style="margin-bottom:14px">
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dam"></span>Da riordinare</div></div>
+    <div style="font-size:11px;color:var(--d);margin-bottom:8px">Vendono, ma ne hai pochi (meno di 3 mesi di scorta)</div>
+    ${magIns.riordina.length?magIns.riordina.map(b=>`<div class="srow"><div class="slb" style="min-width:0;flex:1">${b.label}<div style="font-size:10px;color:var(--d)">${b.group}</div></div><div class="sv" style="min-width:90px">${fmtN(b.soldPz)} venduti · ${fmtN(b.stockPz)} stock</div></div>`).join(''):`<div style="font-size:12px;color:var(--d);padding:8px 0">Nessun marchio sotto scorta 👍</div>`}
+    <div style="margin-top:10px"><button class="qbtn" onclick="nav('acquisti')">🛒 Prepara acquisti →</button></div>
+  </div>
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dro"></span>Troppo stock</div><span style="font-size:11px;color:var(--m)">${magIns.eccPct}% del valore</span></div>
+    <div style="font-size:11px;color:var(--d);margin-bottom:8px">Oltre 2 anni di vendite in magazzino, o nessuna vendita (${fmt(magIns.eccVal)})</div>
+    ${magIns.eccesso.length?magIns.eccesso.map(b=>`<div class="srow"><div class="slb" style="min-width:0;flex:1">${b.label}<div style="font-size:10px;color:var(--d)">${b.group}</div></div><div class="sv" style="min-width:90px">${fmt(b.stockVal)} · ${fmtCover(b.cover)}</div></div>`).join(''):`<div style="font-size:12px;color:var(--d);padding:8px 0">Nessun eccesso rilevante</div>`}
+  </div>
+  <div class="g card">
+    <div class="ch"><div class="ct"><span class="dot dvi"></span>Fermo da oltre 3 anni, per fornitore</div></div>
+    <div style="font-size:11px;color:var(--d);margin-bottom:8px">Dove è bloccato il capitale più vecchio</div>
+    ${magIns.fermi.length?magIns.fermi.map(g=>`<div class="srow"><div class="slb" style="min-width:0;flex:1">${g.name}<div style="font-size:10px;color:var(--d)">${g.stockVal>0?Math.round(g.staleVal/g.stockVal*100):0}% del suo stock</div></div><div class="sv" style="min-width:70px">${fmt(g.staleVal)}</div></div>`).join(''):`<div style="font-size:12px;color:var(--d);padding:8px 0">Nessun capitale fermo da anni 👍</div>`}
   </div>
 </div>`:''}
 <div class="quickbar fi" style="flex-wrap:wrap;gap:6px">
@@ -3190,6 +3396,11 @@ function rLenti(){
   // Percentuale tipo su totale
   const pctTp=tp=>totPz>0?Math.round((byTp[tp]||{pz:0}).pz/totPz*100):0;
 
+  // Nel file vendite le lenti spesso hanno prezzo 0 o irrisorio: fatturato e margine
+  // risulterebbero assurdi (es. margine -1400%). In quel caso ci si basa solo sui pezzi.
+  const lentiOk=totVal>0&&totVal>=totAcq*0.6;
+  const lentiBase=lentiOk?dV:dP;
+  const lentiHeadline=(lentiBase!==null)?{d:lentiBase,sw:statusWord(lentiBase),top:tpSorted[0]?tpSorted[0][0]:null}:null;
   window.__lenti={hasDate,trendKeys,trendLabels,trendAgg,tpSorted,shortTp,marSorted,diamSorted,hasDiam,opSorted,allLentiTipi,trendStep,trendRange,trendTpFilter};
 
   return`
@@ -3198,35 +3409,39 @@ function rLenti(){
   <div class="tpill" style="gap:0">${filBtn('all')}${filBtn('A')}${filBtn('B')}</div>
 </div>
 
-<!-- 4 KPI boxes -->
-<div class="kg k4 fi" style="margin-bottom:14px">
+${lentiHeadline?`
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ov-headline">
+    <span class="st-pill st-${lentiHeadline.sw.st}" style="font-size:13px;padding:7px 14px">${lentiHeadline.sw.icon} ${lentiHeadline.sw.word}</span>
+    <div class="ov-headline-text">
+      ${lentiOk?`Le lenti ${hasDate?'YTD':''} sono a <b style="color:var(--t)">${lentiHeadline.d>=0?'+':''}${lentiHeadline.d}%</b> sul fatturato rispetto allo stesso periodo dell'anno scorso, con un margine del <b style="color:var(--t)">${margPct}%</b>.`:`I pezzi di lenti ${hasDate?'YTD':''} sono a <b style="color:var(--t)">${lentiHeadline.d>=0?'+':''}${lentiHeadline.d}%</b> rispetto allo stesso periodo dell'anno scorso.`}${lentiHeadline.top?` Il tipo che pesa di più è <b style="color:var(--ac)">${lentiHeadline.top.replace('Lenti ','')}</b>.`:''}
+      ${lentiOk?'':`<div style="font-size:12px;color:var(--m);margin-top:6px">⚠ Nel file vendite le lenti hanno spesso prezzo 0 o troppo basso: fatturato e margine lenti non sono attendibili, quindi li nascondo e ragiono sui pezzi.</div>`}
+    </div>
+  </div>
+</div>`:''}
+<div class="kg k3 fi" style="margin-bottom:14px">
   <div class="g kc">
     <div class="kl">Pezzi venduti</div>
     <div class="kv gem">${fmtN(Math.round(totPz))}</div>
-    <div class="ks">lenti totali${hasDate?' YTD':''}</div>
+    <div class="ks">lenti${hasDate?' YTD':''}</div>
     ${chip(dP,' pz')}
   </div>
   <div class="g kc">
     <div class="kl">Fatturato lenti</div>
-    <div class="kv gcy">${fmt(totVal)}</div>
-    <div class="ks">${totPz>0?fmt(totVal/totPz)+' / pz':''}</div>
-    ${chip(dV,' €')}
-  </div>
-  <div class="g kc">
-    <div class="kl">Costo acquisto</div>
-    <div class="kv gam">${fmt(totAcq)}</div>
-    <div class="ks">${totPz>0?fmt(totAcq/totPz)+' / pz':''}</div>
+    <div class="kv gcy">${lentiOk?fmt(totVal):'n.d.'}</div>
+    <div class="ks">${lentiOk?(totPz>0?fmt(totVal/totPz)+' / pz':''):'prezzi non attendibili nel file'}</div>
+    ${lentiOk?chip(dV,' €'):''}
   </div>
   <div class="g kc">
     <div class="kl">Margine lordo</div>
-    <div class="kv" style="color:${margPct>=40?'var(--em)':margPct>=20?'var(--am)':'var(--ro)'}">${fmt(totMarg)}</div>
-    <div class="ks" style="color:${margPct>=40?'var(--em)':margPct>=20?'var(--am)':'var(--ro)'}">margine ${margPct}%</div>
-    ${chip(dM,' marg')}
+    <div class="kv" style="color:${!lentiOk?'var(--d)':margPct>=40?'var(--em)':margPct>=20?'var(--am)':'var(--ro)'}">${lentiOk?fmt(totMarg):'n.d.'}</div>
+    <div class="ks" style="color:var(--m)">${lentiOk?margPct+'% · costo '+fmt(totAcq):'costo acquisto '+fmt(totAcq)}</div>
+    ${lentiOk?chip(dM,' marg'):''}
   </div>
 </div>
 
 <!-- Row 1: tipo breakdown | trend full-width -->
-<div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px" class="fi">
+<div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:14px" class="fi">
   <!-- Breakdown per tipo — barre orizzontali + margine -->
   <div class="g card">
     <div class="ch"><div class="ct"><span class="dot dem"></span>Analisi per tipo lente</div></div>
@@ -3240,15 +3455,15 @@ function rLenti(){
             <span style="font-size:12px;font-weight:500">${tp.replace('Lenti ','')}</span>
             <div style="display:flex;gap:10px;align-items:baseline">
               <span style="font-size:11px;color:var(--m)">${fmtN(Math.round(d.pz))} pz · ${pct}%</span>
-              <span style="font-size:11px;color:${mc};font-family:'DM Mono',monospace">marg ${marg}%</span>
+              ${lentiOk?`<span style="font-size:11px;color:${mc};font-family:'DM Mono',monospace">marg ${marg}%</span>`:''}
             </div>
           </div>
           <div style="height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--em),rgba(48,209,88,.5));border-radius:3px;transition:width .5s ease"></div>
           </div>
           <div style="display:flex;justify-content:space-between;margin-top:3px">
-            <span style="font-size:10px;color:var(--d)">${fmt(d.val)} · costo ${fmt(d.acq)}</span>
-            <span style="font-size:10px;color:var(--d)">Ø ${d.pz>0?fmt(d.val/d.pz):'-'}/pz</span>
+            <span style="font-size:10px;color:var(--d)">${lentiOk?fmt(d.val)+' · ':''}costo ${fmt(d.acq)}</span>
+            <span style="font-size:10px;color:var(--d)">${lentiOk?'Ø '+(d.pz>0?fmt(d.val/d.pz):'-')+'/pz':''}</span>
           </div>
         </div>`;
       }).join('<div style="height:0.5px;background:rgba(255,255,255,.05);margin:2px 0"></div>')}
@@ -3260,19 +3475,8 @@ function rLenti(){
     <div class="ch" style="flex-wrap:wrap;gap:8px">
       <div class="ct"><span class="dot dcy"></span>Andamento lenti${trendTpFilter!=='all'?` · ${trendTpFilter.replace('Lenti ','')}`:''}</div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-left:auto">
-        <!-- Step selector -->
-        <div style="display:flex;gap:5px;align-items:center">
-          <div class="tpill" style="gap:0">
-            ${['M','W','D'].map(s=>`<button class="tp${trendStep===s?' on':''}" onclick="ST.lentiTrendStep='${s}';ST.lentiTrendRange=${s==='M'?12:s==='W'?13:30};renderPage()" style="font-size:11px">${s==='M'?'Mese':s==='W'?'Sett.':'Giorno'}</button>`).join('')}
-          </div>
-          <div class="tpill" style="gap:0">
-            ${(trendStep==='M'?[[6,'6m'],[12,'12m'],[24,'24m'],[null,'tutto']]:trendStep==='W'?[[13,'13w'],[26,'26w'],[52,'52w'],[null,'tutto']]:[[30,'30g'],[60,'60g'],[90,'90g'],[null,'tutto']]).map(([v,l])=>`<button class="tp${trendRange===v?' on':''}" onclick="ST.lentiTrendRange=${v===null?'null':v};renderPage()" style="font-size:10px">${l}</button>`).join('')}
-          </div>
-        </div>
-        <!-- Tipo selector -->
-        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">
-          <button class="tp${trendTpFilter==='all'?' on':''}" onclick="ST.lentiTrendTp='all';renderPage()" style="font-size:10px;padding:3px 8px">Tutte</button>
-          ${allLentiTipi.map(tp=>`<button class="tp${trendTpFilter===tp?' on':''}" onclick="ST.lentiTrendTp='${tp}';renderPage()" style="font-size:10px;padding:3px 8px">${tp.replace('Lenti ','')}</button>`).join('')}
+        <div class="tpill" style="gap:0">
+          ${[[6,'6 mesi'],[12,'12 mesi'],[24,'24 mesi']].map(([v,l])=>`<button class="tp${trendStep==='M'&&trendRange===v?' on':''}" onclick="ST.lentiTrendStep='M';ST.lentiTrendRange=${v};renderPage()">${l}</button>`).join('')}
         </div>
       </div>
     </div>
@@ -3280,8 +3484,8 @@ function rLenti(){
   </div>
 </div>
 
-<!-- Row 2: per marchio + per operatore -->
-<div class="g2 fi" style="margin-bottom:14px">
+<details class="more fi" style="margin-top:6px"><summary>Altri dettagli · marchi, sedi, operatori, diametri</summary>
+<div class="g2" style="margin:14px 0">
   <!-- Top marchi lenti -->
   <div class="g card">
     <div class="ch"><div class="ct"><span class="dot dvi"></span>Top fornitore/marchio</div><div style="font-size:11px;color:var(--d)">${marSorted.length} marchi</div></div>
@@ -3364,7 +3568,8 @@ function rLenti(){
     <div class="ch"><div class="ct"><span class="dot dem"></span>Mix tipologia (pezzi)</div></div>
     <div class="cw"><canvas id="ch_lenti_tipi"></canvas></div>
   </div>
-</div>`;
+</div>
+</details>`;
 }
 
 // ═══ BUDGET / SIMULATORE ═══════════════════════════════════════════════════
