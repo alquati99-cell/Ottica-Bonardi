@@ -521,13 +521,57 @@ html.light .nb-ind{background:linear-gradient(90deg,rgba(141,4,57,.16),rgba(141,
 @keyframes icPop{0%{transform:scale(1) rotate(0)}35%{transform:scale(1.5) rotate(-14deg)}70%{transform:scale(.92) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
 .sb.collapsed .nb-ind{left:6px;right:6px}
 .sb.collapsed .nb.active .nb-ic{color:var(--ac)}
+
+/* ═══ SIDEBAR 2.0 — pannello flottante in vetro, icone vettoriali, effetto dock ═══ */
+.sb{margin:12px 0 12px 12px;top:12px;height:calc(100dvh - 24px);width:236px;border-radius:24px;border:0.5px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(26,12,19,.78),rgba(10,5,8,.86));box-shadow:0 24px 70px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);overflow:hidden}
+.sb.collapsed{width:72px}
+.sb::before{content:'';position:absolute;inset:-40% -30% auto -30%;height:70%;background:radial-gradient(closest-side,rgba(236,123,160,.28),transparent);animation:sbGlow 9s ease-in-out infinite;pointer-events:none}
+@keyframes sbGlow{0%,100%{transform:translate(0,0)}50%{transform:translate(18%,22%)}}
+html.light .sb{background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(250,240,245,.82));border-color:rgba(80,12,36,.12);box-shadow:0 20px 56px rgba(80,12,36,.14),inset 0 1px 0 #fff}
+html.light .sb::before{background:radial-gradient(closest-side,rgba(141,4,57,.14),transparent)}
+.sb>*{position:relative;z-index:1}
+.sb.peek{margin:0;left:12px;top:12px;height:calc(100dvh - 24px);background:linear-gradient(180deg,rgba(26,12,19,.97),rgba(10,5,8,.98))}
+html.light .sb.peek{background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(250,240,245,.98))}
+.sb-logo{padding:16px 14px 14px;border-bottom:0.5px solid rgba(255,255,255,.08)}
+html.light .sb-logo{border-color:rgba(80,12,36,.1)}
+.sb-icon{box-shadow:0 0 0 1px rgba(255,255,255,.15),0 8px 22px rgba(141,4,57,.5);animation:logoPulse 4s ease-in-out infinite}
+@keyframes logoPulse{0%,100%{box-shadow:0 0 0 1px rgba(255,255,255,.15),0 8px 22px rgba(141,4,57,.45)}50%{box-shadow:0 0 0 1px rgba(255,255,255,.25),0 8px 30px rgba(236,123,160,.7)}}
+.sb-nav{padding:8px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.sb-nav::-webkit-scrollbar{display:none}
+.nb-sec{height:26px;display:flex;align-items:flex-end;padding:0 12px 4px;margin-top:6px;overflow:hidden}
+.nb-sec span{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--d);font-weight:600;white-space:nowrap;transition:opacity .25s,transform .25s}
+.sb.collapsed .nb-sec{padding:0 14px 4px}
+.sb.collapsed .nb-sec span{opacity:0;transform:translateX(-8px)}
+.sb.collapsed .nb-sec::after{content:'';flex:1;height:1px;background:var(--b);margin-bottom:4px}
+.nb{padding:10px 12px;margin:2px 0;width:100%;border-radius:14px;gap:12px;color:var(--m);font-weight:500;transition:color .2s}
+.sb.collapsed .nb{padding:10px 0;justify-content:center}
+.nb:hover{background:none;color:var(--t)}
+.nb::before,.nb.active::before{display:none}
+.nb-ic{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:0;transform:scale(calc(1 + var(--m,0)*.3));transition:transform .15s ease,color .2s,filter .2s}
+.nb:hover .nb-ic{transform:scale(calc(1 + var(--m,0)*.3))}
+.nb-ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nb-label{transform:translateX(calc(var(--m,0)*5px));transition:opacity .2s ease,transform .15s ease}
+.nb-label{max-width:170px;overflow:hidden;white-space:nowrap;transition:opacity .2s ease,transform .15s ease,max-width .4s cubic-bezier(.32,.72,0,1)}
+.sb.collapsed .nb{gap:0}
+.sb.collapsed .nb-label{transform:translateX(-6px);max-width:0;opacity:0}
+.nb.active{color:var(--t);font-weight:600}
+.nb.active .nb-ic{color:var(--ac);filter:drop-shadow(0 0 7px rgba(236,123,160,.75))}
+html.light .nb.active .nb-ic{filter:drop-shadow(0 0 5px rgba(141,4,57,.35))}
+.nb-ind{left:10px;right:10px;border-radius:14px;background:linear-gradient(100deg,rgba(236,123,160,.30),rgba(236,123,160,.07) 70%,transparent);border:0.5px solid rgba(236,123,160,.35);box-shadow:0 6px 24px rgba(236,123,160,.18),inset 0 1px 0 rgba(255,255,255,.12)}
+.nb-ind::before{content:'';position:absolute;left:-1px;top:22%;bottom:22%;width:3px;border-radius:3px;background:var(--ac);box-shadow:0 0 12px var(--ac)}
+.sb.collapsed .nb-ind{left:8px;right:8px}
+.sb:not(.collapsed) .nb{animation:nbReveal .5s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--i,0)*.045s)!important}
+.sb:not(.collapsed) .nb-sec{animation:nbReveal .5s cubic-bezier(.22,1,.36,1) both}
+.sb-vista{margin:0 10px 10px;border:0.5px solid var(--b);border-radius:18px;background:var(--gl);padding:12px}
+.sb.collapsed .sb-vista{opacity:0;transform:translateY(10px);pointer-events:none}
+.sb-toggle{border-radius:10px;background:rgba(255,255,255,.07)}
 /* Spaziatura uniforme tra i blocchi (prima molte righe di card erano incollate) */
 #root .kg,#root .g2,#root .g3,#root .g13,#root .op-ins-grid{gap:16px}
 #root .kg,#root .g2,#root .g3,#root .g13{margin-bottom:16px!important}
 #root>.g,#root>.tw,#root>.abar,#root>.quickbar{margin-bottom:16px!important}
 #root>div>.g.card+.g.card{margin-top:16px}
 /* Sidebar a scomparsa: collassata dopo la scelta di una pagina, si apre al passaggio del mouse */
-.sb.peek{position:fixed;left:0;top:0;z-index:60;box-shadow:14px 0 44px rgba(0,0,0,.5);background:rgba(14,7,11,.97)}
+.sb.peek{position:fixed;left:12px;top:12px;margin:0;height:calc(100dvh - 24px);z-index:60;box-shadow:14px 0 44px rgba(0,0,0,.5);background:rgba(14,7,11,.97)}
 html.light .sb.peek{background:rgba(255,255,255,.97)}
 html.light .sb.peek{box-shadow:14px 0 44px rgba(60,10,30,.18)}
 .sb{transition:width cubic-bezier(.32,.72,0,1) .45s,box-shadow .3s}
@@ -556,15 +600,18 @@ html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transpa
     </button>
   </div>
   <div class="sb-nav">
-    <button class="nb active" onclick="nav('overview')" id="nb-overview"><span class="nb-ic">⬡</span><span class="nb-label">Overview</span></button>
-    <button class="nb" onclick="nav('vendite')" id="nb-vendite"><span class="nb-ic">◈</span><span class="nb-label">Vendite</span></button>
-    <button class="nb" onclick="nav('magazzino')" id="nb-magazzino"><span class="nb-ic">◫</span><span class="nb-label">Magazzino</span></button>
-    <button class="nb" onclick="nav('clienti')" id="nb-clienti"><span class="nb-ic">◎</span><span class="nb-label">Clienti</span></button>
-    <button class="nb" onclick="nav('dati')" id="nb-dati"><span class="nb-ic">⬆</span><span class="nb-label">Carica dati</span></button>
-    <button class="nb" onclick="nav('lenti')" id="nb-lenti"><span class="nb-ic">🔬</span><span class="nb-label">Lenti</span></button>
-    <button class="nb" onclick="nav('acquisti')" id="nb-acquisti"><span class="nb-ic">🛒</span><span class="nb-label">Prepara acquisti</span></button>
-    <button class="nb" onclick="nav('budget')" id="nb-budget"><span class="nb-ic">🎯</span><span class="nb-label">Budget</span></button>
-    <button class="nb" onclick="nav('ai')" id="nb-ai"><span class="nb-ic">✦</span><span class="nb-label">AI Advisor</span></button>
+    <div class="nb-sec"><span>Analisi</span></div>
+    <button class="nb active" onclick="nav('overview')" id="nb-overview" data-tip="Overview"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg></span><span class="nb-label">Overview</span></button>
+    <button class="nb" onclick="nav('vendite')" id="nb-vendite" data-tip="Vendite"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg></span><span class="nb-label">Vendite</span></button>
+    <button class="nb" onclick="nav('magazzino')" id="nb-magazzino" data-tip="Magazzino"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.5L12 12l8.7-4.5M12 12v9"/></svg></span><span class="nb-label">Magazzino</span></button>
+    <button class="nb" onclick="nav('clienti')" id="nb-clienti" data-tip="Clienti"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-3.5 3.2-5.5 6.5-5.5s6 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 010 6.8M18.5 14.8c1.7.7 2.8 2.4 3 5.2"/></svg></span><span class="nb-label">Clienti</span></button>
+    <button class="nb" onclick="nav('lenti')" id="nb-lenti" data-tip="Lenti"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="15" r="3.5"/><circle cx="17.5" cy="15" r="3.5"/><path d="M10 15h4M3 15l1.5-7h3M21 15l-1.5-7h-3"/></svg></span><span class="nb-label">Lenti</span></button>
+    <div class="nb-sec"><span>Pianifica</span></div>
+    <button class="nb" onclick="nav('acquisti')" id="nb-acquisti" data-tip="Prepara acquisti"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.7 12.4a2 2 0 002 1.6h8.2a2 2 0 002-1.5L21 7H6"/></svg></span><span class="nb-label">Prepara acquisti</span></button>
+    <button class="nb" onclick="nav('budget')" id="nb-budget" data-tip="Budget"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg></span><span class="nb-label">Budget</span></button>
+    <div class="nb-sec"><span>Strumenti</span></div>
+    <button class="nb" onclick="nav('dati')" id="nb-dati" data-tip="Carica dati"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 16l-4-4-4 4M12 12v9"/><path d="M20.4 18.1A5 5 0 0018 9h-1.3A8 8 0 104 16.3"/></svg></span><span class="nb-label">Carica dati</span></button>
+    <button class="nb" onclick="nav('ai')" id="nb-ai" data-tip="AI Advisor"><span class="nb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></span><span class="nb-label">AI Advisor</span></button>
   </div>
   <div class="sb-vista">
     <div class="sb-vista-label">Vista dati</div>
@@ -793,6 +840,44 @@ const fmtAge=m=>m==null?'—':m<12?`${m} mesi`:`${(m/12).toFixed(1).replace('.',
 function acqUnitCost(b){return b.margPct!=null&&b.avgPrice>0?b.avgPrice*(1-b.margPct/100):(b.stockAvgCost||0);}
 // Quantità indicativa da ordinare per riportare la copertura al target (mesi)
 function acqNeed(b,months,T){return b.soldPz>0?Math.max(0,Math.ceil(b.soldPz/months*T-b.stockPz)):0;}
+const ACQ_ORD_KEY='ob-acq-orders';
+function loadAcqOrders(){try{return JSON.parse(localStorage.getItem(ACQ_ORD_KEY)||'{}')||{};}catch(e){return{};}}
+function saveAcqOrders(o){try{localStorage.setItem(ACQ_ORD_KEY,JSON.stringify(o));}catch(e){}}
+function toggleBrandDetail(key,btn){
+  const row=document.getElementById('det-'+key);if(!row)return;
+  const open=row.style.display==='none';
+  row.style.display=open?'table-row':'none';
+  btn.classList.toggle('open',open);
+  ST.acqOpen=ST.acqOpen||{};ST.acqOpen[key]=open;
+}
+// L'ordine che scrivi tu: salvato per gruppo, totali e copertura si aggiornano al volo
+function acqSetOrder(inp){
+  const v=Math.max(0,parseInt(String(inp.value).replace(/\D/g,''))||0);
+  inp.value=v||'';
+  const all=loadAcqOrders(),g=ST.acqGroup;
+  all[g]=all[g]||{};if(v)all[g][inp.dataset.key]=v;else delete all[g][inp.dataset.key];
+  saveAcqOrders(all);acqRefreshTotals();
+}
+function acqRefreshTotals(){
+  let pz=0,eur=0;
+  document.querySelectorAll('.acq-ord').forEach(i=>{
+    const v=parseInt(i.value)||0;pz+=v;eur+=v*parseFloat(i.dataset.cost||0);
+    const rate=parseFloat(i.dataset.rate||0),stock=parseFloat(i.dataset.stock||0);
+    const c=document.getElementById('aft-'+i.dataset.key);
+    if(c)c.textContent=v?fmtCover(rate>0?(stock+v)/rate:Infinity):'—';
+  });
+  const tp=document.getElementById('acq-tot-pz'),te=document.getElementById('acq-tot-eur');
+  if(tp)tp.textContent=fmtN(pz)+' pz';if(te)te.textContent='≈ '+fmt(eur);
+}
+function acqSpread(){
+  const V=acqView();if(!V)return;
+  const qty=ST.acqQty||0;
+  if(!qty){toast('Scrivi prima quanti pezzi vuoi ordinare in totale','warn');return;}
+  const all=loadAcqOrders(),o={};
+  V.gb.forEach(b=>{const n=Math.round(qty*b.quota);if(n>0)o[b.key]=n;});
+  all[V.G.name]=o;saveAcqOrders(all);renderPage();
+}
+function acqClearOrders(){const all=loadAcqOrders();delete all[ST.acqGroup];saveAcqOrders(all);ST.acqQty=0;renderPage();}
 // Dati completi della vista scelta (usati sia dalla pagina sia dal PDF)
 function acqView(){
   const core=stockSalesCore(ST.acqPeriod);
@@ -803,23 +888,20 @@ function acqView(){
   const G=groups[ST.acqGroup];
   if(!G)return null;
   const T=ST.acqTarget||6;
+  const orders=loadAcqOrders()[G.name]||{};
   const gb=brands.filter(b=>b.group===G.name&&(b.soldPz>0||b.stockPz>0));
-  gb.forEach(b=>{b.need=acqNeed(b,months,T);b.needVal=b.need*acqUnitCost(b);});
-  const totNeed=gb.reduce((a,b)=>a+b.need,0),totNeedVal=gb.reduce((a,b)=>a+b.needVal,0);
-  // Quota d'acquisto consigliata: segue il venduto, ma pesa meno i marchi con già
-  // molto stock (copertura >12 mesi: metà, >24 mesi: un quarto) e azzera i fermi.
+  // Quota d'acquisto: segue il venduto, ma pesa meno i marchi con già molto stock
   const wts=gb.map(b=>b.soldPz>0?b.soldPz*(b.cover>24?0.25:b.cover>12?0.5:1):0);
   const wSum=wts.reduce((a,x)=>a+x,0)||1;
-  const qty=ST.acqQty||0;
-  gb.forEach((b,i)=>{b.quota=wts[i]/wSum;b.quotaPz=qty>0?Math.round(qty*b.quota):null;});
-  return{qty,core,brands,groups,per,months,groupList,G,T,gb,totNeed,totNeedVal};
-}
-function toggleBrandDetail(key,btn){
-  const row=document.getElementById('det-'+key);if(!row)return;
-  const open=row.style.display==='none';
-  row.style.display=open?'table-row':'none';
-  btn.classList.toggle('open',open);
-  ST.acqOpen=ST.acqOpen||{};ST.acqOpen[key]=open;
+  gb.forEach((b,i)=>{
+    b.need=acqNeed(b,months,T);b.quota=wts[i]/wSum;
+    b.unitCost=acqUnitCost(b);
+    b.rate=b.soldPz/months;
+    b.myOrder=orders[b.key]||0;
+    b.afterCover=b.myOrder?(b.rate>0?(b.stockPz+b.myOrder)/b.rate:Infinity):null;
+  });
+  const totOrder=gb.reduce((a,b)=>a+b.myOrder,0),totOrderVal=gb.reduce((a,b)=>a+b.myOrder*b.unitCost,0);
+  return{core,brands,groups,per,months,groupList,G,T,gb,totOrder,totOrderVal};
 }
 function acqDetailHtml(b){
   const ageTot=b.agePz.reduce((a,x)=>a+x,0)||1;
@@ -828,9 +910,10 @@ function acqDetailHtml(b){
   const topSold=mods.filter(m=>m.soldPz>0).sort((x,y)=>y.soldPz-x.soldPz).slice(0,5);
   const oldest=mods.filter(m=>m.stockPz>0&&m.oldest!=null).sort((x,y)=>y.oldest-x.oldest).slice(0,5);
   const li=(arr,fn)=>arr.length?arr.map(fn).join(''):'<div style="color:var(--d);font-size:12px">nessun dato</div>';
-  return`<div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:22px;padding:6px 4px" class="acq-det">
-    <div><div class="kl">Da quanto sono in magazzino</div>${ageBars||'<div style="color:var(--d);font-size:12px">Nessun pezzo in magazzino</div>'}
-      <div style="font-size:11px;color:var(--m);margin-top:8px">Più vecchio: <b style="color:var(--t)">${fmtAge(b.oldest)}</b> · Sede A ${fmtN(b.stockA)} pz · Sede B ${fmtN(b.stockB)} pz in stock (venduti A ${fmtN(b.soldA)} / B ${fmtN(b.soldB)})</div></div>
+  return`<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:22px;padding:6px 4px" class="acq-det">
+    <div><div class="kl">Numeri del marchio</div>
+      <div style="font-size:12px;color:var(--m);line-height:1.8">Prezzo medio venduto <b style="color:var(--t)">${b.soldPz>0?fmt(b.avgPrice):'—'}</b> · margine <b style="color:var(--t)">${b.margPct==null?'—':b.margPct+'%'}</b><br>Vista ${fmtN(b.vistaPz)} / Sole ${fmtN(b.solePz)} venduti · Vista ${fmtN(b.stockVista)} / Sole ${fmtN(b.stockSole)} in stock<br>Sede A: ${fmtN(b.stockA)} in stock, ${fmtN(b.soldA)} venduti · Sede B: ${fmtN(b.stockB)} in stock, ${fmtN(b.soldB)} venduti<br>Per ${ST.acqTarget||6} mesi di copertura servirebbero <b style="color:var(--t)">${b.need>0?'+'+fmtN(b.need)+' pz':'nessun pezzo'}</b> · quota d'acquisto consigliata <b style="color:var(--t)">${Math.round(b.quota*100)}%</b></div>
+      <div class="kl" style="margin-top:12px">Da quanto sono in magazzino</div>${ageBars||'<div style="color:var(--d);font-size:12px">Nessun pezzo</div>'}</div>
     <div><div class="kl">Modelli più venduti</div>${li(topSold,m=>`<div class="srow" style="padding:5px 0"><div class="slb" style="min-width:0;flex:1">${m.mod}</div><div class="sv" style="min-width:110px">${fmtN(m.soldPz)} venduti · ${fmtN(m.stockPz)} stock</div></div>`)}</div>
     <div><div class="kl">Fermi da più tempo</div>${li(oldest,m=>`<div class="srow" style="padding:5px 0"><div class="slb" style="min-width:0;flex:1">${m.mod}</div><div class="sv" style="min-width:110px">${fmtN(m.stockPz)} pz · ${fmtAge(m.oldest)}</div></div>`)}</div>
   </div>`;
@@ -839,21 +922,16 @@ function rAcq(){
   const V=acqView();
   if(!V)return`<div class="topbar fi"><div class="page-title">Prepara acquisti</div></div>
 <div class="g card fi" style="padding:40px;text-align:center;color:var(--d)"><div style="font-size:32px;margin-bottom:10px">🛒</div><div style="font-size:14px;color:var(--m)">Servono vendite con data e magazzino caricati.</div><div style="font-size:12px;margin-top:6px">Vai a <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div></div>`;
-  const{per,months,groupList,G,T,gb,totNeed,totNeedVal,qty}=V;
+  const{per,groupList,G,T,gb,totOrder,totOrderVal}=V;
   const sorters={sold:(a,b)=>b.soldPz-a.soldPz,least:(a,b)=>(a.soldPz-b.soldPz)||(b.stockVal-a.stockVal),stock:(a,b)=>b.stockVal-a.stockVal};
   const rows=[...gb].sort(sorters[ST.acqSort||'sold']);
   const maxSold=Math.max(1,...gb.map(b=>b.soldPz));
-  const reorder=gb.filter(b=>b.verdict.k==='riordina').sort((a,b)=>b.soldPz-a.soldPz).slice(0,4);
-  const noBuy=gb.filter(b=>b.verdict.k==='eccesso'||b.verdict.k==='ferma').sort((a,b)=>b.stockVal-a.stockVal).slice(0,4);
   const top3=[...gb].sort(sorters.sold).slice(0,3).filter(b=>b.soldPz>0);
   const gv=G.soldPz<=0&&G.stockPz>0?{st:'bad',icon:'🔴',t:'Nessuna vendita'}:G.cover<3?{st:'warn',icon:'🟠',t:'Scorte basse'}:G.cover<=12?{st:'good',icon:'🟢',t:'Stock in linea'}:G.cover<=24?{st:'neutral',icon:'⚪',t:'Stock abbondante'}:{st:'bad',icon:'🔴',t:'Stock in eccesso'};
-  const avgP=G.soldPz>0?G.soldVal/G.soldPz:0;
   const ageTot=G.agePz.reduce((a,x)=>a+x,0)||1;
   const pill=(k,l)=>`<button class="tp${ST.acqPeriod===k?' on':''}" onclick="ST.acqPeriod='${k}';renderPage()">${l}</button>`;
   const spill=(k,l)=>`<button class="tp${(ST.acqSort||'sold')===k?' on':''}" onclick="ST.acqSort='${k}';renderPage()">${l}</button>`;
   const tpill=(k)=>`<button class="tp${T===k?' on':''}" onclick="ST.acqTarget=${k};renderPage()">${k} mesi</button>`;
-  const chips=(arr)=>arr.length?arr.map(b=>`<span class="pill pdm" style="font-size:11px">${b.label} · ${fmtN(b.soldPz)} venduti / ${fmtN(b.stockPz)} in stock</span>`).join(' '):`<span style="color:var(--d);font-size:12px">nessuno</span>`;
-  const split=(a,b,la,lb)=>{const t=a+b||1;return`<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--b);margin:6px 0"><div style="width:${a/t*100}%;background:var(--ac)"></div><div style="width:${b/t*100}%;background:var(--am)"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--m)"><span>${la} ${fmtN(a)} (${Math.round(a/t*100)}%)</span><span>${lb} ${fmtN(b)} (${Math.round(b/t*100)}%)</span></div>`;};
   const sedeTxt=(ST.sedeMode==='agg'||ST.sedeMode==='split')?'tutte le sedi':'sede '+ST.sedeMode;
   const open=ST.acqOpen||{};
   return`
@@ -861,117 +939,91 @@ function rAcq(){
   <div class="page-title">Prepara acquisti <span class="pt-badge">${sedeTxt}</span></div>
   <div class="controls" style="gap:8px">
     <select class="sel" onchange="ST.acqGroup=this.value;ST.acqOpen={};renderPage()">${groupList.map(g=>`<option value="${g.name}"${g.name===G.name?' selected':''}>${g.name} · ${fmtN(g.soldPz)} venduti · ${fmtN(g.stockPz)} in stock</option>`).join('')}</select>
-    <div class="tpill" style="gap:0">${pill('l12','Ultimi 12 mesi')}${pill('cy','Quest\'anno')}${pill('py','Anno scorso')}</div>
-    <input id="acq-qty" class="sel" style="width:150px" type="text" inputmode="numeric" placeholder="Pezzi da ordinare" title="Facoltativo: quanti pezzi pensi di ordinare in tutto, per vedere come ripartirli" value="${ST.acqQty||''}" onchange="ST.acqQty=Math.max(0,parseInt(String(this.value).replace(/\D/g,''))||0);renderPage()">
-    <button class="qbtn" style="border-color:rgba(236,123,160,.4);color:var(--ac);font-weight:600" onclick="exportAcqPdf()">📄 Esporta PDF per la campagna</button>
+    <div class="tpill" style="gap:0">${pill('l12','12 mesi')}${pill('cy','Quest\'anno')}${pill('py','Anno scorso')}</div>
+    <button class="qbtn" style="border-color:rgba(236,123,160,.4);color:var(--ac);font-weight:600" onclick="exportAcqPdf()">📄 Esporta PDF</button>
   </div>
 </div>
 <div class="g card fi" style="margin-bottom:14px">
   <div class="ov-headline">
     <span class="st-pill st-${gv.st}" style="font-size:13px;padding:7px 14px">${gv.icon} ${gv.t}</span>
     <div class="ov-headline-text">
-      Con <b style="color:var(--ac)">${G.name}</b> negli ${per.label} hai venduto <b style="color:var(--t)">${fmtN(G.soldPz)} pezzi</b> (${fmt(G.soldVal)})${top3.length?`, trainati da ${top3.map(b=>`<b style="color:var(--t)">${b.label}</b>`).join(', ')}`:''}. In magazzino hai <b style="color:var(--t)">${fmtN(G.stockPz)} pezzi</b> (${fmt(G.stockVal)}), cioè scorte per <b style="color:var(--t)">${fmtCover(G.cover)}</b> di vendite; il più vecchio è fermo da <b style="color:var(--t)">${fmtAge(G.oldest)}</b>.
+      <b style="color:var(--ac)">${G.name}</b>: venduti <b style="color:var(--t)">${fmtN(G.soldPz)} pezzi</b> negli ${per.label}${top3.length?` (soprattutto ${top3.map(b=>b.label).join(', ')})`:''}, in magazzino <b style="color:var(--t)">${fmtN(G.stockPz)}</b> = <b style="color:var(--t)">${fmtCover(G.cover)}</b> di vendite. Il più vecchio è fermo da <b style="color:var(--t)">${fmtAge(G.oldest)}</b>.
     </div>
   </div>
-  <div class="ov-action" style="align-items:flex-start;flex-direction:column;gap:8px">
-    <div><b style="color:var(--t)">🟠 Da riordinare:</b> ${chips(reorder)}</div>
-    <div><b style="color:var(--t)">🔴 Non riordinare (troppo stock o fermi):</b> ${chips(noBuy)}</div>
-  </div>
 </div>
-<div class="kg k4 fi">
-  <div class="g kc"><div class="kl">Venduti ${per.label}</div><div class="kv">${fmtN(G.soldPz)}</div><div class="ks">${fmt(G.soldVal)} · ${G.n} marchi</div></div>
-  <div class="g kc"><div class="kl">In magazzino</div><div class="kv">${fmtN(G.stockPz)}</div><div class="ks">${fmt(G.stockVal)} di valore</div></div>
-  <div class="g kc"><div class="kl">Copertura scorte</div><div class="kv">${fmtCover(G.cover)}</div><div class="ks">stock ÷ vendita media mensile</div></div>
-  <div class="g kc"><div class="kl">Prezzo medio venduto</div><div class="kv">${fmt(avgP)}</div><div class="ks">${G.stockPz>0?'costo medio stock '+fmt(G.stockVal/G.stockPz):'—'}</div></div>
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ch"><div class="ct"><span class="dot dro"></span>Da quanto è in magazzino</div><div style="font-size:11px;color:var(--m)">${fmtN(G.stockPz)} pezzi · ${fmt(G.stockVal)}</div></div>
+  <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--b);margin-bottom:12px">${G.agePz.map((x,i)=>`<div title="${AGE_LABELS[i]}" style="width:${x/ageTot*100}%;background:${AGE_COLORS[i]}"></div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px" class="age-grid">${G.agePz.map((x,i)=>`<div><div style="font-size:11px;color:var(--m);display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${AGE_COLORS[i]}"></span>${AGE_LABELS[i]}</div><div style="font-size:18px;font-weight:700;margin-top:3px">${fmtN(x)} <span style="font-size:11px;font-weight:400;color:var(--m)">pz</span></div><div style="font-size:11px;color:var(--d)">${Math.round(x/ageTot*100)}%</div></div>`).join('')}</div>
 </div>
-<div class="g2 fi">
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dcy"></span>Vista vs Sole — venduti</div></div>${split(G.vistaPz,G.solePz,'Vista','Sole')}</div>
-  <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Vista vs Sole — in magazzino</div></div>${split(G.stockVista,G.stockSole,'Vista','Sole')}</div>
-</div>
-<div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dro"></span>Da quanto tempo è in magazzino — ${G.name}</div><div style="font-size:11px;color:var(--m)">${fmtN(G.stockPz)} pezzi · ${fmt(G.stockVal)}</div></div>
-  <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--b);margin-bottom:12px">${G.agePz.map((x,i)=>`<div title="${AGE_LABELS[i]}" style="width:${x/ageTot*100}%;background:${AGE_COLORS[i]}"></div>`).join('')}</div>
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px" class="age-grid">${G.agePz.map((x,i)=>`<div><div style="font-size:11px;color:var(--m);display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${AGE_COLORS[i]}"></span>${AGE_LABELS[i]}</div><div style="font-size:18px;font-weight:700;margin-top:3px">${fmtN(x)} <span style="font-size:11px;font-weight:400;color:var(--m)">pz</span></div><div style="font-size:11px;color:var(--d)">${fmt(G.ageVal[i])} · ${Math.round(x/ageTot*100)}%</div></div>`).join('')}</div>
-</div>
-<div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dem"></span>Marchi ${G.name} — vendite, stock e quanto ordinare</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--d)">Copertura obiettivo</span><div class="tpill" style="gap:0">${[4,6,9].map(tpill).join('')}</div><div class="tpill" style="gap:0">${spill('sold','Più venduti')}${spill('least','Meno venduti')}${spill('stock','Più stock')}</div></div></div>
-  <div style="overflow-x:auto"><table style="min-width:1060px">
-    <thead><tr><th style="width:30px"></th><th>Marchio</th><th>Venduti</th><th>Prezzo medio</th><th>Margine</th><th>In stock</th><th>Più vecchio</th><th>Copertura</th><th>Ordine indicativo</th><th>Quota d'acquisto</th><th>Cosa fare</th></tr></thead>
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ch"><div class="ct"><span class="dot dem"></span>Marchi ${G.name}: cosa ho e cosa ordino</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><div class="tpill" style="gap:0">${spill('sold','Più venduti')}${spill('least','Meno venduti')}${spill('stock','Più stock')}</div></div></div>
+  <div style="overflow-x:auto"><table style="min-width:900px">
+    <thead><tr><th style="width:30px"></th><th>Marchio</th><th>Venduti</th><th>In stock</th><th>Più vecchio</th><th>Copertura</th><th>Consiglio</th><th style="text-align:center">Il mio ordine (pz)</th><th>Copertura dopo</th></tr></thead>
     <tbody>${rows.map(b=>`<tr>
       <td><button class="xbtn${open[b.key]?' open':''}" title="Dettaglio marchio" onclick="toggleBrandDetail('${b.key}',this)">▸</button></td>
       <td style="font-weight:600">${b.label}</td>
-      <td style="min-width:130px"><div class="mn" style="margin-bottom:3px">${fmtN(b.soldPz)} pz <span style="color:var(--d);font-size:10px">(${fmtN(b.vistaPz)}V/${fmtN(b.solePz)}S)</span></div><div style="height:4px;background:var(--b);border-radius:2px;overflow:hidden"><div style="height:100%;width:${b.soldPz/maxSold*100}%;background:var(--ac)"></div></div></td>
-      <td class="mn">${b.soldPz>0?fmt(b.avgPrice):'—'}</td>
-      <td class="mn" style="color:${b.margPct==null?'var(--d)':b.margPct>=50?'var(--em)':b.margPct>=30?'var(--am)':'var(--ro)'}">${b.margPct==null?'—':b.margPct+'%'}</td>
+      <td style="min-width:120px"><div class="mn" style="margin-bottom:3px">${fmtN(b.soldPz)} pz</div><div style="height:4px;background:var(--b);border-radius:2px;overflow:hidden"><div style="height:100%;width:${b.soldPz/maxSold*100}%;background:var(--ac)"></div></div></td>
       <td class="mn">${fmtN(b.stockPz)} <span style="color:var(--d);font-size:10px">${fmt(b.stockVal)}</span></td>
       <td class="mn">${fmtAge(b.oldest)}</td>
       <td class="mn">${fmtCover(b.cover)}</td>
-      <td class="mn" style="font-weight:700;color:${b.need>0?'var(--ac)':'var(--d)'}">${b.need>0?'+'+fmtN(b.need)+' pz':'—'}${b.need>0?`<div style="font-size:10px;font-weight:400;color:var(--d)">≈ ${fmt(b.needVal)}</div>`:''}</td>
-      <td class="mn" style="font-weight:700">${b.quota>0?Math.round(b.quota*100)+'%':'—'}${b.quotaPz!=null&&b.quota>0?`<div style="font-size:10px;font-weight:400;color:var(--ac)">${fmtN(b.quotaPz)} pz</div>`:''}</td>
       <td><span class="st-pill st-${b.verdict.st}" style="font-size:11px;padding:3px 9px">${b.verdict.icon} ${b.verdict.word}</span></td>
-    </tr><tr class="det" id="det-${b.key}" style="display:${open[b.key]?'table-row':'none'}"><td colspan="11" style="background:var(--gl)">${acqDetailHtml(b)}</td></tr>`).join('')||`<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--d)">Nessun marchio</td></tr>`}</tbody>
+      <td style="text-align:center"><input class="acq-ord bud-inp" style="width:84px;text-align:center;padding:6px 8px;font-size:13px" type="text" inputmode="numeric" placeholder="0" value="${b.myOrder||''}" data-key="${b.key}" data-rate="${b.rate}" data-stock="${b.stockPz}" data-cost="${b.unitCost}" onchange="acqSetOrder(this)"></td>
+      <td class="mn" id="aft-${b.key}">${b.myOrder?fmtCover(b.afterCover):'—'}</td>
+    </tr><tr class="det" id="det-${b.key}" style="display:${open[b.key]?'table-row':'none'}"><td colspan="9" style="background:var(--gl)">${acqDetailHtml(b)}</td></tr>`).join('')||`<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--d)">Nessun marchio</td></tr>`}</tbody>
   </table></div>
-  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px;color:var(--m)"><span>Per portare ogni marchio a <b style="color:var(--t)">${T} mesi</b> di copertura servirebbero circa <b style="color:var(--t)">${fmtN(totNeed)} pezzi</b> (≈ ${fmt(totNeedVal)} a costo). <b style="color:var(--t)">Quota d'acquisto</b> = come ripartire un ordine: segue il venduto, ridotta dove hai già molto stock${qty?` (ripartiti ${fmtN(qty)} pezzi)`:' (scrivi "Pezzi da ordinare" in alto per vedere i pezzi)'}. Sono indicazioni sul venduto passato, non un obbligo.</span><span style="color:var(--d)">Clicca ▸ su un marchio per modelli e anzianità</span></div>
+  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:center;margin-top:14px;padding-top:14px;border-top:0.5px solid var(--b)">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--m)">Obiettivo copertura</span><div class="tpill" style="gap:0">${[4,6,9].map(tpill).join('')}</div>
+      <input id="acq-qty" class="sel" style="width:150px" type="text" inputmode="numeric" placeholder="Pezzi totali…" title="Quanti pezzi pensi di ordinare in tutto: li ripartisco io tra i marchi" value="${ST.acqQty||''}" onchange="ST.acqQty=Math.max(0,parseInt(String(this.value).replace(/\\D/g,''))||0)">
+      <button class="qbtn" onclick="acqSpread()" title="Ripartisce il totale in base al venduto, tenendo conto dello stock che hai già">✨ Ripartisci per me</button>
+      <button class="qbtn" onclick="acqClearOrders()">Azzera</button>
+    </div>
+    <div style="text-align:right"><div style="font-size:11px;color:var(--d)">Il mio ordine ${G.name}</div><div style="font-size:20px;font-weight:800" id="acq-tot-pz">${fmtN(totOrder)} pz</div><div style="font-size:12px;color:var(--m)" id="acq-tot-eur">≈ ${fmt(totOrderVal)}</div></div>
+  </div>
+  <div style="font-size:11px;color:var(--d);margin-top:10px">Scrivi per ogni marchio quanti pezzi vuoi comprare: vedi subito quanti mesi di vendite copri dopo l'ordine. Clicca ▸ per margine, modelli, sedi e anzianità. Costo stimato dal costo medio del venduto.</div>
 </div>
-<div class="g card fi" style="margin-bottom:12px;border-left:3px solid var(--am)">
-  <div style="font-size:13px;color:var(--t);font-weight:600;margin-bottom:4px">👤 Uomo / donna</div>
-  <div style="font-size:12px;color:var(--m);line-height:1.6">Nei file caricati non c'è l'informazione uomo/donna per prodotto, quindi non posso dividerla in modo affidabile. Se aggiungi una colonna <b>Genere</b> (Uomo / Donna / Unisex) agli export di vendite e magazzino, la includo in questa tabella e nel PDF.</div>
-</div>
-<div style="font-size:11px;color:var(--d);margin-top:6px">Copertura = pezzi in magazzino ÷ pezzi venduti al mese nel periodo scelto. Il gruppo di un marchio è quello del fornitore con cui lo hai in magazzino: i marchi venduti ma ora non in stock compaiono sotto "Non in magazzino".</div>`;
+<div style="font-size:11px;color:var(--d);margin:6px 0">Solo montature vista e sole. Il genere uomo/donna non è nei file: se aggiungi una colonna Genere agli export lo includo.</div>`;
 }
-
 
 // Rapportino PDF per la campagna acquisti: si apre una pagina di stampa
 // pulita (A4) e si salva con "Salva come PDF". Nessuna libreria esterna.
 function buildAcqReportHtml(){
   const V=acqView();if(!V)return null;
-  const{per,months,G,T,gb,totNeed,totNeedVal}=V;
+  const{per,G,T,gb,totOrder,totOrderVal}=V;
   const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const sedeTxt=(ST.sedeMode==='agg'||ST.sedeMode==='split')?'tutte le sedi':'sede '+ST.sedeMode;
   const today=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'});
   const rows=[...gb].sort((a,b)=>b.soldPz-a.soldPz);
-  const totSold=rows.reduce((a,b)=>a+b.soldPz,0)||1,totStock=rows.reduce((a,b)=>a+b.stockPz,0)||1;
   const ageTot=G.agePz.reduce((a,x)=>a+x,0)||1;
-  const orderTot=totNeed||1;
-  const reorder=rows.filter(b=>b.verdict.k==='riordina').slice(0,5),noBuy=rows.filter(b=>b.verdict.k==='eccesso'||b.verdict.k==='ferma').sort((a,b)=>b.stockVal-a.stockVal).slice(0,5);
-  const top=rows.filter(b=>b.soldPz>0).slice(0,6);
-  const css=`@page{size:A4;margin:14mm 12mm}*{box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f1118;font-size:10.5px;line-height:1.45;margin:0}
-h1{font-size:22px;margin:0 0 2px;color:#8d0439}h2{font-size:13px;margin:18px 0 6px;color:#8d0439;border-bottom:1.5px solid #8d0439;padding-bottom:3px}h3{font-size:11.5px;margin:10px 0 4px}
-.sub{color:#6b5560;font-size:11px}.brand{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #8d0439;padding-bottom:8px;margin-bottom:10px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}.kpi{border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px;background:#fbf5f8}.kpi b{display:block;font-size:17px;color:#1f1118}.kpi span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#6b5560}
-table{width:100%;border-collapse:collapse;margin-top:4px}th{background:#8d0439;color:#fff;text-align:right;padding:5px 6px;font-size:9px;text-transform:uppercase;letter-spacing:.04em}th:first-child,td:first-child{text-align:left}td{padding:4px 6px;border-bottom:1px solid #eadde3;text-align:right}tr:nth-child(even) td{background:#fbf6f9}
-.bar{display:flex;height:11px;border-radius:5px;overflow:hidden;background:#eee;margin:6px 0}.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:9px;font-weight:700}
-.g{background:#dcfce7;color:#166534}.w{background:#fef3c7;color:#92400e}.b{background:#fee2e2;color:#991b1b}.n{background:#eee;color:#444}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.box{border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px}.small{font-size:9px;color:#6b5560}
-.brandblk{break-inside:avoid;border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px;margin:8px 0}li{margin:1px 0}ul{margin:3px 0 0 14px;padding:0}
-@media print{.noprint{display:none}}.noprint{position:fixed;top:10px;right:10px;background:#8d0439;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer}`;
+  const hasOrder=totOrder>0;
+  const top=rows.filter(b=>b.soldPz>0).slice(0,3);
+  const css=`@page{size:A4;margin:14mm 13mm}*{box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f1118;font-size:11px;line-height:1.5;margin:0}
+h1{font-size:21px;margin:0;color:#8d0439}h2{font-size:12px;margin:18px 0 6px;color:#8d0439;text-transform:uppercase;letter-spacing:.06em}
+.sub{color:#6b5560;font-size:11px;margin-top:2px}.head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.5px solid #8d0439;padding-bottom:8px;margin-bottom:12px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.kpi{border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px}.kpi b{display:block;font-size:17px}.kpi span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#6b5560}
+table{width:100%;border-collapse:collapse}th{background:#8d0439;color:#fff;text-align:right;padding:5px 7px;font-size:9px;text-transform:uppercase;letter-spacing:.04em}th:first-child,td:first-child{text-align:left}td{padding:5px 7px;border-bottom:1px solid #eadde3;text-align:right}tr:nth-child(even) td{background:#fbf6f9}
+.bar{display:flex;height:11px;border-radius:5px;overflow:hidden;background:#eee;margin:8px 0 6px}.ages{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:10px;color:#6b5560}.ages b{display:block;font-size:13px;color:#1f1118}
+.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:9px;font-weight:700}.g{background:#dcfce7;color:#166534}.w{background:#fef3c7;color:#92400e}.b{background:#fee2e2;color:#991b1b}.n{background:#eee;color:#444}
+.small{font-size:9.5px;color:#6b5560;margin-top:6px}tr.tot td{font-weight:700;background:#f4e6ed}
+.noprint{position:fixed;top:10px;right:10px;background:#8d0439;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer}@media print{.noprint{display:none}}`;
   const vc=b=>({good:'g',warn:'w',bad:'b',neutral:'n'}[b.verdict.st]);
-  const ageRow=(b)=>b.agePz.map((x,i)=>`<td>${fmtN(x)}</td>`).join('');
-  const sintesi=`Con <b>${esc(G.name)}</b> negli ${esc(per.label)} (${sedeTxt}) abbiamo venduto <b>${fmtN(G.soldPz)} pezzi</b> (${fmt(G.soldVal)}) su ${G.n} marchi${top.length?', trainati da '+top.slice(0,3).map(b=>`<b>${esc(b.label)}</b> (${fmtN(b.soldPz)} pz)`).join(', '):''}. In magazzino abbiamo <b>${fmtN(G.stockPz)} pezzi</b> (${fmt(G.stockVal)} a costo), pari a <b>${fmtCover(G.cover)}</b> di vendite; il pezzo più vecchio è fermo da <b>${fmtAge(G.oldest)}</b> e <b>${fmtN(G.agePz[3])} pezzi (${Math.round(G.agePz[3]/ageTot*100)}%)</b> hanno oltre 3 anni. Per portare ogni marchio a ${T} mesi di copertura servirebbero circa <b>${fmtN(totNeed)} pezzi</b> (≈ ${fmt(totNeedVal)} a costo): indicazione sul venduto passato, da adattare alla trattativa.`;
+  const sintesi=`Negli ${esc(per.label)} abbiamo venduto <b>${fmtN(G.soldPz)} pezzi</b> di ${esc(G.name)}${top.length?` (soprattutto ${top.map(b=>esc(b.label)).join(', ')})`:''}. In magazzino ne abbiamo <b>${fmtN(G.stockPz)}</b>, pari a <b>${fmtCover(G.cover)}</b> di vendite; <b>${fmtN(G.agePz[3])}</b> pezzi (${Math.round(G.agePz[3]/ageTot*100)}%) hanno oltre 3 anni.${hasOrder?` Ordine previsto: <b>${fmtN(totOrder)} pezzi</b> (≈ ${fmt(totOrderVal)}).`:''}`;
   return`<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Campagna acquisti ${esc(G.name)} — Ottica Bonardi</title><style>${css}</style></head><body>
 <button class="noprint" onclick="window.print()">Stampa / Salva PDF</button>
-<div class="brand"><div><h1>Campagna acquisti · ${esc(G.name)}</h1><div class="sub">Ottica Bonardi · ${sedeTxt} · vendite ${esc(per.label)} · copertura obiettivo ${T} mesi</div></div><div class="sub">${today}</div></div>
-<h2>In sintesi</h2><p>${sintesi}</p>
-<div class="kpis"><div class="kpi"><span>Venduti</span><b>${fmtN(G.soldPz)} pz</b>${fmt(G.soldVal)}</div><div class="kpi"><span>In magazzino</span><b>${fmtN(G.stockPz)} pz</b>${fmt(G.stockVal)}</div><div class="kpi"><span>Copertura</span><b>${fmtCover(G.cover)}</b>stock ÷ vendita mensile</div><div class="kpi"><span>Ordine indicativo</span><b>${fmtN(totNeed)} pz</b>≈ ${fmt(totNeedVal)}</div></div>
-<div class="cols"><div class="box"><h3>Vista / Sole — venduti</h3><div class="small">Vista ${fmtN(G.vistaPz)} (${Math.round(G.vistaPz/((G.vistaPz+G.solePz)||1)*100)}%) · Sole ${fmtN(G.solePz)} (${Math.round(G.solePz/((G.vistaPz+G.solePz)||1)*100)}%)</div></div><div class="box"><h3>Vista / Sole — in magazzino</h3><div class="small">Vista ${fmtN(G.stockVista)} (${Math.round(G.stockVista/((G.stockVista+G.stockSole)||1)*100)}%) · Sole ${fmtN(G.stockSole)} (${Math.round(G.stockSole/((G.stockVista+G.stockSole)||1)*100)}%)</div></div></div>
-<h2>Da riordinare e da non riordinare</h2>
-<div class="cols"><div class="box"><h3>🟠 Da riordinare (scorta bassa)</h3>${reorder.length?`<ul>${reorder.map(b=>`<li><b>${esc(b.label)}</b>: ${fmtN(b.soldPz)} venduti, ${fmtN(b.stockPz)} in stock${b.need>0?` → ordine indicativo +${fmtN(b.need)} pz`:''}</li>`).join('')}</ul>`:'<div class="small">Nessun marchio sotto scorta.</div>'}</div>
-<div class="box"><h3>🔴 Da non riordinare (troppo stock o fermi)</h3>${noBuy.length?`<ul>${noBuy.map(b=>`<li><b>${esc(b.label)}</b>: ${fmtN(b.stockPz)} pz (${fmt(b.stockVal)}), ${fmtCover(b.cover)} di vendite${b.oldest!=null?`, più vecchio ${fmtAge(b.oldest)}`:''}</li>`).join('')}</ul>`:'<div class="small">Nessun eccesso rilevante.</div>'}</div></div>
-<h2>Quote giuste: venduto, stock e ordine per marchio</h2>
-<table><thead><tr><th>Marchio</th><th>Venduti</th><th>Quota venduto</th><th>Prezzo medio</th><th>Margine</th><th>In stock</th><th>Quota stock</th><th>Più vecchio</th><th>Copertura</th><th>Ordine ind.</th><th>Quota acquisto${V.qty?' ('+fmtN(V.qty)+' pz)':''}</th><th>Giudizio</th></tr></thead><tbody>
-${rows.map(b=>`<tr><td><b>${esc(b.label)}</b></td><td>${fmtN(b.soldPz)}</td><td>${Math.round(b.soldPz/totSold*100)}%</td><td>${b.soldPz>0?fmt(b.avgPrice):'—'}</td><td>${b.margPct==null?'—':b.margPct+'%'}</td><td>${fmtN(b.stockPz)}</td><td>${Math.round(b.stockPz/totStock*100)}%</td><td>${fmtAge(b.oldest)}</td><td>${fmtCover(b.cover)}</td><td>${b.need>0?'+'+fmtN(b.need):'—'}</td><td>${b.quota>0?Math.round(b.quota*100)+'%'+(b.quotaPz!=null?' · '+fmtN(b.quotaPz)+' pz':''):'—'}</td><td><span class="pill ${vc(b)}">${esc(b.verdict.word)}</span></td></tr>`).join('')}
-</tbody></table>
-<div class="small" style="margin-top:4px">Quota acquisto = come ripartire un eventuale ordine: segue il venduto, ridotta dove c'è già molto stock (copertura oltre 12 mesi: metà; oltre 24: un quarto; fermi: zero). Ordine ind. = pezzi per riportare ogni marchio a ${T} mesi di copertura.</div>
-<h2>Magazzino ${esc(G.name)} per anzianità</h2>
+<div class="head"><div><h1>Campagna acquisti · ${esc(G.name)}</h1><div class="sub">Ottica Bonardi · ${sedeTxt} · vendite ${esc(per.label)}</div></div><div class="sub">${today}</div></div>
+<p>${sintesi}</p>
+<div class="kpis"><div class="kpi"><span>Venduti</span><b>${fmtN(G.soldPz)} pz</b>${fmt(G.soldVal)}</div><div class="kpi"><span>In magazzino</span><b>${fmtN(G.stockPz)} pz</b>${fmt(G.stockVal)}</div><div class="kpi"><span>Copertura</span><b>${fmtCover(G.cover)}</b>di vendite</div><div class="kpi"><span>${hasOrder?'Mio ordine':'Più vecchio'}</span><b>${hasOrder?fmtN(totOrder)+' pz':fmtAge(G.oldest)}</b>${hasOrder?'≈ '+fmt(totOrderVal):'in magazzino'}</div></div>
+<h2>Da quanto è in magazzino</h2>
 <div class="bar">${G.agePz.map((x,i)=>`<div style="width:${x/ageTot*100}%;background:${AGE_COLORS[i]}"></div>`).join('')}</div>
-<table><thead><tr><th>Marchio</th>${AGE_LABELS.map(l=>`<th>${l}</th>`).join('')}<th>Totale</th></tr></thead><tbody>
-<tr><td><b>Totale ${esc(G.name)}</b></td>${G.agePz.map(x=>`<td><b>${fmtN(x)}</b></td>`).join('')}<td><b>${fmtN(G.stockPz)}</b></td></tr>
-${rows.filter(b=>b.stockPz>0).map(b=>`<tr><td>${esc(b.label)}</td>${ageRow(b)}<td>${fmtN(b.stockPz)}</td></tr>`).join('')}</tbody></table>
-<div class="small" style="margin-top:4px">Pezzi in magazzino per anni dall'ultimo acquisto. Valore: ${G.ageVal.map((v,i)=>AGE_LABELS[i]+' '+fmt(v)).join(' · ')}.</div>
-<h2>Dettaglio dei marchi principali</h2>
-${top.map(b=>{const mods=Object.values(b.mods);const ts=mods.filter(m=>m.soldPz>0).sort((x,y)=>y.soldPz-x.soldPz).slice(0,4),old=mods.filter(m=>m.stockPz>0&&m.oldest!=null).sort((x,y)=>y.oldest-x.oldest).slice(0,4);return`<div class="brandblk"><h3>${esc(b.label)} — ${fmtN(b.soldPz)} venduti, ${fmtN(b.stockPz)} in stock (${fmtCover(b.cover)})</h3><div class="cols"><div><div class="small"><b>Modelli più venduti</b></div><ul>${ts.map(m=>`<li>${esc(m.mod)}: ${fmtN(m.soldPz)} venduti · ${fmtN(m.stockPz)} in stock</li>`).join('')||'<li>—</li>'}</ul></div><div><div class="small"><b>Fermi da più tempo</b></div><ul>${old.map(m=>`<li>${esc(m.mod)}: ${fmtN(m.stockPz)} pz · ${fmtAge(m.oldest)}</li>`).join('')||'<li>—</li>'}</ul></div></div><div class="small">Sede A: stock ${fmtN(b.stockA)}, venduti ${fmtN(b.soldA)} · Sede B: stock ${fmtN(b.stockB)}, venduti ${fmtN(b.soldB)}</div></div>`;}).join('')}
-<p class="small" style="margin-top:14px">Fonte: vendite e magazzino caricati in dashboard (solo montature vista e sole). Copertura = pezzi in magazzino ÷ pezzi venduti al mese. Il gruppo di un marchio è quello del fornitore con cui è in magazzino. Uomo/donna non disponibile nei file.</p>
+<div class="ages">${G.agePz.map((x,i)=>`<div>${AGE_LABELS[i]}<b>${fmtN(x)} pz</b>${Math.round(x/ageTot*100)}%</div>`).join('')}</div>
+<h2>Marchi</h2>
+<table><thead><tr><th>Marchio</th><th>Venduti</th><th>In stock</th><th>Oltre 3 anni</th><th>Più vecchio</th><th>Copertura</th>${hasOrder?'<th>Mio ordine</th><th>Copertura dopo</th>':''}<th>Giudizio</th></tr></thead><tbody>
+${rows.map(b=>`<tr><td><b>${esc(b.label)}</b></td><td>${fmtN(b.soldPz)}</td><td>${fmtN(b.stockPz)}</td><td>${fmtN(b.agePz[3])}</td><td>${fmtAge(b.oldest)}</td><td>${fmtCover(b.cover)}</td>${hasOrder?`<td>${b.myOrder?'<b>'+fmtN(b.myOrder)+'</b>':'—'}</td><td>${b.myOrder?fmtCover(b.afterCover):'—'}</td>`:''}<td><span class="pill ${vc(b)}">${esc(b.verdict.word)}</span></td></tr>`).join('')}
+<tr class="tot"><td>Totale</td><td>${fmtN(G.soldPz)}</td><td>${fmtN(G.stockPz)}</td><td>${fmtN(G.agePz[3])}</td><td>${fmtAge(G.oldest)}</td><td>${fmtCover(G.cover)}</td>${hasOrder?`<td>${fmtN(totOrder)}</td><td></td>`:''}<td></td></tr>
+</tbody></table>
+<div class="small">Copertura = pezzi in magazzino ÷ pezzi venduti al mese. Solo montature vista e sole. ${hasOrder?'Costo dell\'ordine stimato dal costo medio del venduto.':''}</div>
 </body></html>`;
 }
 function exportAcqPdf(){
@@ -2044,7 +2096,7 @@ document.addEventListener('click',function(e){
 // Barra laterale a scomparsa. Hamburger = blocca aperta / lascia che si chiuda da sola.
 // Non bloccata: dopo aver scelto una pagina si richiude (animata) e si riapre
 // passando col mouse sopra, senza spostare il contenuto.
-let SB_PIN=false,SB_GHOST=null,SB_TIMER=null;
+let SB_PIN=false,SB_GHOST=null,SB_TIMER=null,SB_LOCK=0;
 const sbDesktop=()=>window.innerWidth>700;
 function sbGhostOff(){if(SB_GHOST){SB_GHOST.remove();SB_GHOST=null;}}
 function sbPeekOn(){
@@ -2052,12 +2104,13 @@ function sbPeekOn(){
   if(!sb||!sbDesktop()||SB_PIN)return;
   clearTimeout(SB_TIMER);
   if(!sb.classList.contains('collapsed'))return;
-  if(!SB_GHOST){SB_GHOST=document.createElement('div');SB_GHOST.style.cssText='width:60px;flex-shrink:0';sb.parentNode.insertBefore(SB_GHOST,sb);}
+  if(!SB_GHOST){SB_GHOST=document.createElement('div');SB_GHOST.style.cssText='width:84px;flex-shrink:0';sb.parentNode.insertBefore(SB_GHOST,sb);}
   sb.classList.add('peek');sb.classList.remove('collapsed');
 }
 function sbCollapse(){
   const sb=document.getElementById('sidebar');
   if(!sb||!sbDesktop()||SB_PIN)return;
+  SB_LOCK=performance.now()+800;
   sb.classList.add('collapsed');
   clearTimeout(SB_TIMER);
   SB_TIMER=setTimeout(()=>{sb.classList.remove('peek');sbGhostOff();},480);
@@ -2074,6 +2127,8 @@ function toggleSidebar(){
 document.addEventListener('DOMContentLoaded',()=>{
   const sb=document.getElementById('sidebar');if(!sb)return;
   sb.addEventListener('mouseenter',sbPeekOn);
+  // il mouseenter non scatta se il puntatore era già sopra mentre la barra si chiudeva
+  sb.addEventListener('mousemove',()=>{if(performance.now()>SB_LOCK&&sb.classList.contains('collapsed'))sbPeekOn();},{passive:true});
   sb.addEventListener('mouseleave',()=>{if(sb.classList.contains('peek'))sbCollapse();});
 });
 
@@ -2199,6 +2254,16 @@ function moveNavIndicator(pop){
   ind.style.opacity='1';
   if(pop){a.classList.remove('pop');void a.offsetWidth;a.classList.add('pop');ind.classList.remove('flash');void ind.offsetWidth;ind.classList.add('flash');}
 }
+
+// Effetto "dock": le voci vicine al mouse si ingrandiscono leggermente
+document.addEventListener('DOMContentLoaded',()=>{
+  const sb=document.getElementById('sidebar');if(!sb)return;
+  const items=[...sb.querySelectorAll('.nb')];
+  items.forEach((el,i)=>el.style.setProperty('--i',i));
+  const nav=sb.querySelector('.sb-nav');
+  nav.addEventListener('mousemove',e=>{items.forEach(el=>{const r=el.getBoundingClientRect(),d=Math.abs(e.clientY-(r.top+r.height/2));el.style.setProperty('--m',Math.max(0,1-d/90).toFixed(3));});},{passive:true});
+  nav.addEventListener('mouseleave',()=>items.forEach(el=>el.style.setProperty('--m',0)));
+});
 window.addEventListener('resize',()=>moveNavIndicator(false));
 document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>moveNavIndicator(false),80);});
 
