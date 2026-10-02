@@ -420,6 +420,80 @@ html.light .ai-table th{background:rgba(141,4,57,.1);color:#8d0439;border-bottom
 #ai-send:hover{transform:scale(1.08);background:#c04a72;}
 #ai-send:disabled{opacity:.3;cursor:not-allowed;transform:none;}
 @media(max-width:700px){.ai-sidebar{display:none;}.ai-page{height:auto;}}
+
+/* ═══ RESTYLING 2026 — strato visivo "forte" (solo CSS additivo) ══════════
+   Aurora animata sullo sfondo, ingresso a cascata dei blocchi, riflesso che
+   segue il mouse sulle card, barre che si riempiono, bordo luminoso sul
+   verdetto. Tutto spento con prefers-reduced-motion e alleggerito su
+   telefono. Nessuna logica toccata. */
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55;will-change:transform}
+.blob.b1{width:46vw;height:46vw;left:-12vw;top:-14vw;background:rgba(220,60,120,.42);animation:blobA 22s ease-in-out infinite}
+.blob.b2{width:38vw;height:38vw;right:-10vw;bottom:-12vw;background:rgba(74,222,128,.22);animation:blobB 26s ease-in-out infinite}
+.blob.b3{width:34vw;height:34vw;left:38vw;bottom:-18vw;background:rgba(192,132,252,.26);animation:blobC 30s ease-in-out infinite}
+.blob.b4{width:26vw;height:26vw;right:8vw;top:-8vw;background:rgba(103,232,249,.18);animation:blobA 34s ease-in-out infinite reverse}
+html.light .blob{opacity:.28}
+@keyframes blobA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(6vw,4vw) scale(1.12)}66%{transform:translate(-3vw,7vw) scale(.94)}}
+@keyframes blobB{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-7vw,-5vw) scale(1.18)}}
+@keyframes blobC{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-8vw,-3vw) scale(1.1)}80%{transform:translate(5vw,-6vw) scale(.92)}}
+
+/* Ingresso a cascata: ogni blocco di pagina entra con un lieve ritardo */
+#root>.fi,#root>div>.fi{animation:riseIn .6s cubic-bezier(.22,1,.36,1) both}
+#root>.fi:nth-child(2),#root>div>.fi:nth-child(2){animation-delay:.05s}
+#root>.fi:nth-child(3),#root>div>.fi:nth-child(3){animation-delay:.10s}
+#root>.fi:nth-child(4),#root>div>.fi:nth-child(4){animation-delay:.15s}
+#root>.fi:nth-child(5),#root>div>.fi:nth-child(5){animation-delay:.20s}
+#root>.fi:nth-child(6),#root>div>.fi:nth-child(6){animation-delay:.25s}
+#root>.fi:nth-child(n+7),#root>div>.fi:nth-child(n+7){animation-delay:.30s}
+@keyframes riseIn{from{opacity:0;transform:translateY(22px) scale(.985);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
+
+/* Card: riflesso che segue il cursore (--mx/--my impostati da JS) */
+.g{position:relative}
+.g::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .35s;background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(236,123,160,.13),transparent 60%)}
+.g:hover::before{opacity:1}
+html.light .g::before{background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(141,4,57,.07),transparent 60%)}
+
+/* KPI: numeri più grandi, barra d'accento che si disegna */
+.kv{font-size:32px;letter-spacing:-1.8px}
+.kc::before{content:'';position:absolute;left:0;top:0;height:2px;width:100%;opacity:1;border-radius:0;background:linear-gradient(90deg,var(--ac),transparent);transform-origin:left;animation:barGrow .9s .2s cubic-bezier(.22,1,.36,1) both}
+@keyframes barGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.sbar,.kv-s-fill,.forn-fill,.pbr,.marg-fill-c,.marg-fill-m{transform-origin:left;animation:barFill 1s .25s cubic-bezier(.22,1,.36,1) both}
+@keyframes barFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* Titolo pagina in gradiente + pallino vivo accanto al badge */
+.page-title{font-size:24px;font-weight:700;letter-spacing:-.8px;background:linear-gradient(120deg,var(--t) 40%,var(--ac));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.page-title .pt-badge{-webkit-text-fill-color:var(--ac)}
+
+/* Verdetto: bordo luminoso animato + pallino che pulsa */
+.ov-headline{position:relative}
+.g:has(>.ov-headline){border:1px solid transparent;background:linear-gradient(var(--bg2),var(--bg2)) padding-box,conic-gradient(from var(--ang,0deg),rgba(236,123,160,.55),rgba(103,232,249,.25),rgba(192,132,252,.45),rgba(236,123,160,.55)) border-box;animation:spinBorder 8s linear infinite}
+html:not(.light) .g:has(>.ov-headline){background:linear-gradient(rgba(14,7,11,.92),rgba(14,7,11,.92)) padding-box,conic-gradient(from var(--ang,0deg),rgba(236,123,160,.6),rgba(103,232,249,.25),rgba(192,132,252,.5),rgba(236,123,160,.6)) border-box}
+@property --ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes spinBorder{to{--ang:360deg}}
+.st-pill{position:relative}
+.st-bad::before,.st-warn::before{content:'';position:absolute;inset:-3px;border-radius:99px;border:1px solid currentColor;opacity:.5;animation:ping 2s ease-out infinite}
+@keyframes ping{0%{transform:scale(.92);opacity:.55}100%{transform:scale(1.18);opacity:0}}
+
+/* Hero Overview: cifra grande + sparkline */
+.hero{display:grid;grid-template-columns:auto 1fr;gap:22px 34px;align-items:center;padding:6px 4px 2px}
+.hero-fig{font-size:56px;font-weight:800;letter-spacing:-3px;line-height:1;color:var(--t)}
+.hero-sub{font-size:12px;color:var(--m);margin-top:8px}
+.hero-spark{width:100%;height:84px;display:block}
+.hero-spark .ln{fill:none;stroke:var(--ac);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1200;stroke-dashoffset:1200;animation:draw 1.6s .3s cubic-bezier(.22,1,.36,1) forwards}
+.hero-spark .ar{fill:url(#spk);opacity:0;animation:fadeIn .9s 1s ease forwards}
+.hero-spark .dt{fill:var(--ac);opacity:0;animation:fadeIn .4s 1.6s ease forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fadeIn{to{opacity:1}}
+@media(max-width:700px){.hero{grid-template-columns:1fr}.hero-fig{font-size:44px}.blob{filter:blur(60px);opacity:.4}.page-title{font-size:21px}}
+
+/* Sidebar: voce attiva con alone, hover più vivo */
+.nb.active{background:linear-gradient(90deg,rgba(236,123,160,.14),transparent)}
+html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transparent)}
+.kc:hover{transform:translateY(-3px)}
+
+@media(prefers-reduced-motion:reduce){
+  .blob,.g:has(>.ov-headline),.st-bad::before,.st-warn::before{animation:none!important}
+  #root>.fi,#root>div>.fi,.kc::before,.sbar,.kv-s-fill,.forn-fill,.pbr,.hero-spark .ln,.hero-spark .ar,.hero-spark .dt{animation:none!important;opacity:1;transform:none;filter:none;stroke-dashoffset:0}
+}
 </style>
 </head>
 <body>
@@ -1667,6 +1741,14 @@ function renderPage(){
 }
 
 // ═══ COUNT-UP ANIMATION SUI KPI ═════════════════════════════════════════════
+// Riflesso che segue il mouse sulle card (aggiorna solo due variabili CSS)
+document.addEventListener('pointermove',e=>{
+  const g=e.target.closest&&e.target.closest('.g');
+  if(!g)return;
+  const r=g.getBoundingClientRect();
+  g.style.setProperty('--mx',(e.clientX-r.left)+'px');
+  g.style.setProperty('--my',(e.clientY-r.top)+'px');
+},{passive:true});
 function animKV(){
   if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   document.querySelectorAll('.kv').forEach(el=>{
@@ -1969,6 +2051,19 @@ ${rows.map(([l,v,c])=>{const pct=nTot>0?Math.round(v/nTot*100):0;return`<div sty
   // qualcosa da fare oggi — non dedurlo da percentuali sparse nei box sotto.
   const headlineDelta=(hasVendDate||hasAcq)&&perPYVal>0?dLabel(perVal,perPYVal):null;
   const headlineStatus=headlineDelta?statusWord(headlineDelta.d):null;
+  const heroHtml=(()=>{
+    if(!(hasVendDate||hasAcq))return'';
+    const tr=hasVendDate?vendTrend('M',12):acqTrend('M',12);
+    const v=tr&&tr.vals?tr.vals:[];
+    let spark='';
+    if(v.length>1){
+      const W=400,H=84,pad=6,mx=Math.max(...v),mn=Math.min(...v),rg=(mx-mn)||1;
+      const pts=v.map((y,i)=>[pad+i*(W-2*pad)/(v.length-1),pad+(H-2*pad)*(1-(y-mn)/rg)]);
+      const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+      spark=`<svg class="hero-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="spk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ec7ba0" stop-opacity=".35"/><stop offset="1" stop-color="#ec7ba0" stop-opacity="0"/></linearGradient></defs><path class="ar" d="${d} L${W-pad} ${H} L${pad} ${H} Z"/><path class="ln" d="${d}"/></svg>`;
+    }
+    return`<div class="hero"><div><div class="kl" style="margin-bottom:8px">Fatturato ${perLabel} · vista + sole</div><div class="hero-fig kv">${fmt(perVal)}</div><div class="hero-sub">${fmtN(perPz)} pezzi${perPYVal>0?` · anno scorso ${fmt(perPYVal)}`:''}</div></div><div>${spark}<div style="font-size:10px;color:var(--d);text-align:right;margin-top:2px">ultimi 12 mesi</div></div></div><div style="height:1px;background:var(--b);margin:14px 0 4px"></div>`;
+  })();
   const topAction=(()=>{
     if(!hasVendDate)return null;
     const ret=computeRetention((ST.cliRetLost||12)*30,ST.sedeMode);
@@ -1997,6 +2092,7 @@ ${noDataBanner}
 ${usingProxy?`<div style="background:rgba(236,123,160,.05);border:0.5px solid rgba(236,123,160,.15);border-radius:var(--r);padding:7px 14px;margin-bottom:10px;font-size:11px;color:var(--d)">⚠ vendite.xlsx senza date — KPI calcolati su acquisti come proxy</div>`:''}
 ${(headlineDelta||topAction)?`
 <div class="g card fi" style="margin-bottom:14px">
+  ${heroHtml}
   <div class="ov-headline">
     ${headlineStatus?`<span class="st-pill st-${headlineStatus.st}" style="font-size:13px;padding:7px 14px">${headlineStatus.icon} ${headlineStatus.word}</span>`:''}
     <div class="ov-headline-text">
