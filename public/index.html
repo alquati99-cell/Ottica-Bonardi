@@ -126,6 +126,15 @@ html{scroll-behavior:smooth}
 .gro{background:linear-gradient(135deg,#f87171,rgba(248,113,113,.7));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .delta{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;padding:3px 8px;border-radius:7px;margin-top:5px}
 .up{background:rgba(74,222,128,.14);color:#4ade80;border:0.5px solid rgba(74,222,128,.35)}.dn{background:rgba(248,113,113,.14);color:#f87171;border:0.5px solid rgba(248,113,113,.35)}
+/* ── Stato a parole (so-what): good/warn/bad/neutral, sempre icona+testo ── */
+.st-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 11px;border-radius:99px;white-space:nowrap}
+.st-good{background:rgba(74,222,128,.14);color:var(--em);border:0.5px solid rgba(74,222,128,.35)}
+.st-warn{background:rgba(251,191,36,.14);color:var(--am);border:0.5px solid rgba(251,191,36,.35)}
+.st-bad{background:rgba(248,113,113,.14);color:var(--ro);border:0.5px solid rgba(248,113,113,.35)}
+.st-neutral{background:rgba(255,255,255,.08);color:var(--m);border:0.5px solid var(--b)}
+.ov-headline{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:20px 22px}
+.ov-headline-text{font-size:14.5px;color:var(--t);line-height:1.5;flex:1;min-width:240px}
+.ov-action{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--b);font-size:13px;color:var(--m);flex-wrap:wrap}
 .card{padding:18px}
 .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;flex-wrap:wrap}
 .ct{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--m);display:flex;align-items:center;gap:7px}
@@ -1222,6 +1231,17 @@ const fmtShortPz=n=>{n=Math.round(n);if(n>=1000)return(n/1000).toFixed(1).replac
 const fatt=arr=>arr.reduce((a,v)=>a+v.tot,0);
 const filtY=(yr,me)=>ALL_V.filter(v=>v.anno===yr&&(me===-1||v.mese===me));
 const dLabel=(c,p)=>{if(!p)return null;const d=Math.round((c-p)/p*100);return{d,cls:d>=0?"up":"dn",lbl:(d>=0?"↑":"↓")+Math.abs(d)+"%"};};
+// ── "SO WHAT" — traduce una variazione % in un giudizio a parole, non solo
+// in un colore. Chi guarda la dashboard non deve dover interpretare un
+// numero: la soglia decide già se è un bene, una stabilità o un problema.
+const STATUS_WORD={good:{icon:'🟢',word:'In crescita'},warn:{icon:'🟠',word:'In calo'},bad:{icon:'🔴',word:'In forte calo'},neutral:{icon:'⚪',word:'Stabile'}};
+function statusWord(d){
+  if(d==null)return null;
+  if(d>=5)return{st:'good',...STATUS_WORD.good,d};
+  if(d<=-15)return{st:'bad',...STATUS_WORD.bad,d};
+  if(d<=-5)return{st:'warn',...STATUS_WORD.warn,d};
+  return{st:'neutral',...STATUS_WORD.neutral,d};
+}
 
 // ── RETENTION (condivisa tra Overview e Clienti) ──────────────────────────
 // Raggruppa le vendite per cliente e classifica Attivo/A rischio/Perso/Nuovo
@@ -1875,14 +1895,15 @@ function rOv(){
     const hasData=hasVendDate||hasAcq;
     const dV=hasData&&prevVal>0?dLabel(val,prevVal):null;
     const dP=hasData&&prevPz>0?dLabel(pz,prevPz):null;
+    const sw=dV?statusWord(dV.d):null;
     return`<div class="g kc" style="display:flex;flex-direction:column;gap:5px">
   <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">${label}</div>
   <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${hasData?fmt(val):'—'}</div>
   <div style="font-size:13px;color:var(--m)">${hasData?fmtN(pz)+' pz':'—'}</div>
   ${hasData&&prevVal?`<div style="border-top:0.5px solid var(--b);padding-top:6px;margin-top:2px">
     <div style="font-size:10px;color:var(--d);margin-bottom:4px">vs ${prevLabel}</div>
-    <div style="display:flex;gap:5px;flex-wrap:wrap">
-      ${dV?`<span class="delta ${dV.cls}" style="font-size:10px">${dV.lbl} €</span>`:''}
+    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+      ${sw?`<span class="st-pill st-${sw.st}" style="font-size:10px;padding:3px 9px">${sw.icon} ${sw.word} ${dV.lbl}</span>`:''}
       ${dP?`<span class="delta ${dP.cls}" style="font-size:10px;background:rgba(90,200,250,.1);border-color:rgba(90,200,250,.25);color:#5ac8fa">${dP.lbl} pz</span>`:''}
     </div>
     <div style="font-size:10px;color:var(--d);margin-top:4px">${fmt(prevVal)} · ${fmtN(prevPz)} pz</div>
@@ -1943,6 +1964,20 @@ ${rows.map(([l,v,c])=>{const pct=nTot>0?Math.round(v/nTot*100):0;return`<div sty
 </div>`;}).join('')}`;
   };
 
+  // ── "SO WHAT" — un verdetto in una frase, non 4 numeri da interpretare.
+  // Chi apre la dashboard deve sapere SUBITO se va bene o male, e se c'è
+  // qualcosa da fare oggi — non dedurlo da percentuali sparse nei box sotto.
+  const headlineDelta=(hasVendDate||hasAcq)&&perPYVal>0?dLabel(perVal,perPYVal):null;
+  const headlineStatus=headlineDelta?statusWord(headlineDelta.d):null;
+  const topAction=(()=>{
+    if(!hasVendDate)return null;
+    const ret=computeRetention((ST.cliRetLost||12)*30,ST.sedeMode);
+    const risk=ret.retClients.filter(c=>c.status==='rischio').sort((a,b)=>b.totVal-a.totVal)[0];
+    if(!risk)return null;
+    const cliByCode=LIVE_CLI?.byCode||{};
+    return{nome:cliByCode[risk.cli]?.nome||risk.cli,val:risk.totVal,days:risk.daysSince};
+  })();
+
   return`
 <div class="topbar fi" style="flex-wrap:wrap;gap:8px">
   <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
@@ -1960,6 +1995,20 @@ ${rows.map(([l,v,c])=>{const pct=nTot>0?Math.round(v/nTot*100):0;return`<div sty
 </div>
 ${noDataBanner}
 ${usingProxy?`<div style="background:rgba(236,123,160,.05);border:0.5px solid rgba(236,123,160,.15);border-radius:var(--r);padding:7px 14px;margin-bottom:10px;font-size:11px;color:var(--d)">⚠ vendite.xlsx senza date — KPI calcolati su acquisti come proxy</div>`:''}
+${(headlineDelta||topAction)?`
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ov-headline">
+    ${headlineStatus?`<span class="st-pill st-${headlineStatus.st}" style="font-size:13px;padding:7px 14px">${headlineStatus.icon} ${headlineStatus.word}</span>`:''}
+    <div class="ov-headline-text">
+      ${headlineDelta?`Il fatturato <b>${perLabel}</b> è a <b style="color:var(--t)">${headlineDelta.lbl}</b> rispetto allo stesso periodo dello scorso anno${topBrandIns?`, trainato da <b style="color:var(--ac)">${topBrandIns.n}</b> (${fmt(topBrandIns.val)})`:''}.`:`Carica più storico per vedere il confronto con l'anno scorso.`}
+    </div>
+  </div>
+  ${topAction?`<div class="ov-action">
+    <span style="font-size:16px">👉</span>
+    <span>Da richiamare: <b style="color:var(--t)">${topAction.nome}</b> — ${fmt(topAction.val)}, non si fa vedere da ${topAction.days} giorni.</span>
+    <button onclick="nav('clienti')" style="margin-left:auto;background:rgba(236,123,160,.12);border:0.5px solid rgba(236,123,160,.3);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Vai ai clienti →</button>
+  </div>`:''}
+</div>`:''}
 
 <!-- 4 KPI boxes: solo Montature + Occhiali sole -->
 <div class="kg k4 fi" style="margin-bottom:12px">
