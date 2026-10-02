@@ -2131,10 +2131,33 @@ function rVend(){
   window.__vend={brands,tipoDisp};
   const tpBtn=(v,lbl)=>`<button class="tp${ST.vendTp===v?' on':''}" onclick="ST.vendTp='${v}';ST.vendMar='all';renderPage()">${lbl}</button>`;
   const filBtn=(v,lbl)=>`<button class="tp${ST.vendFil===v?' on':''}" onclick="ST.vendFil='${v}';renderPage()">${lbl}</button>`;
+
+  // ── "SO WHAT" — quale marchio guadagna di più e quale di meno, rispetto
+  // alla TUA marginalità media (non a un benchmark esterno inventato).
+  // Richiede volume minimo e acquisto tracciato, altrimenti il margine non
+  // è attendibile (vedi vendKPI/brandBreakdown).
+  const marginReliable=brands.filter(b=>b.acq>0&&b.val>=500);
+  const worstBrand=marginReliable.length?[...marginReliable].sort((a,b)=>a.pctM-b.pctM)[0]:null;
+  const bestBrand=marginReliable.length?[...marginReliable].sort((a,b)=>b.pctM-a.pctM)[0]:null;
+  const vendHeadline=(worstBrand&&bestBrand&&worstBrand.n!==bestBrand.n)?(()=>{
+    const gap=bestBrand.pctM-worstBrand.pctM;
+    const st=gap>=25?{st:'bad',icon:'🔴'}:gap>=15?{st:'warn',icon:'🟠'}:{st:'good',icon:'🟢'};
+    return{st,bestBrand,worstBrand,gap};
+  })():null;
+
   return`
 <div class="topbar fi">
   <div class="page-title">Vendite <span class="pt-badge">📂 ${UPLOAD_NAME_VEND}</span></div>
 </div>
+${vendHeadline?`
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ov-headline">
+    <span class="st-pill st-${vendHeadline.st.st}" style="font-size:13px;padding:7px 14px">${vendHeadline.st.icon} Margine: ${vendHeadline.gap}pt di scarto</span>
+    <div class="ov-headline-text">
+      Il margine medio di <b style="color:var(--ac)">${vendHeadline.bestBrand.n}</b> è del <b style="color:var(--t)">${vendHeadline.bestBrand.pctM}%</b>, mentre su <b style="color:var(--ac)">${vendHeadline.worstBrand.n}</b> è solo del <b style="color:var(--t)">${vendHeadline.worstBrand.pctM}%</b> — ${vendHeadline.gap>=15?'vale la pena capire se il prezzo va rivisto':'uno scarto nella norma tra i tuoi marchi'}.
+    </div>
+  </div>
+</div>`:''}
 <div class="controls fi" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
   <select class="sel" onchange="ST.vendAnno=this.value;renderPage()">
     <option value="all"${ST.vendAnno==='all'?' selected':''}>Tutti gli anni</option>
