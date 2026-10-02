@@ -2615,6 +2615,16 @@ function rCli(){
   const retention=computeRetention(retDays,ST.sedeMode);
   const {retClients,nAttivi,nRischio,nPersi,nNuovi,nTot}=retention;
 
+  // ── "SO WHAT" — quanto vale, in euro, il business che hai già perso.
+  // Un conteggio di clienti "persi" da solo non dice molto a chi non
+  // mastica numeri; tradotto in spesa storica diventa concreto.
+  const cliFidPct=nTot>0?Math.round((nAttivi+nRischio)/nTot*100):0;
+  const persiVal=retClients.filter(c=>c.status==='perso').reduce((a,c)=>a+c.totVal,0);
+  const cliHeadline=hasVend&&nTot>0?{
+    st:cliFidPct>=60?{st:'good',icon:'🟢'}:cliFidPct>=40?{st:'warn',icon:'🟠'}:{st:'bad',icon:'🔴'},
+    cliFidPct,persiVal
+  }:null;
+
   // Recency buckets
   const buckets=[0,0,0,0,0];
   retClients.forEach(c=>{
@@ -2942,6 +2952,20 @@ ${drillHtml}`;
     <input id="srch-cli" class="srch" placeholder="Cerca nome o codice…" value="${ST.cliSearch}" oninput="ST.cliSearch=this.value;renderPage()" style="width:190px">
   </div>
 </div>
+${cliHeadline?`
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ov-headline">
+    <span class="st-pill st-${cliHeadline.st.st}" style="font-size:13px;padding:7px 14px">${cliHeadline.st.icon} ${cliHeadline.cliFidPct}% fidelizzati</span>
+    <div class="ov-headline-text">
+      Il <b style="color:var(--t)">${cliHeadline.cliFidPct}%</b> dei tuoi clienti è attivo o recuperabile. I clienti ormai persi valgono comunque <b style="color:var(--t)">${fmt(cliHeadline.persiVal)}</b> di spesa storica — anche un richiamo mirato a una parte di loro può valerne la pena.
+    </div>
+  </div>
+  <div class="ov-action">
+    <span style="font-size:16px">👉</span>
+    <span>Vedi la lista dei clienti persi, ordinati per valore</span>
+    <button onclick="ST.cliTab='retention';ST.cliRetFilter='perso';ST.cliRetSort='val';ST.cliRetAsc=false;renderPage()" style="margin-left:auto;background:rgba(236,123,160,.12);border:0.5px solid rgba(236,123,160,.3);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Vedi clienti persi →</button>
+  </div>
+</div>`:''}
 ${splitBar()}
 ${tab==='retention'?tRetention():tab==='eta'?tEta():tab==='storico'?tStorico():tLista()}`;
 }
