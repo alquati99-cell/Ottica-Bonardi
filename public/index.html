@@ -65,7 +65,7 @@ html{scroll-behavior:smooth}
 .nb:hover .nb-ic{transform:scale(1.15)}
 .nb-label{transition:opacity .2s ease,transform .2s ease}
 .sb.collapsed .nb-label{opacity:0;transform:translateX(-6px);pointer-events:none}
-.sb.collapsed .nb{justify-content:center;padding:10px 0}
+.sb.collapsed .nb{justify-content:center;padding:9px 0}
 
 /* stagger reveal on expand */
 .sb:not(.collapsed) .nb{animation:nbReveal .35s cubic-bezier(.32,.72,0,1) both}
@@ -490,13 +490,45 @@ details.more>summary::-webkit-details-marker{display:none}
 details.more>summary::before{content:'▸ ';color:var(--ac)}
 details.more[open]>summary::before{content:'▾ '}
 details.more>summary:hover{color:var(--t);border-color:var(--bb)}
+
+/* Funzioni sulle card */
+.ctools{display:flex;gap:4px;margin-left:auto;opacity:.3;transition:opacity .2s}
+.g:hover>.ch .ctools{opacity:1}
+.ibtn{width:26px;height:26px;border-radius:8px;border:0.5px solid var(--b);background:var(--gl);color:var(--m);cursor:pointer;font-size:13px;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:all .18s}
+.ibtn:hover{color:var(--ac);border-color:var(--ac);background:var(--acl);transform:scale(1.08)}
+.xbtn{width:24px;height:24px;border-radius:7px;border:0.5px solid var(--b);background:var(--gl);color:var(--m);cursor:pointer;font-size:12px;transition:transform .25s cubic-bezier(.34,1.56,.64,1),background .2s,color .2s}
+.xbtn:hover{background:var(--acl);color:var(--ac)}
+.xbtn.open{transform:rotate(90deg);background:var(--acl);color:var(--ac)}
+tr.det td{animation:detIn .35s ease both}
+@keyframes detIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.cmodal{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(5,2,4,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:fadeInBg .22s ease both}
+.cmodal>.g{animation:modalPop .38s cubic-bezier(.34,1.4,.64,1) both}
+.cmodal.out{animation:fadeOutBg .2s ease both}
+.cmodal-x{position:absolute;top:16px;right:20px;width:36px;height:36px;border-radius:50%;border:0.5px solid var(--bb);background:var(--bg2);color:var(--t);font-size:15px;cursor:pointer;z-index:2}
+@keyframes fadeInBg{from{opacity:0}to{opacity:1}}
+@keyframes fadeOutBg{to{opacity:0}}
+@keyframes modalPop{from{opacity:0;transform:scale(.9) translateY(16px)}to{opacity:1;transform:none}}
+@media(max-width:700px){.acq-det{grid-template-columns:1fr!important}.age-grid{grid-template-columns:repeat(2,1fr)!important}}
+/* Sidebar: indicatore elastico + icona che "saltella" alla scelta */
+.sb-nav{position:relative}
+.nb{z-index:1}
+.nb-ind{position:absolute;left:8px;right:8px;top:0;border-radius:12px;pointer-events:none;z-index:0;opacity:0;background:linear-gradient(90deg,rgba(236,123,160,.26),rgba(236,123,160,.05));border:0.5px solid rgba(236,123,160,.32);box-shadow:0 0 22px rgba(236,123,160,.18);transition:transform .6s cubic-bezier(.34,1.56,.64,1),height .35s ease,opacity .3s}
+html.light .nb-ind{background:linear-gradient(90deg,rgba(141,4,57,.16),rgba(141,4,57,.03));border-color:rgba(141,4,57,.28);box-shadow:0 0 18px rgba(141,4,57,.1)}
+.nb.active,html.light .nb.active{background:none}
+.nb-ind.flash::after{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-100%);animation:sheen .7s .1s ease forwards}
+@keyframes sheen{to{transform:translateX(100%)}}
+.nb.pop .nb-ic{animation:icPop .55s cubic-bezier(.34,1.56,.64,1)}
+@keyframes icPop{0%{transform:scale(1) rotate(0)}35%{transform:scale(1.5) rotate(-14deg)}70%{transform:scale(.92) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
+.sb.collapsed .nb-ind{left:6px;right:6px}
+.sb.collapsed .nb.active .nb-ic{color:var(--ac)}
 /* Spaziatura uniforme tra i blocchi (prima molte righe di card erano incollate) */
 #root .kg,#root .g2,#root .g3,#root .g13,#root .op-ins-grid{gap:16px}
 #root .kg,#root .g2,#root .g3,#root .g13{margin-bottom:16px!important}
 #root>.g,#root>.tw,#root>.abar,#root>.quickbar{margin-bottom:16px!important}
 #root>div>.g.card+.g.card{margin-top:16px}
 /* Sidebar a scomparsa: collassata dopo la scelta di una pagina, si apre al passaggio del mouse */
-.sb.peek{position:fixed;left:0;top:0;z-index:60;box-shadow:14px 0 44px rgba(0,0,0,.5)}
+.sb.peek{position:fixed;left:0;top:0;z-index:60;box-shadow:14px 0 44px rgba(0,0,0,.5);background:rgba(14,7,11,.97)}
+html.light .sb.peek{background:rgba(255,255,255,.97)}
 html.light .sb.peek{box-shadow:14px 0 44px rgba(60,10,30,.18)}
 .sb{transition:width cubic-bezier(.32,.72,0,1) .45s,box-shadow .3s}
 /* Sidebar: voce attiva con alone, hover più vivo */
@@ -692,7 +724,7 @@ function stockSalesCore(period){
   let magRows=curMAG().rows.map(enrichMagRow);
   if(sm==='A'||sm==='B'||sm==='C')magRows=magRows.filter(r=>r.f===sm);
   const B={};
-  const get=(k,raw)=>{const b=B[k]||(B[k]={key:k,labels:{},grp:{},soldPz:0,soldVal:0,soldAcq:0,soldAcqPz:0,vistaPz:0,solePz:0,stockPz:0,stockVal:0,stockVista:0,stockSole:0,staleVal:0});if(raw)b.labels[raw]=(b.labels[raw]||0)+1;return b;};
+  const get=(k,raw)=>{const b=B[k]||(B[k]={key:k,labels:{},grp:{},soldPz:0,soldVal:0,soldAcq:0,soldAcqPz:0,vistaPz:0,solePz:0,stockPz:0,stockVal:0,stockVista:0,stockSole:0,staleVal:0,agePz:[0,0,0,0,0],ageVal:[0,0,0,0,0],oldest:null,mods:{},stockA:0,stockB:0,soldA:0,soldB:0});if(raw)b.labels[raw]=(b.labels[raw]||0)+1;return b;};
   magRows.forEach(r=>{
     const k=acqBrandKey(r.m);if(!k)return;
     const b=get(k,String(r.m).trim());
@@ -700,6 +732,14 @@ function stockSalesCore(period){
     b.stockPz+=r.q;b.stockVal+=r.v;
     if(r.cat==='M')b.stockVista+=r.q;else b.stockSole+=r.q;
     if(typeof r.mesi==='number'&&r.mesi>=36)b.staleVal+=r.v;
+    const ai=typeof r.mesi!=='number'?4:r.mesi<12?0:r.mesi<24?1:r.mesi<36?2:3;
+    b.agePz[ai]+=r.q;b.ageVal[ai]+=r.v;
+    if(typeof r.mesi==='number'&&(b.oldest==null||r.mesi>b.oldest))b.oldest=r.mesi;
+    if(r.f==='A')b.stockA+=r.q;else if(r.f==='B')b.stockB+=r.q;
+    const mk=aiNorm(r.mod||'')||'—';
+    const mm=b.mods[mk]||(b.mods[mk]={mod:String(r.mod||'—').trim(),soldPz:0,stockPz:0,stockVal:0,oldest:null});
+    mm.stockPz+=r.q;mm.stockVal+=r.v;
+    if(typeof r.mesi==='number'&&(mm.oldest==null||r.mesi>mm.oldest))mm.oldest=r.mesi;
   });
   frames.forEach(r=>{
     if(r.dt<per.from||r.dt>per.to)return;
@@ -708,6 +748,10 @@ function stockSalesCore(period){
     b.soldPz+=r.pz;b.soldVal+=r.val;
     if(r.acq>0&&r.val>0){b.soldAcq+=r.acq;b.soldAcqPz+=r.val;}
     if(r.tp==='Montature vista')b.vistaPz+=r.pz;else b.solePz+=r.pz;
+    if(r.fil==='A')b.soldA+=r.pz;else if(r.fil==='B')b.soldB+=r.pz;
+    const mk=aiNorm(r.mod||'')||'—';
+    const mm=b.mods[mk]||(b.mods[mk]={mod:String(r.mod||'—').trim(),soldPz:0,stockPz:0,stockVal:0,oldest:null});
+    mm.soldPz+=r.pz;
   });
   const monthsOf=per.months;
   const brands=Object.values(B).map(b=>{
@@ -724,12 +768,14 @@ function stockSalesCore(period){
   });
   const groups={};
   brands.forEach(b=>{
-    const g=groups[b.group]||(groups[b.group]={name:b.group,soldPz:0,soldVal:0,stockPz:0,stockVal:0,staleVal:0,vistaPz:0,solePz:0,stockVista:0,stockSole:0,n:0});
+    const g=groups[b.group]||(groups[b.group]={name:b.group,soldPz:0,soldVal:0,stockPz:0,stockVal:0,staleVal:0,vistaPz:0,solePz:0,stockVista:0,stockSole:0,n:0,agePz:[0,0,0,0,0],ageVal:[0,0,0,0,0],oldest:null});
+    b.agePz.forEach((x,i)=>{g.agePz[i]+=x;g.ageVal[i]+=b.ageVal[i];});
+    if(b.oldest!=null&&(g.oldest==null||b.oldest>g.oldest))g.oldest=b.oldest;
     g.soldPz+=b.soldPz;g.soldVal+=b.soldVal;g.stockPz+=b.stockPz;g.stockVal+=b.stockVal;g.staleVal+=b.staleVal;
     g.vistaPz+=b.vistaPz;g.solePz+=b.solePz;g.stockVista+=b.stockVista;g.stockSole+=b.stockSole;g.n++;
   });
   Object.values(groups).forEach(g=>{const r=g.soldPz/monthsOf;g.cover=r>0?g.stockPz/r:(g.stockPz>0?Infinity:0);});
-  return{brands,groups,per,anchor};
+  return{brands,groups,per,anchor,months:monthsOf};
 }
 function acqVerdict(b){
   if(b.soldPz<=0&&b.stockPz>0)return{st:'bad',icon:'🔴',word:'Fermo · non riordinare',k:'ferma'};
@@ -741,16 +787,59 @@ function acqVerdict(b){
 }
 const fmtCover=c=>c===Infinity?'∞':c<1?'<1 mese':c<24?`${Math.round(c)} mesi`:`${(c/12).toFixed(1).replace('.',',')} anni`;
 
-function rAcq(){
+const AGE_LABELS=['meno di 1 anno','1–2 anni','2–3 anni','oltre 3 anni','senza data'];
+const AGE_COLORS=['#4ade80','#a3e635','#fbbf24','#f87171','#94a3b8'];
+const fmtAge=m=>m==null?'—':m<12?`${m} mesi`:`${(m/12).toFixed(1).replace('.',',')} anni`;
+function acqUnitCost(b){return b.margPct!=null&&b.avgPrice>0?b.avgPrice*(1-b.margPct/100):(b.stockAvgCost||0);}
+// Quantità indicativa da ordinare per riportare la copertura al target (mesi)
+function acqNeed(b,months,T){return b.soldPz>0?Math.max(0,Math.ceil(b.soldPz/months*T-b.stockPz)):0;}
+// Dati completi della vista scelta (usati sia dalla pagina sia dal PDF)
+function acqView(){
   const core=stockSalesCore(ST.acqPeriod);
-  if(!core)return`<div class="topbar fi"><div class="page-title">Prepara acquisti</div></div>
-<div class="g card fi" style="padding:40px;text-align:center;color:var(--d)"><div style="font-size:32px;margin-bottom:10px">🛒</div><div style="font-size:14px;color:var(--m)">Servono vendite con data e magazzino caricati.</div><div style="font-size:12px;margin-top:6px">Vai a <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div></div>`;
-  const{brands,groups,per}=core;
+  if(!core)return null;
+  const{brands,groups,per,months}=core;
   const groupList=Object.values(groups).filter(g=>g.soldPz>0||g.stockPz>0).sort((a,b)=>(b.stockVal+b.soldVal)-(a.stockVal+a.soldVal));
   if(!ST.acqGroup||!groups[ST.acqGroup])ST.acqGroup=(groupList.find(g=>g.name!=='Non in magazzino'&&g.name!=='Altro')||groupList[0]||{}).name;
   const G=groups[ST.acqGroup];
-  if(!G)return`<div class="topbar fi"><div class="page-title">Prepara acquisti</div></div><div class="g card fi" style="padding:30px;text-align:center;color:var(--d)">Nessun dato per costruire il piano acquisti.</div>`;
+  if(!G)return null;
+  const T=ST.acqTarget||6;
   const gb=brands.filter(b=>b.group===G.name&&(b.soldPz>0||b.stockPz>0));
+  gb.forEach(b=>{b.need=acqNeed(b,months,T);b.needVal=b.need*acqUnitCost(b);});
+  const totNeed=gb.reduce((a,b)=>a+b.need,0),totNeedVal=gb.reduce((a,b)=>a+b.needVal,0);
+  // Quota d'acquisto consigliata: segue il venduto, ma pesa meno i marchi con già
+  // molto stock (copertura >12 mesi: metà, >24 mesi: un quarto) e azzera i fermi.
+  const wts=gb.map(b=>b.soldPz>0?b.soldPz*(b.cover>24?0.25:b.cover>12?0.5:1):0);
+  const wSum=wts.reduce((a,x)=>a+x,0)||1;
+  const qty=ST.acqQty||0;
+  gb.forEach((b,i)=>{b.quota=wts[i]/wSum;b.quotaPz=qty>0?Math.round(qty*b.quota):null;});
+  return{qty,core,brands,groups,per,months,groupList,G,T,gb,totNeed,totNeedVal};
+}
+function toggleBrandDetail(key,btn){
+  const row=document.getElementById('det-'+key);if(!row)return;
+  const open=row.style.display==='none';
+  row.style.display=open?'table-row':'none';
+  btn.classList.toggle('open',open);
+  ST.acqOpen=ST.acqOpen||{};ST.acqOpen[key]=open;
+}
+function acqDetailHtml(b){
+  const ageTot=b.agePz.reduce((a,x)=>a+x,0)||1;
+  const ageBars=b.agePz.map((x,i)=>x>0?`<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin:4px 0"><span style="width:92px;color:var(--m)">${AGE_LABELS[i]}</span><div style="flex:1;height:6px;background:var(--b);border-radius:3px;overflow:hidden"><div style="height:100%;width:${x/ageTot*100}%;background:${AGE_COLORS[i]}"></div></div><span class="mn" style="min-width:86px;text-align:right">${fmtN(x)} pz · ${fmt(b.ageVal[i])}</span></div>`:'').join('');
+  const mods=Object.values(b.mods);
+  const topSold=mods.filter(m=>m.soldPz>0).sort((x,y)=>y.soldPz-x.soldPz).slice(0,5);
+  const oldest=mods.filter(m=>m.stockPz>0&&m.oldest!=null).sort((x,y)=>y.oldest-x.oldest).slice(0,5);
+  const li=(arr,fn)=>arr.length?arr.map(fn).join(''):'<div style="color:var(--d);font-size:12px">nessun dato</div>';
+  return`<div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:22px;padding:6px 4px" class="acq-det">
+    <div><div class="kl">Da quanto sono in magazzino</div>${ageBars||'<div style="color:var(--d);font-size:12px">Nessun pezzo in magazzino</div>'}
+      <div style="font-size:11px;color:var(--m);margin-top:8px">Più vecchio: <b style="color:var(--t)">${fmtAge(b.oldest)}</b> · Sede A ${fmtN(b.stockA)} pz · Sede B ${fmtN(b.stockB)} pz in stock (venduti A ${fmtN(b.soldA)} / B ${fmtN(b.soldB)})</div></div>
+    <div><div class="kl">Modelli più venduti</div>${li(topSold,m=>`<div class="srow" style="padding:5px 0"><div class="slb" style="min-width:0;flex:1">${m.mod}</div><div class="sv" style="min-width:110px">${fmtN(m.soldPz)} venduti · ${fmtN(m.stockPz)} stock</div></div>`)}</div>
+    <div><div class="kl">Fermi da più tempo</div>${li(oldest,m=>`<div class="srow" style="padding:5px 0"><div class="slb" style="min-width:0;flex:1">${m.mod}</div><div class="sv" style="min-width:110px">${fmtN(m.stockPz)} pz · ${fmtAge(m.oldest)}</div></div>`)}</div>
+  </div>`;
+}
+function rAcq(){
+  const V=acqView();
+  if(!V)return`<div class="topbar fi"><div class="page-title">Prepara acquisti</div></div>
+<div class="g card fi" style="padding:40px;text-align:center;color:var(--d)"><div style="font-size:32px;margin-bottom:10px">🛒</div><div style="font-size:14px;color:var(--m)">Servono vendite con data e magazzino caricati.</div><div style="font-size:12px;margin-top:6px">Vai a <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">Carica dati</b>.</div></div>`;
+  const{per,months,groupList,G,T,gb,totNeed,totNeedVal,qty}=V;
   const sorters={sold:(a,b)=>b.soldPz-a.soldPz,least:(a,b)=>(a.soldPz-b.soldPz)||(b.stockVal-a.stockVal),stock:(a,b)=>b.stockVal-a.stockVal};
   const rows=[...gb].sort(sorters[ST.acqSort||'sold']);
   const maxSold=Math.max(1,...gb.map(b=>b.soldPz));
@@ -759,24 +848,29 @@ function rAcq(){
   const top3=[...gb].sort(sorters.sold).slice(0,3).filter(b=>b.soldPz>0);
   const gv=G.soldPz<=0&&G.stockPz>0?{st:'bad',icon:'🔴',t:'Nessuna vendita'}:G.cover<3?{st:'warn',icon:'🟠',t:'Scorte basse'}:G.cover<=12?{st:'good',icon:'🟢',t:'Stock in linea'}:G.cover<=24?{st:'neutral',icon:'⚪',t:'Stock abbondante'}:{st:'bad',icon:'🔴',t:'Stock in eccesso'};
   const avgP=G.soldPz>0?G.soldVal/G.soldPz:0;
+  const ageTot=G.agePz.reduce((a,x)=>a+x,0)||1;
   const pill=(k,l)=>`<button class="tp${ST.acqPeriod===k?' on':''}" onclick="ST.acqPeriod='${k}';renderPage()">${l}</button>`;
   const spill=(k,l)=>`<button class="tp${(ST.acqSort||'sold')===k?' on':''}" onclick="ST.acqSort='${k}';renderPage()">${l}</button>`;
+  const tpill=(k)=>`<button class="tp${T===k?' on':''}" onclick="ST.acqTarget=${k};renderPage()">${k} mesi</button>`;
   const chips=(arr)=>arr.length?arr.map(b=>`<span class="pill pdm" style="font-size:11px">${b.label} · ${fmtN(b.soldPz)} venduti / ${fmtN(b.stockPz)} in stock</span>`).join(' '):`<span style="color:var(--d);font-size:12px">nessuno</span>`;
   const split=(a,b,la,lb)=>{const t=a+b||1;return`<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--b);margin:6px 0"><div style="width:${a/t*100}%;background:var(--ac)"></div><div style="width:${b/t*100}%;background:var(--am)"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--m)"><span>${la} ${fmtN(a)} (${Math.round(a/t*100)}%)</span><span>${lb} ${fmtN(b)} (${Math.round(b/t*100)}%)</span></div>`;};
   const sedeTxt=(ST.sedeMode==='agg'||ST.sedeMode==='split')?'tutte le sedi':'sede '+ST.sedeMode;
+  const open=ST.acqOpen||{};
   return`
 <div class="topbar fi" style="flex-wrap:wrap;gap:8px">
   <div class="page-title">Prepara acquisti <span class="pt-badge">${sedeTxt}</span></div>
   <div class="controls" style="gap:8px">
-    <select class="sel" onchange="ST.acqGroup=this.value;renderPage()">${groupList.map(g=>`<option value="${g.name}"${g.name===G.name?' selected':''}>${g.name} · ${fmtN(g.soldPz)} venduti · ${fmtN(g.stockPz)} in stock</option>`).join('')}</select>
+    <select class="sel" onchange="ST.acqGroup=this.value;ST.acqOpen={};renderPage()">${groupList.map(g=>`<option value="${g.name}"${g.name===G.name?' selected':''}>${g.name} · ${fmtN(g.soldPz)} venduti · ${fmtN(g.stockPz)} in stock</option>`).join('')}</select>
     <div class="tpill" style="gap:0">${pill('l12','Ultimi 12 mesi')}${pill('cy','Quest\'anno')}${pill('py','Anno scorso')}</div>
+    <input id="acq-qty" class="sel" style="width:150px" type="text" inputmode="numeric" placeholder="Pezzi da ordinare" title="Facoltativo: quanti pezzi pensi di ordinare in tutto, per vedere come ripartirli" value="${ST.acqQty||''}" onchange="ST.acqQty=Math.max(0,parseInt(String(this.value).replace(/\D/g,''))||0);renderPage()">
+    <button class="qbtn" style="border-color:rgba(236,123,160,.4);color:var(--ac);font-weight:600" onclick="exportAcqPdf()">📄 Esporta PDF per la campagna</button>
   </div>
 </div>
 <div class="g card fi" style="margin-bottom:14px">
   <div class="ov-headline">
     <span class="st-pill st-${gv.st}" style="font-size:13px;padding:7px 14px">${gv.icon} ${gv.t}</span>
     <div class="ov-headline-text">
-      Con <b style="color:var(--ac)">${G.name}</b> negli ${per.label} hai venduto <b style="color:var(--t)">${fmtN(G.soldPz)} pezzi</b> (${fmt(G.soldVal)})${top3.length?`, trainati da ${top3.map(b=>`<b style="color:var(--t)">${b.label}</b>`).join(', ')}`:''}. In magazzino hai <b style="color:var(--t)">${fmtN(G.stockPz)} pezzi</b> (${fmt(G.stockVal)}), cioè scorte per <b style="color:var(--t)">${fmtCover(G.cover)}</b> di vendite.
+      Con <b style="color:var(--ac)">${G.name}</b> negli ${per.label} hai venduto <b style="color:var(--t)">${fmtN(G.soldPz)} pezzi</b> (${fmt(G.soldVal)})${top3.length?`, trainati da ${top3.map(b=>`<b style="color:var(--t)">${b.label}</b>`).join(', ')}`:''}. In magazzino hai <b style="color:var(--t)">${fmtN(G.stockPz)} pezzi</b> (${fmt(G.stockVal)}), cioè scorte per <b style="color:var(--t)">${fmtCover(G.cover)}</b> di vendite; il più vecchio è fermo da <b style="color:var(--t)">${fmtAge(G.oldest)}</b>.
     </div>
   </div>
   <div class="ov-action" style="align-items:flex-start;flex-direction:column;gap:8px">
@@ -795,30 +889,99 @@ function rAcq(){
   <div class="g card"><div class="ch"><div class="ct"><span class="dot dam"></span>Vista vs Sole — in magazzino</div></div>${split(G.stockVista,G.stockSole,'Vista','Sole')}</div>
 </div>
 <div class="g card fi" style="margin-bottom:12px">
-  <div class="ch"><div class="ct"><span class="dot dem"></span>Marchi ${G.name} — vendite e stock</div>
-    <div class="tpill" style="gap:0">${spill('sold','Più venduti')}${spill('least','Meno venduti')}${spill('stock','Più stock')}</div></div>
-  <div style="overflow-x:auto"><table style="min-width:820px">
-    <thead><tr><th>Marchio</th><th>Venduti</th><th>Vista/Sole</th><th>Prezzo medio</th><th>Margine</th><th>In stock</th><th>Valore stock</th><th>Copertura</th><th>Cosa fare</th></tr></thead>
+  <div class="ch"><div class="ct"><span class="dot dro"></span>Da quanto tempo è in magazzino — ${G.name}</div><div style="font-size:11px;color:var(--m)">${fmtN(G.stockPz)} pezzi · ${fmt(G.stockVal)}</div></div>
+  <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--b);margin-bottom:12px">${G.agePz.map((x,i)=>`<div title="${AGE_LABELS[i]}" style="width:${x/ageTot*100}%;background:${AGE_COLORS[i]}"></div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px" class="age-grid">${G.agePz.map((x,i)=>`<div><div style="font-size:11px;color:var(--m);display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${AGE_COLORS[i]}"></span>${AGE_LABELS[i]}</div><div style="font-size:18px;font-weight:700;margin-top:3px">${fmtN(x)} <span style="font-size:11px;font-weight:400;color:var(--m)">pz</span></div><div style="font-size:11px;color:var(--d)">${fmt(G.ageVal[i])} · ${Math.round(x/ageTot*100)}%</div></div>`).join('')}</div>
+</div>
+<div class="g card fi" style="margin-bottom:12px">
+  <div class="ch"><div class="ct"><span class="dot dem"></span>Marchi ${G.name} — vendite, stock e quanto ordinare</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--d)">Copertura obiettivo</span><div class="tpill" style="gap:0">${[4,6,9].map(tpill).join('')}</div><div class="tpill" style="gap:0">${spill('sold','Più venduti')}${spill('least','Meno venduti')}${spill('stock','Più stock')}</div></div></div>
+  <div style="overflow-x:auto"><table style="min-width:1060px">
+    <thead><tr><th style="width:30px"></th><th>Marchio</th><th>Venduti</th><th>Prezzo medio</th><th>Margine</th><th>In stock</th><th>Più vecchio</th><th>Copertura</th><th>Ordine indicativo</th><th>Quota d'acquisto</th><th>Cosa fare</th></tr></thead>
     <tbody>${rows.map(b=>`<tr>
+      <td><button class="xbtn${open[b.key]?' open':''}" title="Dettaglio marchio" onclick="toggleBrandDetail('${b.key}',this)">▸</button></td>
       <td style="font-weight:600">${b.label}</td>
-      <td style="min-width:130px"><div class="mn" style="margin-bottom:3px">${fmtN(b.soldPz)} pz</div><div style="height:4px;background:var(--b);border-radius:2px;overflow:hidden"><div style="height:100%;width:${b.soldPz/maxSold*100}%;background:var(--ac)"></div></div></td>
-      <td class="mn" style="color:var(--m)">${fmtN(b.vistaPz)} / ${fmtN(b.solePz)}</td>
+      <td style="min-width:130px"><div class="mn" style="margin-bottom:3px">${fmtN(b.soldPz)} pz <span style="color:var(--d);font-size:10px">(${fmtN(b.vistaPz)}V/${fmtN(b.solePz)}S)</span></div><div style="height:4px;background:var(--b);border-radius:2px;overflow:hidden"><div style="height:100%;width:${b.soldPz/maxSold*100}%;background:var(--ac)"></div></div></td>
       <td class="mn">${b.soldPz>0?fmt(b.avgPrice):'—'}</td>
       <td class="mn" style="color:${b.margPct==null?'var(--d)':b.margPct>=50?'var(--em)':b.margPct>=30?'var(--am)':'var(--ro)'}">${b.margPct==null?'—':b.margPct+'%'}</td>
-      <td class="mn">${fmtN(b.stockPz)} <span style="color:var(--d);font-size:10px">(${fmtN(b.stockVista)}V/${fmtN(b.stockSole)}S)</span></td>
-      <td class="mn">${fmt(b.stockVal)}</td>
+      <td class="mn">${fmtN(b.stockPz)} <span style="color:var(--d);font-size:10px">${fmt(b.stockVal)}</span></td>
+      <td class="mn">${fmtAge(b.oldest)}</td>
       <td class="mn">${fmtCover(b.cover)}</td>
+      <td class="mn" style="font-weight:700;color:${b.need>0?'var(--ac)':'var(--d)'}">${b.need>0?'+'+fmtN(b.need)+' pz':'—'}${b.need>0?`<div style="font-size:10px;font-weight:400;color:var(--d)">≈ ${fmt(b.needVal)}</div>`:''}</td>
+      <td class="mn" style="font-weight:700">${b.quota>0?Math.round(b.quota*100)+'%':'—'}${b.quotaPz!=null&&b.quota>0?`<div style="font-size:10px;font-weight:400;color:var(--ac)">${fmtN(b.quotaPz)} pz</div>`:''}</td>
       <td><span class="st-pill st-${b.verdict.st}" style="font-size:11px;padding:3px 9px">${b.verdict.icon} ${b.verdict.word}</span></td>
-    </tr>`).join('')||`<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--d)">Nessun marchio</td></tr>`}</tbody>
+    </tr><tr class="det" id="det-${b.key}" style="display:${open[b.key]?'table-row':'none'}"><td colspan="11" style="background:var(--gl)">${acqDetailHtml(b)}</td></tr>`).join('')||`<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--d)">Nessun marchio</td></tr>`}</tbody>
   </table></div>
+  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px;color:var(--m)"><span>Per portare ogni marchio a <b style="color:var(--t)">${T} mesi</b> di copertura servirebbero circa <b style="color:var(--t)">${fmtN(totNeed)} pezzi</b> (≈ ${fmt(totNeedVal)} a costo). <b style="color:var(--t)">Quota d'acquisto</b> = come ripartire un ordine: segue il venduto, ridotta dove hai già molto stock${qty?` (ripartiti ${fmtN(qty)} pezzi)`:' (scrivi "Pezzi da ordinare" in alto per vedere i pezzi)'}. Sono indicazioni sul venduto passato, non un obbligo.</span><span style="color:var(--d)">Clicca ▸ su un marchio per modelli e anzianità</span></div>
 </div>
 <div class="g card fi" style="margin-bottom:12px;border-left:3px solid var(--am)">
   <div style="font-size:13px;color:var(--t);font-weight:600;margin-bottom:4px">👤 Uomo / donna</div>
-  <div style="font-size:12px;color:var(--m);line-height:1.6">Nei file caricati non c'è l'informazione uomo/donna per prodotto, quindi non posso dividerla in modo affidabile. Se aggiungi una colonna <b>Genere</b> (Uomo / Donna / Unisex) agli export di vendite e magazzino, la includo in questa tabella. Per ora i marchi con "Man/Woman" nel nome (es. Dior Woman) restano separati.</div>
+  <div style="font-size:12px;color:var(--m);line-height:1.6">Nei file caricati non c'è l'informazione uomo/donna per prodotto, quindi non posso dividerla in modo affidabile. Se aggiungi una colonna <b>Genere</b> (Uomo / Donna / Unisex) agli export di vendite e magazzino, la includo in questa tabella e nel PDF.</div>
 </div>
 <div style="font-size:11px;color:var(--d);margin-top:6px">Copertura = pezzi in magazzino ÷ pezzi venduti al mese nel periodo scelto. Il gruppo di un marchio è quello del fornitore con cui lo hai in magazzino: i marchi venduti ma ora non in stock compaiono sotto "Non in magazzino".</div>`;
 }
 
+
+// Rapportino PDF per la campagna acquisti: si apre una pagina di stampa
+// pulita (A4) e si salva con "Salva come PDF". Nessuna libreria esterna.
+function buildAcqReportHtml(){
+  const V=acqView();if(!V)return null;
+  const{per,months,G,T,gb,totNeed,totNeedVal}=V;
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const sedeTxt=(ST.sedeMode==='agg'||ST.sedeMode==='split')?'tutte le sedi':'sede '+ST.sedeMode;
+  const today=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'});
+  const rows=[...gb].sort((a,b)=>b.soldPz-a.soldPz);
+  const totSold=rows.reduce((a,b)=>a+b.soldPz,0)||1,totStock=rows.reduce((a,b)=>a+b.stockPz,0)||1;
+  const ageTot=G.agePz.reduce((a,x)=>a+x,0)||1;
+  const orderTot=totNeed||1;
+  const reorder=rows.filter(b=>b.verdict.k==='riordina').slice(0,5),noBuy=rows.filter(b=>b.verdict.k==='eccesso'||b.verdict.k==='ferma').sort((a,b)=>b.stockVal-a.stockVal).slice(0,5);
+  const top=rows.filter(b=>b.soldPz>0).slice(0,6);
+  const css=`@page{size:A4;margin:14mm 12mm}*{box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f1118;font-size:10.5px;line-height:1.45;margin:0}
+h1{font-size:22px;margin:0 0 2px;color:#8d0439}h2{font-size:13px;margin:18px 0 6px;color:#8d0439;border-bottom:1.5px solid #8d0439;padding-bottom:3px}h3{font-size:11.5px;margin:10px 0 4px}
+.sub{color:#6b5560;font-size:11px}.brand{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #8d0439;padding-bottom:8px;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}.kpi{border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px;background:#fbf5f8}.kpi b{display:block;font-size:17px;color:#1f1118}.kpi span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#6b5560}
+table{width:100%;border-collapse:collapse;margin-top:4px}th{background:#8d0439;color:#fff;text-align:right;padding:5px 6px;font-size:9px;text-transform:uppercase;letter-spacing:.04em}th:first-child,td:first-child{text-align:left}td{padding:4px 6px;border-bottom:1px solid #eadde3;text-align:right}tr:nth-child(even) td{background:#fbf6f9}
+.bar{display:flex;height:11px;border-radius:5px;overflow:hidden;background:#eee;margin:6px 0}.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:9px;font-weight:700}
+.g{background:#dcfce7;color:#166534}.w{background:#fef3c7;color:#92400e}.b{background:#fee2e2;color:#991b1b}.n{background:#eee;color:#444}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.box{border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px}.small{font-size:9px;color:#6b5560}
+.brandblk{break-inside:avoid;border:1px solid #e6d3dc;border-radius:8px;padding:8px 10px;margin:8px 0}li{margin:1px 0}ul{margin:3px 0 0 14px;padding:0}
+@media print{.noprint{display:none}}.noprint{position:fixed;top:10px;right:10px;background:#8d0439;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer}`;
+  const vc=b=>({good:'g',warn:'w',bad:'b',neutral:'n'}[b.verdict.st]);
+  const ageRow=(b)=>b.agePz.map((x,i)=>`<td>${fmtN(x)}</td>`).join('');
+  const sintesi=`Con <b>${esc(G.name)}</b> negli ${esc(per.label)} (${sedeTxt}) abbiamo venduto <b>${fmtN(G.soldPz)} pezzi</b> (${fmt(G.soldVal)}) su ${G.n} marchi${top.length?', trainati da '+top.slice(0,3).map(b=>`<b>${esc(b.label)}</b> (${fmtN(b.soldPz)} pz)`).join(', '):''}. In magazzino abbiamo <b>${fmtN(G.stockPz)} pezzi</b> (${fmt(G.stockVal)} a costo), pari a <b>${fmtCover(G.cover)}</b> di vendite; il pezzo più vecchio è fermo da <b>${fmtAge(G.oldest)}</b> e <b>${fmtN(G.agePz[3])} pezzi (${Math.round(G.agePz[3]/ageTot*100)}%)</b> hanno oltre 3 anni. Per portare ogni marchio a ${T} mesi di copertura servirebbero circa <b>${fmtN(totNeed)} pezzi</b> (≈ ${fmt(totNeedVal)} a costo): indicazione sul venduto passato, da adattare alla trattativa.`;
+  return`<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Campagna acquisti ${esc(G.name)} — Ottica Bonardi</title><style>${css}</style></head><body>
+<button class="noprint" onclick="window.print()">Stampa / Salva PDF</button>
+<div class="brand"><div><h1>Campagna acquisti · ${esc(G.name)}</h1><div class="sub">Ottica Bonardi · ${sedeTxt} · vendite ${esc(per.label)} · copertura obiettivo ${T} mesi</div></div><div class="sub">${today}</div></div>
+<h2>In sintesi</h2><p>${sintesi}</p>
+<div class="kpis"><div class="kpi"><span>Venduti</span><b>${fmtN(G.soldPz)} pz</b>${fmt(G.soldVal)}</div><div class="kpi"><span>In magazzino</span><b>${fmtN(G.stockPz)} pz</b>${fmt(G.stockVal)}</div><div class="kpi"><span>Copertura</span><b>${fmtCover(G.cover)}</b>stock ÷ vendita mensile</div><div class="kpi"><span>Ordine indicativo</span><b>${fmtN(totNeed)} pz</b>≈ ${fmt(totNeedVal)}</div></div>
+<div class="cols"><div class="box"><h3>Vista / Sole — venduti</h3><div class="small">Vista ${fmtN(G.vistaPz)} (${Math.round(G.vistaPz/((G.vistaPz+G.solePz)||1)*100)}%) · Sole ${fmtN(G.solePz)} (${Math.round(G.solePz/((G.vistaPz+G.solePz)||1)*100)}%)</div></div><div class="box"><h3>Vista / Sole — in magazzino</h3><div class="small">Vista ${fmtN(G.stockVista)} (${Math.round(G.stockVista/((G.stockVista+G.stockSole)||1)*100)}%) · Sole ${fmtN(G.stockSole)} (${Math.round(G.stockSole/((G.stockVista+G.stockSole)||1)*100)}%)</div></div></div>
+<h2>Da riordinare e da non riordinare</h2>
+<div class="cols"><div class="box"><h3>🟠 Da riordinare (scorta bassa)</h3>${reorder.length?`<ul>${reorder.map(b=>`<li><b>${esc(b.label)}</b>: ${fmtN(b.soldPz)} venduti, ${fmtN(b.stockPz)} in stock${b.need>0?` → ordine indicativo +${fmtN(b.need)} pz`:''}</li>`).join('')}</ul>`:'<div class="small">Nessun marchio sotto scorta.</div>'}</div>
+<div class="box"><h3>🔴 Da non riordinare (troppo stock o fermi)</h3>${noBuy.length?`<ul>${noBuy.map(b=>`<li><b>${esc(b.label)}</b>: ${fmtN(b.stockPz)} pz (${fmt(b.stockVal)}), ${fmtCover(b.cover)} di vendite${b.oldest!=null?`, più vecchio ${fmtAge(b.oldest)}`:''}</li>`).join('')}</ul>`:'<div class="small">Nessun eccesso rilevante.</div>'}</div></div>
+<h2>Quote giuste: venduto, stock e ordine per marchio</h2>
+<table><thead><tr><th>Marchio</th><th>Venduti</th><th>Quota venduto</th><th>Prezzo medio</th><th>Margine</th><th>In stock</th><th>Quota stock</th><th>Più vecchio</th><th>Copertura</th><th>Ordine ind.</th><th>Quota acquisto${V.qty?' ('+fmtN(V.qty)+' pz)':''}</th><th>Giudizio</th></tr></thead><tbody>
+${rows.map(b=>`<tr><td><b>${esc(b.label)}</b></td><td>${fmtN(b.soldPz)}</td><td>${Math.round(b.soldPz/totSold*100)}%</td><td>${b.soldPz>0?fmt(b.avgPrice):'—'}</td><td>${b.margPct==null?'—':b.margPct+'%'}</td><td>${fmtN(b.stockPz)}</td><td>${Math.round(b.stockPz/totStock*100)}%</td><td>${fmtAge(b.oldest)}</td><td>${fmtCover(b.cover)}</td><td>${b.need>0?'+'+fmtN(b.need):'—'}</td><td>${b.quota>0?Math.round(b.quota*100)+'%'+(b.quotaPz!=null?' · '+fmtN(b.quotaPz)+' pz':''):'—'}</td><td><span class="pill ${vc(b)}">${esc(b.verdict.word)}</span></td></tr>`).join('')}
+</tbody></table>
+<div class="small" style="margin-top:4px">Quota acquisto = come ripartire un eventuale ordine: segue il venduto, ridotta dove c'è già molto stock (copertura oltre 12 mesi: metà; oltre 24: un quarto; fermi: zero). Ordine ind. = pezzi per riportare ogni marchio a ${T} mesi di copertura.</div>
+<h2>Magazzino ${esc(G.name)} per anzianità</h2>
+<div class="bar">${G.agePz.map((x,i)=>`<div style="width:${x/ageTot*100}%;background:${AGE_COLORS[i]}"></div>`).join('')}</div>
+<table><thead><tr><th>Marchio</th>${AGE_LABELS.map(l=>`<th>${l}</th>`).join('')}<th>Totale</th></tr></thead><tbody>
+<tr><td><b>Totale ${esc(G.name)}</b></td>${G.agePz.map(x=>`<td><b>${fmtN(x)}</b></td>`).join('')}<td><b>${fmtN(G.stockPz)}</b></td></tr>
+${rows.filter(b=>b.stockPz>0).map(b=>`<tr><td>${esc(b.label)}</td>${ageRow(b)}<td>${fmtN(b.stockPz)}</td></tr>`).join('')}</tbody></table>
+<div class="small" style="margin-top:4px">Pezzi in magazzino per anni dall'ultimo acquisto. Valore: ${G.ageVal.map((v,i)=>AGE_LABELS[i]+' '+fmt(v)).join(' · ')}.</div>
+<h2>Dettaglio dei marchi principali</h2>
+${top.map(b=>{const mods=Object.values(b.mods);const ts=mods.filter(m=>m.soldPz>0).sort((x,y)=>y.soldPz-x.soldPz).slice(0,4),old=mods.filter(m=>m.stockPz>0&&m.oldest!=null).sort((x,y)=>y.oldest-x.oldest).slice(0,4);return`<div class="brandblk"><h3>${esc(b.label)} — ${fmtN(b.soldPz)} venduti, ${fmtN(b.stockPz)} in stock (${fmtCover(b.cover)})</h3><div class="cols"><div><div class="small"><b>Modelli più venduti</b></div><ul>${ts.map(m=>`<li>${esc(m.mod)}: ${fmtN(m.soldPz)} venduti · ${fmtN(m.stockPz)} in stock</li>`).join('')||'<li>—</li>'}</ul></div><div><div class="small"><b>Fermi da più tempo</b></div><ul>${old.map(m=>`<li>${esc(m.mod)}: ${fmtN(m.stockPz)} pz · ${fmtAge(m.oldest)}</li>`).join('')||'<li>—</li>'}</ul></div></div><div class="small">Sede A: stock ${fmtN(b.stockA)}, venduti ${fmtN(b.soldA)} · Sede B: stock ${fmtN(b.stockB)}, venduti ${fmtN(b.soldB)}</div></div>`;}).join('')}
+<p class="small" style="margin-top:14px">Fonte: vendite e magazzino caricati in dashboard (solo montature vista e sole). Copertura = pezzi in magazzino ÷ pezzi venduti al mese. Il gruppo di un marchio è quello del fornitore con cui è in magazzino. Uomo/donna non disponibile nei file.</p>
+</body></html>`;
+}
+function exportAcqPdf(){
+  const html=buildAcqReportHtml();
+  if(!html){toast('Servono vendite e magazzino caricati','warn');return;}
+  const w=window.open('','_blank');
+  if(!w){toast('Il browser ha bloccato la finestra: consenti i popup per esportare','warn');return;}
+  w.document.open();w.document.write(html);w.document.close();
+  w.focus();setTimeout(()=>{try{w.print();}catch(e){}},500);
+}
 // ═══ BUDGET / SIMULATORE — config persistita (costi fissi + obiettivo) ═════
 const BUDGET_KEY='ob-budget-cfg';
 function defaultBudgetCfg(){return{affitto:0,personale:0,utenze:0,altri:0,growthPct:10};}
@@ -1849,7 +2012,7 @@ const ST={page:"overview",sedeMode:"agg",ovTab:"trend",vendTab:"trend",selAnno:C
   cliSearch:"",cliTab:"retention",cliRetLost:12,cliRetSort:"val",cliRetAsc:false,cliRetFilter:"all",cliEtaDrill:null,cliStoricoDrill:null,
   vendFil:"all",vendTp:"all",vendMar:"all",vendAnno:"all",
   ovFil:"all",ovTp:"all",ovTrendStep:"M",ovTrendRange:12,ovFocusMese:null,ovShowLenti:false,ovPeriodo:"YTD",lentiTab:'kpi',lentiFil:'all',lentiTp:'all',lentiTrendTp:'all',lentiTrendStep:'M',lentiTrendRange:12,
-  acqGroup:null,acqPeriod:'l12',acqSort:'sold',
+  acqGroup:null,acqPeriod:'l12',acqSort:'sold',acqTarget:6,acqOpen:{},
   budget:loadBudgetCfg()};
 let charts={};
 const PER=30;
@@ -1924,6 +2087,7 @@ function nav(p){
   // altre pagine (Carica dati, Lenti, AI) si aprono dal foglio "Altro",
   // in quel caso teniamo evidenziato il pulsante "Altro" stesso.
   document.querySelectorAll(".mnb").forEach(b=>b.classList.remove("active"));
+  moveNavIndicator(true);
   const mel=document.getElementById("mnb-"+p);
   if(mel)mel.classList.add("active");
   else document.getElementById("mnb-altro")?.classList.add("active");
@@ -1978,8 +2142,65 @@ function renderPage(){
   } else {
     requestAnimationFrame(()=>{r.style.opacity='1';});
   }
-  setTimeout(()=>{initCharts();animKV();},60);
+  setTimeout(()=>{initCharts();animKV();decorateCards();},60);
 }
+
+
+// ═══ FUNZIONI SULLE CARD: espandi a tutto schermo, scarica CSV ════════════
+function decorateCards(){
+  document.querySelectorAll('#root .g.card').forEach(c=>{
+    if(c.dataset.deco)return;
+    const ch=c.querySelector(':scope>.ch');if(!ch)return;
+    c.dataset.deco='1';
+    const t=document.createElement('div');t.className='ctools';
+    t.innerHTML=`<button class="ibtn" title="Espandi" aria-label="Espandi" onclick="expandCard(this)">⤢</button>`+(c.querySelector('table')?`<button class="ibtn" title="Scarica CSV" aria-label="Scarica CSV" onclick="cardCsv(this)">⭳</button>`:'');
+    ch.appendChild(t);
+  });
+}
+function closeCardModal(){const m=document.getElementById('cardModal');if(m){m.classList.add('out');setTimeout(()=>m.remove(),220);}}
+function expandCard(btn){
+  const card=btn.closest('.g.card');if(!card)return;
+  closeCardModal();
+  const clone=card.cloneNode(true);
+  clone.querySelectorAll('.ctools').forEach(x=>x.remove());
+  const srcC=[...card.querySelectorAll('canvas')],dstC=[...clone.querySelectorAll('canvas')];
+  dstC.forEach((cv,i)=>{
+    let url='';try{url=Chart.getChart(srcC[i])?.toBase64Image('image/png',1)||'';}catch(e){}
+    const img=document.createElement('img');img.src=url;img.style.cssText='width:100%;height:auto;max-height:70vh;object-fit:contain';
+    if(url)cv.replaceWith(img);else cv.remove();
+  });
+  clone.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
+  clone.querySelectorAll('.cw').forEach(x=>{x.style.height='auto';});
+  clone.style.cssText='margin:0;max-height:86vh;overflow:auto;width:min(1100px,94vw)';
+  const m=document.createElement('div');m.id='cardModal';m.className='cmodal';
+  m.innerHTML='<button class="cmodal-x" aria-label="Chiudi">✕</button>';
+  m.appendChild(clone);
+  m.addEventListener('click',e=>{if(e.target===m||e.target.classList.contains('cmodal-x'))closeCardModal();});
+  document.body.appendChild(m);
+}
+function cardCsv(btn){
+  const card=btn.closest('.g.card');const tb=card&&card.querySelector('table');if(!tb)return;
+  const esc=v=>`"${String(v).replace(/\s+/g,' ').trim().replace(/"/g,'""')}"`;
+  const lines=[...tb.querySelectorAll('tr')].filter(r=>r.style.display!=='none'&&!r.classList.contains('det')).map(r=>[...r.children].map(c=>esc(c.innerText)).join(';'));
+  const title=(card.querySelector('.ct')?.innerText||'tabella').trim().replace(/[^\w\-àèéìòù ]+/gi,'').replace(/\s+/g,'_').slice(0,40)||'tabella';
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=title+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCardModal();});
+
+// ═══ SIDEBAR: indicatore che scivola sulla voce scelta ════════════════════
+function moveNavIndicator(pop){
+  const nav=document.querySelector('.sb-nav');if(!nav)return;
+  let ind=nav.querySelector('.nb-ind');
+  if(!ind){ind=document.createElement('div');ind.className='nb-ind';nav.appendChild(ind);}
+  const a=nav.querySelector('.nb.active');if(!a)return;
+  ind.style.height=a.offsetHeight+'px';
+  ind.style.transform=`translateY(${a.offsetTop}px)`;
+  ind.style.opacity='1';
+  if(pop){a.classList.remove('pop');void a.offsetWidth;a.classList.add('pop');ind.classList.remove('flash');void ind.offsetWidth;ind.classList.add('flash');}
+}
+window.addEventListener('resize',()=>moveNavIndicator(false));
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>moveNavIndicator(false),80);});
 
 // ═══ COUNT-UP ANIMATION SUI KPI ═════════════════════════════════════════════
 // Riflesso che segue il mouse sulle card (aggiorna solo due variabili CSS)
