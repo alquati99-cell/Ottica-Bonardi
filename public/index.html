@@ -490,6 +490,15 @@ details.more>summary::-webkit-details-marker{display:none}
 details.more>summary::before{content:'▸ ';color:var(--ac)}
 details.more[open]>summary::before{content:'▾ '}
 details.more>summary:hover{color:var(--t);border-color:var(--bb)}
+/* Spaziatura uniforme tra i blocchi (prima molte righe di card erano incollate) */
+#root .kg,#root .g2,#root .g3,#root .g13,#root .op-ins-grid{gap:16px}
+#root .kg,#root .g2,#root .g3,#root .g13{margin-bottom:16px!important}
+#root>.g,#root>.tw,#root>.abar,#root>.quickbar{margin-bottom:16px!important}
+#root>div>.g.card+.g.card{margin-top:16px}
+/* Sidebar a scomparsa: collassata dopo la scelta di una pagina, si apre al passaggio del mouse */
+.sb.peek{position:fixed;left:0;top:0;z-index:60;box-shadow:14px 0 44px rgba(0,0,0,.5)}
+html.light .sb.peek{box-shadow:14px 0 44px rgba(60,10,30,.18)}
+.sb{transition:width cubic-bezier(.32,.72,0,1) .45s,box-shadow .3s}
 /* Sidebar: voce attiva con alone, hover più vivo */
 .nb.active{background:linear-gradient(90deg,rgba(236,123,160,.14),transparent)}
 html.light .nb.active{background:linear-gradient(90deg,rgba(141,4,57,.1),transparent)}
@@ -877,11 +886,25 @@ function datasetValue(key){
   if(key==='cliAnag') return LIVE_CLI_ANAG?{list:LIVE_CLI_ANAG.list,total:LIVE_CLI_ANAG.total,hasEta:LIVE_CLI_ANAG.hasEta}:null;
   return null;
 }
+// Ripara dati già salvati (IndexedDB / cloud / default) con giorno e mese
+// invertiti ("2026-27-08"): se oltre il 30% delle date ha "mese" >12 l'intero
+// dataset è stato letto gg/mm invece di mm/gg, quindi si scambiano per tutte
+// le righe. Idempotente: dopo la riparazione nessuna riga ha mese >12.
+function repairSwappedDates(rows,field,withMo){
+  if(!Array.isArray(rows)||!rows.length)return;
+  let n=0,bad=0;
+  for(const r of rows){const d=r[field];if(!d||d.length<10)continue;n++;if(+d.slice(5,7)>12)bad++;}
+  if(!n||bad/n<0.3)return;
+  for(const r of rows){const d=r[field];if(!d||d.length<10)continue;
+    const a=d.slice(5,7),b=d.slice(8,10);
+    r[field]=d.slice(0,5)+b+'-'+a+d.slice(10);
+    if(withMo)r.mo=parseInt(b);}
+}
 function applyDataset(key,v){
   if(v==null)return false;
-  if(key==='mag'){LIVE_MAG=v;return true;}
+  if(key==='mag'){repairSwappedDates(v.rows,'d');LIVE_MAG=v;return true;}
   if(key==='vend'){LIVE_VEND=v;return true;}
-  if(key==='acq'){LIVE_ACQ=v;return true;}
+  if(key==='acq'){repairSwappedDates(v.rows,'dt',true);LIVE_ACQ=v;return true;}
   if(key==='cli'){LIVE_CLI={...v,byCode:Object.fromEntries(v.cliList.map(c=>[c.cod,c]))};return true;}
   if(key==='cliAnag'){LIVE_CLI_ANAG={...v,byName:Object.fromEntries(v.list.map(c=>[normName(c.cog,c.nom),c]))};return true;}
   return false;
@@ -1065,6 +1088,7 @@ function parseExcel(file){
 }
 
 function processUpload(raw, name){
+  scanDateOrder(raw);
   const VALID_TYPES = ["Montature vista","Occhiali sole","montature vista","occhiali sole"];
   // Filtra e normalizza
   const rows = raw.filter(r => {
@@ -1173,6 +1197,7 @@ function parseVendite(file){
   reader.readAsArrayBuffer(file);
 }
 function processVendite(raw, name){
+  scanDateOrder(raw);
   const rows = raw.filter(r => (r['Tipo operazione']||'').trim() === 'VEN');
 
   // Righe compatte per filtri dinamici
@@ -1293,6 +1318,7 @@ function parseAcquisti(file){
   reader.readAsArrayBuffer(file);
 }
 function processAcquisti(raw, name){
+  scanDateOrder(raw);
   const byAnno={}, byTipo={};
   let totPz=0, totVal=0, pzA=0, valA=0, pzB=0, valB=0;
   const rows=[];
@@ -1715,17 +1741,30 @@ function excelSerialToISO(n){
   const d=new Date(Math.round((n-25569)*86400000));
   return isNaN(d.getTime())?'':d.toISOString().slice(0,10);
 }
+// Ordine giorno/mese delle date testuali del file in lettura. Alcuni export
+// (magazzino, acquisti) hanno testo "mm/gg/aaaa": letto come gg/mm dava mesi
+// fino a 31. scanDateOrder() guarda il file: se vede un "secondo numero" >12
+// (e mai un "primo" >12) il file è mm/gg.
+let DATE_ORDER='dmy';
+function scanDateOrder(raw){
+  let dm=0,md=0;
+  for(const r of raw){for(const k in r){const v=r[k];if(typeof v!=='string'||v.length>10)continue;
+    const m=v.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.]\d{2,4}$/);if(!m)continue;
+    if(+m[1]>12)dm++;else if(+m[2]>12)md++;}}
+  DATE_ORDER=md>dm?'mdy':'dmy';
+}
+function dayMonth(a,b){let d=+a,m=+b;if(DATE_ORDER==='mdy')[d,m]=[m,d];if(m>12&&d<=12)[d,m]=[m,d];return[String(d).padStart(2,'0'),String(m).padStart(2,'0')];}
 function normalizeDateValue(v){
   if(!v) return '';
   const s=String(v).trim();
   // yyyy-mm-dd già corretto
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-  // formato italiano dd/mm/yyyy o dd-mm-yyyy o dd.mm.yyyy
+  // dd/mm/yyyy o mm/dd/yyyy (vedi scanDateOrder)
   const mIT=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
-  if(mIT) return `${mIT[3]}-${mIT[2].padStart(2,'0')}-${mIT[1].padStart(2,'0')}`;
+  if(mIT){const[d,m]=dayMonth(mIT[1],mIT[2]);return `${mIT[3]}-${m}-${d}`;}
   // formato corto dd/mm/yy
   const mIT2=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
-  if(mIT2){const yr=parseInt(mIT2[3])+(parseInt(mIT2[3])<=30?2000:1900);return `${yr}-${mIT2[2].padStart(2,'0')}-${mIT2[1].padStart(2,'0')}`;}
+  if(mIT2){const yr=parseInt(mIT2[3])+(parseInt(mIT2[3])<=30?2000:1900);const[d,m]=dayMonth(mIT2[1],mIT2[2]);return `${yr}-${m}-${d}`;}
   // serial number Excel come stringa
   if(/^\d+(\.\d*)?$/.test(s)){const iso=excelSerialToISO(parseFloat(s));if(iso)return iso;}
   // yyyy-mm senza giorno
@@ -1839,16 +1878,46 @@ document.addEventListener('click',function(e){
   if(d&&d.style.display==='block'&&!d.contains(e.target)&&!(w&&w.contains(e.target))) d.style.display='none';
 });
 
+// Barra laterale a scomparsa. Hamburger = blocca aperta / lascia che si chiuda da sola.
+// Non bloccata: dopo aver scelto una pagina si richiude (animata) e si riapre
+// passando col mouse sopra, senza spostare il contenuto.
+let SB_PIN=false,SB_GHOST=null,SB_TIMER=null;
+const sbDesktop=()=>window.innerWidth>700;
+function sbGhostOff(){if(SB_GHOST){SB_GHOST.remove();SB_GHOST=null;}}
+function sbPeekOn(){
+  const sb=document.getElementById('sidebar');
+  if(!sb||!sbDesktop()||SB_PIN)return;
+  clearTimeout(SB_TIMER);
+  if(!sb.classList.contains('collapsed'))return;
+  if(!SB_GHOST){SB_GHOST=document.createElement('div');SB_GHOST.style.cssText='width:60px;flex-shrink:0';sb.parentNode.insertBefore(SB_GHOST,sb);}
+  sb.classList.add('peek');sb.classList.remove('collapsed');
+}
+function sbCollapse(){
+  const sb=document.getElementById('sidebar');
+  if(!sb||!sbDesktop()||SB_PIN)return;
+  sb.classList.add('collapsed');
+  clearTimeout(SB_TIMER);
+  SB_TIMER=setTimeout(()=>{sb.classList.remove('peek');sbGhostOff();},480);
+}
 function toggleSidebar(){
   const sb=document.getElementById("sidebar");
-  sb.classList.toggle("collapsed");
+  const open=!sb.classList.contains('collapsed');
+  clearTimeout(SB_TIMER);
+  if(open){SB_PIN=false;sbCollapse();}
+  else{SB_PIN=true;sb.classList.remove('collapsed','peek');sbGhostOff();}
   const btn=sb.querySelector(".sb-toggle");
-  btn.title=sb.classList.contains("collapsed")?"Espandi menu":"Comprimi menu";
+  btn.title=SB_PIN?"Comprimi menu":"Blocca aperto";
 }
+document.addEventListener('DOMContentLoaded',()=>{
+  const sb=document.getElementById('sidebar');if(!sb)return;
+  sb.addEventListener('mouseenter',sbPeekOn);
+  sb.addEventListener('mouseleave',()=>{if(sb.classList.contains('peek'))sbCollapse();});
+});
 
 // ═══ NAVIGATION ═════════════════════════════════════════════════════════════
 function nav(p){
   ST.page=p;ST.magPage=0;ST.agPage=0;
+  sbCollapse();
   document.querySelectorAll(".nb").forEach(b=>b.classList.remove("active"));
   const el=document.getElementById("nb-"+p);if(el)el.classList.add("active");
   // Barra mobile: solo 4 voci principali hanno un pulsante dedicato — le
@@ -3600,11 +3669,14 @@ function budgetCore(){
   const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
   if(!hasVendDate)return null;
 
-  const vendAgg=budgetMonthlyAgg(sedeRows(LIVE_VEND.rows));
-  const acqAgg=hasAcq?budgetMonthlyAgg(sedeRows(LIVE_ACQ.rows)):{};
-  // Gli acquisti possono includere ordini con consegna futura già datati nei
-  // mesi a venire: li escludiamo dalla serie storica, altrimenti il mese
-  // corrente in poi apparirebbe con fatturato a zero (nessuna vendita futura).
+  // Solo montature vista + sole: nel file vendite le lenti hanno prezzo ~0 mentre
+  // gli acquisti includono il loro costo, e il margine uscirebbe negativo.
+  const isFrame=r=>r.tp==='Montature vista'||r.tp==='Occhiali sole';
+  const vendAgg=budgetMonthlyAgg(sedeRows(LIVE_VEND.rows).filter(isFrame));
+  const acqAgg=hasAcq?budgetMonthlyAgg(sedeRows(LIVE_ACQ.rows).filter(isFrame)):{};
+  // Difesa: escludo mesi futuri dalla serie storica (altrimenti il mese
+  // corrente in poi apparirebbe con fatturato a zero). Le date acquisti con
+  // giorno/mese invertiti sono ora riparate a monte (repairSwappedDates).
   const curKey=`${CY}-${String(CM+1).padStart(2,'0')}`;
   const allKeys=[...new Set([...Object.keys(vendAgg),...Object.keys(acqAgg)])].filter(k=>k<=curKey).sort();
   const monthly=allKeys.map(k=>{
@@ -3616,9 +3688,18 @@ function budgetCore(){
   const last12=monthly.slice(-12);
   const totRev12=last12.reduce((a,m)=>a+m.revenue,0);
   const totPz12=last12.reduce((a,m)=>a+m.pz,0);
-  const totCogs12=last12.reduce((a,m)=>a+m.cogs,0);
+  // Margine calcolato solo sui mesi in cui ho sia vendite sia acquisti (l'export
+  // acquisti può fermarsi qualche settimana prima di quello vendite).
+  // Margine = (prezzo - costo) sulle vendite di montature con costo noto negli
+  // ultimi 12 mesi (costo del venduto, non gli acquisti: gli acquisti includono
+  // il riassortimento di magazzino e darebbero un margine sbagliato).
+  const keys12=new Set(last12.map(m=>m.key));
+  let rv=0,ra=0;
+  sedeRows(LIVE_VEND.rows).filter(isFrame).forEach(r=>{if(r.dt&&keys12.has(r.dt.slice(0,7))&&r.val>0&&r.acq>0){rv+=r.val;ra+=r.acq;}});
+  const matched=last12.filter(m=>m.revenue>0);
+  const avgMarginPct=rv>0?Math.max(0,(rv-ra)/rv):0.55; // fallback prudente
+  const totCogs12=totRev12*(1-avgMarginPct);
   const totMargin12=totRev12-totCogs12;
-  const avgMarginPct=totRev12>0?totMargin12/totRev12:0.55; // fallback prudente se manca lo storico acquisti
   const avgMonthlyRev=last12.length?totRev12/last12.length:0;
   const avgPricePz=totPz12>0?totRev12/totPz12:0;
 
@@ -3626,7 +3707,7 @@ function budgetCore(){
   const fixedMonthly=(B.affitto||0)+(B.personale||0)+(B.utenze||0)+(B.altri||0);
   const breakEvenRevenue=avgMarginPct>0?fixedMonthly/avgMarginPct:null;
 
-  return{hasVendDate,hasAcq,monthly,last12,totRev12,totPz12,totCogs12,totMargin12,avgMarginPct,avgMonthlyRev,avgPricePz,B,fixedMonthly,breakEvenRevenue};
+  return{hasVendDate,hasAcq,matchedN:matched.length,monthly,last12,totRev12,totPz12,totCogs12,totMargin12,avgMarginPct,avgMonthlyRev,avgPricePz,B,fixedMonthly,breakEvenRevenue};
 }
 
 function rBudget(){
@@ -3697,14 +3778,14 @@ function rBudget(){
   </div>
   <div class="k4" style="margin-bottom:22px">
     <div class="g card" style="padding:16px 18px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fatturato ultimi 12 mesi</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Fatturato ultimi 12 mesi · vista + sole</div>
       <div style="font-size:22px;font-weight:800;color:var(--t)">${fmt(totRev12)}</div>
       <div style="font-size:11.5px;color:var(--m);margin-top:4px">${fmtN(totPz12)} pz · media ${fmt(avgMonthlyRev)}/mese</div>
     </div>
     <div class="g card" style="padding:16px 18px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Costo merce (acquisti)</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Costo merce stimato</div>
       <div style="font-size:22px;font-weight:800;color:var(--t)">${hasAcq?fmt(totCogs12):'—'}</div>
-      <div style="font-size:11.5px;color:var(--m);margin-top:4px">${hasAcq?'ultimi 12 mesi':'nessun dato acquisti caricato'}</div>
+      <div style="font-size:11.5px;color:var(--m);margin-top:4px">stimato sul costo del venduto</div>
     </div>
     <div class="g card" style="padding:16px 18px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Margine lordo</div>
@@ -3828,7 +3909,7 @@ function initCharts(){
 
   // BUDGET — andamento mensile fatturato reale (ultimi 24 mesi)
   if(ST.page==="budget"&&document.getElementById('ch_budget_trend')){
-    const rows=sedeRows(LIVE_VEND?.rows||[]);
+    const rows=sedeRows(LIVE_VEND?.rows||[]).filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
     const agg=budgetMonthlyAgg(rows);
     const keys=Object.keys(agg).sort().slice(-24);
     if(keys.length){
