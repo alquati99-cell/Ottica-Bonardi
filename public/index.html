@@ -2316,6 +2316,18 @@ function rMag(){
   const agSummary=buildAgingSummary(agPool);
   window.__mag={rows,topBrand,catA,catB,bf,aging:agSummary};
 
+  // ── "SO WHAT" — quanto capitale è fermo in magazzino da anni, in una
+  // frase sola. I bucket U(rgente)/A(lta) sono già quelli usati dal tab
+  // Aging & Priorità (oltre 3 anni): qui si vede solo il totale.
+  const agStats=agSummary.stats;
+  const critV=agStats.U.v+agStats.A.v;
+  const totAgV=agStats.U.v+agStats.A.v+agStats.M.v+agStats.O.v;
+  const critPct=totAgV>0?Math.round(critV/totAgV*100):0;
+  const magHeadline=totAgV>0?{
+    st:critPct>=30?{st:'bad',icon:'🔴'}:critPct>=15?{st:'warn',icon:'🟠'}:{st:'good',icon:'🟢'},
+    critPct,critV
+  }:null;
+
   // Tabella stock
   let tRows=[...rows];
   tRows.sort((a,b)=>ST.magAsc?(a[ST.magSort]>b[ST.magSort]?1:-1):(a[ST.magSort]<b[ST.magSort]?1:-1));
@@ -2370,6 +2382,20 @@ function rMag(){
     <input class="sel monthpick" type="month" value="${ST.magDateTo}" onchange="setMagDateTo(this.value)" title="Acq. fino a data">
   </div>
 </div>
+${magHeadline?`
+<div class="g card fi" style="margin-bottom:14px">
+  <div class="ov-headline">
+    <span class="st-pill st-${magHeadline.st.st}" style="font-size:13px;padding:7px 14px">${magHeadline.st.icon} ${magHeadline.critPct}% fermo da anni</span>
+    <div class="ov-headline-text">
+      <b style="color:var(--t)">${fmt(magHeadline.critV)}</b> di magazzino (il <b style="color:var(--t)">${magHeadline.critPct}%</b> del valore con data) è fermo da oltre 3 anni — ${magHeadline.critPct>=15?'capitale che vale la pena smaltire o promuovere':'una quota fisiologica per questo tipo di attività'}.
+    </div>
+  </div>
+  <div class="ov-action">
+    <span style="font-size:16px">👉</span>
+    <span>Vedi quali prodotti e decidi cosa smaltire</span>
+    <button onclick="ST.magTab='aging';renderPage()" style="margin-left:auto;background:rgba(236,123,160,.12);border:0.5px solid rgba(236,123,160,.3);color:var(--ac);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Vai ad Aging & Priorità →</button>
+  </div>
+</div>`:''}
 <div class="quickbar fi" style="flex-wrap:wrap;gap:6px">
   <span style="font-size:11px;color:var(--d);align-self:center;margin-right:2px">In magazzino da:</span>
   <button class="qbtn${ST.magFocus==="all"?" on":""}" onclick="setMagFocus('all')">Tutti</button>
