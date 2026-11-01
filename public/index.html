@@ -1159,9 +1159,12 @@ function repairSwappedDates(rows,field,withMo){
 }
 function applyDataset(key,v){
   if(v==null)return false;
-  if(key==='mag'){repairSwappedDates(v.rows,'d');LIVE_MAG=v;return true;}
-  if(key==='vend'){LIVE_VEND=v;return true;}
-  if(key==='acq'){repairSwappedDates(v.rows,'dt',true);LIVE_ACQ=v;return true;}
+  if(key==='mag'){repairSwappedDates(v.rows,'d');
+    if(Array.isArray(v.rows)){const k={};v.rows.forEach(r=>{r.f=normFil(r.f);const kk=r.f||'?';k[kk]=k[kk]||{pezzi:0,valore:0};k[kk].pezzi+=r.q||0;k[kk].valore+=r.v||0;});
+      v.kpi=Object.fromEntries(Object.entries({C:{pezzi:0,valore:0},...k}).map(([kk,o])=>[kk,{pezzi:o.pezzi,valore:Math.round(o.valore*100)/100}]));}
+    LIVE_MAG=v;return true;}
+  if(key==='vend'){(v.rows||[]).forEach(r=>{r.fil=normFil(r.fil);});LIVE_VEND=v;return true;}
+  if(key==='acq'){repairSwappedDates(v.rows,'dt',true);(v.rows||[]).forEach(r=>{r.fil=normFil(r.fil);});LIVE_ACQ=v;return true;}
   if(key==='cli'){LIVE_CLI={...v,byCode:Object.fromEntries(v.cliList.map(c=>[c.cod,c]))};return true;}
   if(key==='cliAnag'){LIVE_CLI_ANAG={...v,byName:Object.fromEntries(v.list.map(c=>[normName(c.cog,c.nom),c]))};return true;}
   return false;
@@ -1373,6 +1376,8 @@ function dataFreshness(){
     {k:'cli',lbl:'Storico clienti',has:!!LIVE_CLI,name:UPLOAD_NAME_CLI,rows:LIVE_CLI?.cliList?.length,from:'',to:''},
     {k:'cliAnag',lbl:'Anagrafica età',has:!!LIVE_CLI_ANAG,name:UPLOAD_NAME_CLI_ANAG,rows:LIVE_CLI_ANAG?.list?.length,from:'',to:''}
   ];
+  const sedi=(rows,f)=>{const c={};(rows||[]).forEach(r=>{const k=r[f]||'(vuota)';c[k]=(c[k]||0)+1;});return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([k,n])=>k+' '+fmtN(n)).join(' · ');};
+  L[0].sedi=sedi(LIVE_VEND?.rows,'fil');L[1].sedi=sedi(LIVE_MAG?.rows,'f');L[2].sedi=sedi(LIVE_ACQ?.rows,'fil');
   L.forEach(x=>{x.at=UPLOADED_AT[x.k]||null;x.ageTo=ageDays(x.to);x.ageAt=x.at?ageDays(x.at.slice(0,10)):null;});
   return L;
 }
@@ -1395,13 +1400,19 @@ function rFreshCard(){
   return`<div class="g card fi" style="margin-bottom:14px;${w?'border-left:3px solid var(--am)':''}">
   <div class="ch"><div class="ct"><span class="dot ${w?'dam':'dem'}"></span>Cosa stai vedendo adesso</div><span style="font-size:11px;color:var(--m)">Fonte: <b style="color:var(--t)">${src}</b></span></div>
   ${w?`<div style="font-size:13px;color:var(--am);margin-bottom:10px">⚠️ ${w}</div>`:''}
-  <div style="overflow-x:auto"><table style="min-width:640px"><thead><tr><th>File</th><th>Nome file</th><th>Righe</th><th>Dati dal</th><th>Dati fino al</th><th>Caricato il</th></tr></thead><tbody>
-  ${F.map(x=>`<tr><td style="font-weight:600">${x.lbl}</td><td style="color:var(--m)">${x.has?(x.name||'—'):'<span style="color:var(--d)">non caricato</span>'}</td><td class="mn">${x.has&&x.rows!=null?fmtN(x.rows):'—'}</td><td class="mn">${fmtD(x.from)}</td><td class="mn" style="${x.ageTo!=null&&x.ageTo>40?'color:var(--am);font-weight:700':''}">${fmtD(x.to)}${x.toLbl&&x.to?` <span style="color:var(--d);font-size:10px">(${x.toLbl})</span>`:''}</td><td class="mn">${x.at?fmtSavedAt(x.at):'—'}</td></tr>`).join('')}
+  <div style="overflow-x:auto"><table style="min-width:820px"><thead><tr><th>File</th><th>Nome file</th><th>Righe</th><th>Dati dal</th><th>Dati fino al</th><th>Sedi (righe)</th><th>Caricato il</th></tr></thead><tbody>
+  ${F.map(x=>`<tr><td style="font-weight:600">${x.lbl}</td><td style="color:var(--m)">${x.has?(x.name||'—'):'<span style="color:var(--d)">non caricato</span>'}</td><td class="mn">${x.has&&x.rows!=null?fmtN(x.rows):'—'}</td><td class="mn">${fmtD(x.from)}</td><td class="mn" style="${x.ageTo!=null&&x.ageTo>40?'color:var(--am);font-weight:700':''}">${fmtD(x.to)}${x.toLbl&&x.to?` <span style="color:var(--d);font-size:10px">(${x.toLbl})</span>`:''}</td><td style="font-size:11px;color:var(--m)">${x.sedi||'—'}</td><td class="mn">${x.at?fmtSavedAt(x.at):'—'}</td></tr>`).join('')}
   </tbody></table></div>
   <div style="font-size:11px;color:var(--d);margin-top:8px">Se qui vedi date vecchie, il file caricato non è l'export aggiornato oppure stai guardando da un dispositivo che non ha ancora i dati nuovi: ricarica la pagina (si aggiorna da solo dal cloud) o ricarica il file.</div>
 </div>`;
 }
 
+// Sede: "A", "Sede A", "NEGOZIO A", "1"→A, "2"→B, "3"→C. Nomi diversi restano come sono.
+function normFil(v){
+  let s=String(v==null?'':v).trim().toUpperCase().replace(/^(NEGOZIO|SEDE|FILIALE|PUNTO\s*VENDITA|PV|SHOP)[\s\-_.:]*/,'').trim();
+  if(/^[1-9]$/.test(s))s='ABCDEFGHI'[+s-1];
+  return s;
+}
 // ═══ EXCEL PARSER ═══════════════════════════════════════════════════════════
 function parseExcel(file){
   const reader = new FileReader();
@@ -1432,7 +1443,7 @@ function processUpload(raw, name){
   // Aggrega per filiale+marchio+modello+tipo+fornitore
   const agg = {};
   rows.forEach(r => {
-    const fil = String(r['Filiale']||r['filiale']||'').trim().toUpperCase().replace(/^NEGOZIO\s*/i,'');
+    const fil = normFil(r['Filiale']||r['filiale']||r['Sede']||r['Negozio']);
     const mar = String(r['Marchio']||r['marchio']||'').trim();
     const mod = String(r['Modello']||r['modello']||'').trim();
     const tp  = String(r['Tipo prodotto']||'').trim();
@@ -1468,9 +1479,10 @@ function processUpload(raw, name){
 
   // Ricalcola MAG struttura
   const byBrand={}, byForn={}, catA={}, catB={};
-  let vA=0,vB=0,pA=0,pB=0;
+  let vA=0,vB=0,pA=0,pB=0;const kpiF={};
   allRows.forEach(r => {
-    if(r.f==='A'){vA+=r.v;pA+=r.q;} else {vB+=r.v;pB+=r.q;}
+    if(r.f==='A'){vA+=r.v;pA+=r.q;} else if(r.f==='B'){vB+=r.v;pB+=r.q;}
+    const kk=r.f||'?';kpiF[kk]=kpiF[kk]||{pezzi:0,valore:0};kpiF[kk].pezzi+=r.q;kpiF[kk].valore+=r.v;
     byBrand[r.m]=(byBrand[r.m]||0)+r.v;
     byForn[r.forn]=(byForn[r.forn]||0)+r.v;
     const ck=r.cat==='M'?'Montature':'Sole';
@@ -1486,7 +1498,7 @@ function processUpload(raw, name){
   const smalt=Object.keys(aMap).filter(k=>bMap[k]).map(k=>({m:aMap[k].m,mod:aMap[k].mod,cat:aMap[k].cat==='M'?'Montature vista':'Occhiali sole',qA:aMap[k].qA,qB:bMap[k].qB,c:aMap[k].c})).sort((a,b)=>(b.qA+b.qB)-(a.qA+a.qB)).slice(0,40);
 
   LIVE_MAG = {
-    kpi:{A:{pezzi:pA,valore:Math.round(vA*100)/100},B:{pezzi:pB,valore:Math.round(vB*100)/100},C:{pezzi:0,valore:0}},
+    kpi:Object.fromEntries(Object.entries({C:{pezzi:0,valore:0},...kpiF}).map(([k,o])=>[k,{pezzi:o.pezzi,valore:Math.round(o.valore*100)/100}])),
     brand:topBrand.map(x=>({n:x[0],v:Math.round(x[1]*100)/100})),
     forn:topForn.map(x=>({n:x[0],v:Math.round(x[1]*100)/100})),
     smalt,
@@ -1555,7 +1567,7 @@ function processVendite(raw, name){
     return {
       tp:  (r['Tipo Prodotto']||'').trim(),
       mar: (r['Marchio']||'').trim(),
-      fil: (r['Filiale']||'').trim().toUpperCase(),
+      fil: normFil(r['Filiale']||r['Sede']||r['Negozio']),
       op:  (r['Operatore']||'').trim(),
       pz:  parseFloat(r['Quantità']||1)||1,
       val: parseFloat(r['Prezzo consigliato']||r['Listino vendita']||0)||0,
@@ -1687,7 +1699,7 @@ function processAcquisti(raw, name){
     const yr = dt ? dt.slice(0,4) : null;
     const mo = dt ? parseInt(dt.slice(5,7)) : null;
     const tp = (r['Tipo Prodotto']||'').trim();
-    const fil= (r['Filiale']||'').trim().toUpperCase();
+    const fil= normFil(r['Filiale']||r['Sede']||r['Negozio']);
     const pz = parseFloat(String(r['Quantità']||0).replace(',','.')) || 0;
     const val= parseFloat(String(r['ValoreAcq']||0).replace(',','.')) || 0;
     if(yr){ if(!byAnno[yr]) byAnno[yr]={pz:0,val:0,refs:0}; byAnno[yr].pz+=pz; byAnno[yr].val+=val; byAnno[yr].refs++; }
@@ -2670,7 +2682,7 @@ function rOpInsights(){
 
 function rOv(){
   const mag=curMAG();
-  const magSedi=(ST.sedeMode==='agg'||ST.sedeMode==='split')?['A','B','C']:[ST.sedeMode];
+  const magSedi=(ST.sedeMode==='agg'||ST.sedeMode==='split')?Object.keys(mag.kpi||{}):[ST.sedeMode];
   const valMagTot=magSedi.reduce((a,s)=>a+(mag.kpi[s]?.valore||0),0);
   const pzMagTot=magSedi.reduce((a,s)=>a+(mag.kpi[s]?.pezzi||0),0);
   const hasAcq=!!LIVE_ACQ&&!!LIVE_ACQ.rows;
@@ -2720,6 +2732,8 @@ function rOv(){
   const sedeInsA=perRowsIns.filter(r=>r.fil==='A').reduce((a,r)=>a+r.pz,0);
   const sedeInsB=perRowsIns.filter(r=>r.fil==='B').reduce((a,r)=>a+r.pz,0);
   const sedeInsTot=sedeInsA+sedeInsB||1;
+  const sedeIns={};perRowsIns.forEach(r=>{if(r.fil)sedeIns[r.fil]=(sedeIns[r.fil]||0)+r.pz;});
+  const sedeInsAll=Object.entries(sedeIns).sort((a,b)=>a[0].localeCompare(b[0]));const sedeInsAllTot=sedeInsAll.reduce((a,x)=>a+x[1],0)||1;
 
   const stepBtn=(v,lbl)=>`<button class="tp${ST.ovTrendStep===v?' on':''}" onclick="ST.ovTrendStep='${v}';ST.ovTrendRange=(v==='M'?12:v==='W'?13:v==='D'?30:null);renderPage()">${lbl}</button>`;
   const rangeBtn=(v,lbl)=>`<button class="tp${ST.ovTrendRange===v?' on':''}" onclick="ST.ovTrendRange=${v===null?'null':v};renderPage()" style="font-size:10px">${lbl}</button>`;
@@ -2868,7 +2882,7 @@ ${(headlineDelta||topAction)?`
     <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--d)">Valore magazzino</div>
     <div style="font-size:22px;font-weight:700;color:var(--t);line-height:1">${fmt(valMagTot)}</div>
     <div style="font-size:13px;color:var(--m)">${fmtN(pzMagTot)} pz</div>
-    <div style="font-size:11px;color:var(--d);margin-top:2px">${(ST.sedeMode==='agg'||ST.sedeMode==='split')?'Sede A + Sede B':'Sede '+ST.sedeMode}</div>
+    <div style="font-size:11px;color:var(--d);margin-top:2px">${(ST.sedeMode==='agg'||ST.sedeMode==='split')?magSedi.filter(k=>(mag.kpi[k]?.valore||0)>0).sort().map(k=>'Sede '+k).join(' + '):'Sede '+ST.sedeMode}</div>
   </div>
 </div>
 
@@ -2919,10 +2933,7 @@ ${(headlineDelta||topAction)?`
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Confronto sedi · ${perLabel} · pezzi</div>
-      ${(sedeInsA+sedeInsB)>0?`
-      <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(sedeInsA/sedeInsTot*100)}%"></div></div><div class="sv">${fmtN(sedeInsA)} pz</div><div class="sp2">${Math.round(sedeInsA/sedeInsTot*100)}%</div></div>
-      <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(sedeInsB/sedeInsTot*100)}%"></div></div><div class="sv">${fmtN(sedeInsB)} pz</div><div class="sp2">${Math.round(sedeInsB/sedeInsTot*100)}%</div></div>`
-      :`<div style="font-size:12px;color:var(--d)">Nessun dato per il periodo</div>`}
+      ${sedeInsAll.length?sedeInsAll.map(([f,pz],i)=>`<div class="srow"><div class="slb">Sede ${f}</div><div class="sbw"><div class="sbar ${['s1c','s2c','s3c'][i%3]}" style="width:${Math.round(pz/sedeInsAllTot*100)}%"></div></div><div class="sv">${fmtN(pz)} pz</div><div class="sp2">${Math.round(pz/sedeInsAllTot*100)}%</div></div>`).join(''):`<div style="font-size:12px;color:var(--d)">Nessun dato per il periodo</div>`}
     </div>
   </div>
 </div>
@@ -2968,6 +2979,8 @@ function rVend(){
   const rA=fRows.filter(r=>r.fil==='A'), rB=fRows.filter(r=>r.fil==='B');
   const pzA=rA.reduce((a,r)=>a+r.pz,0), pzB=rB.reduce((a,r)=>a+r.pz,0);
   const pzTot=pzA+pzB||1;
+  const pzSede={};fRows.forEach(r=>{if(r.fil)pzSede[r.fil]=(pzSede[r.fil]||0)+r.pz;});
+  const pzSedeAll=Object.entries(pzSede).sort((a,b)=>a[0].localeCompare(b[0]));const pzSedeTot=pzSedeAll.reduce((a,x)=>a+x[1],0)||1;
   // Operatori da righe filtrate
   const opMap={};
   fRows.forEach(r=>{if(!r.op)return;if(!opMap[r.op])opMap[r.op]=0;opMap[r.op]+=r.pz;});
@@ -3015,7 +3028,7 @@ ${vendHeadline?`
     ${anniDisponibili.map(y=>`<option value="${y}"${ST.vendAnno===String(y)?' selected':''}>${y}</option>`).join('')}
   </select>
   <div class="tpill" style="gap:0">${tpBtn('all','Tutto')}${tpBtn('MV','Vista')}${tpBtn('OS','Sole')}${tpBtn('FR','Frame')}${tpBtn('LE','Lenti')}</div>
-  <div class="tpill" style="gap:0">${filBtn('all','A+B')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}</div>
+  <div class="tpill" style="gap:0">${filBtn('all','Tutte')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}${filBtn('C','Sede C')}</div>
   <select class="sel sel-brand" onchange="ST.vendMar=this.value;renderPage()">
     <option value="all"${ST.vendMar==='all'?' selected':''}>— Tutti i marchi —</option>
     ${allMarchi.map(m=>`<option value="${m}"${ST.vendMar===m?' selected':''}>${m}</option>`).join('')}
@@ -3061,8 +3074,7 @@ ${vendHeadline?`
   <div class="g card">
     <div class="ch"><div class="ct"><span class="dot dem"></span>Performance per sede</div></div>
     <div style="font-size:11px;color:var(--d);margin-bottom:8px">Pezzi venduti</div>
-    <div class="srow"><div class="slb">Sede A</div><div class="sbw"><div class="sbar s1c" style="width:${Math.round(pzA/pzTot*100)}%"></div></div><div class="sv">${fmtN(pzA)} pz</div><div class="sp2">${Math.round(pzA/pzTot*100)}%</div></div>
-    <div class="srow"><div class="slb">Sede B</div><div class="sbw"><div class="sbar s2c" style="width:${Math.round(pzB/pzTot*100)}%"></div></div><div class="sv">${fmtN(pzB)} pz</div><div class="sp2">${Math.round(pzB/pzTot*100)}%</div></div>
+    ${pzSedeAll.map(([f,pz],k)=>`<div class="srow"><div class="slb">Sede ${f}</div><div class="sbw"><div class="sbar ${['s1c','s2c','s3c'][k%3]}" style="width:${Math.round(pz/pzSedeTot*100)}%"></div></div><div class="sv">${fmtN(pz)} pz</div><div class="sp2">${Math.round(pz/pzSedeTot*100)}%</div></div>`).join('')}
     ${byOp.length>0?`<div style="border-top:0.5px solid var(--b);margin-top:12px;padding-top:12px">
       <div class="ch" style="margin-bottom:8px"><div class="ct"><span class="dot dvi"></span>Top operatori (pezzi)</div></div>
       ${byOp.map((o,i)=>`<div class="srow"><div class="slb">${o.n}</div><div class="sbw"><div class="sbar" style="width:${byOp[0].pz>0?Math.round(o.pz/byOp[0].pz*100):0}%;background:rgba(191,90,242,.5)"></div></div><div class="sv">${fmtN(o.pz)} pz</div></div>`).join('')}
@@ -3075,6 +3087,7 @@ ${vendHeadline?`
 function magFilter(){
   let r=applySharedMagFilters(curMAG().rows.map(enrichMagRow));
   if(ST.magSed!=="all")r=r.filter(x=>x.f===ST.magSed);
+  else if(["A","B","C"].includes(ST.sedeMode))r=r.filter(x=>x.f===ST.sedeMode); // segue anche la sede scelta nel menu
   if(ST.magSearch){const s=ST.magSearch.toLowerCase();r=r.filter(x=>x.m.toLowerCase().includes(s)||x.mod.toLowerCase().includes(s)||x.forn.toLowerCase().includes(s)||(x.bc&&x.bc.toLowerCase().includes(s)));}
   return r;
 }
@@ -3142,6 +3155,9 @@ function rMag(){
   const baseRows=applySharedMagFilters(curMAG().rows.map(enrichMagRow));
   const rows=magFilter();
   const kA=rows.filter(r=>r.f==="A"),kB=rows.filter(r=>r.f==="B");
+  const sediMag=[...new Set(curMAG().rows.map(r=>r.f).filter(Boolean))].sort();
+  const sedeTot=f=>{const x=rows.filter(r=>r.f===f);return{v:x.reduce((a,r)=>a+r.v,0),q:x.reduce((a,r)=>a+r.q,0)};};
+  const vTot=rows.reduce((a,r)=>a+r.v,0),pTot=rows.reduce((a,r)=>a+r.q,0);
   const vA=kA.reduce((a,r)=>a+r.v,0),vB=kB.reduce((a,r)=>a+r.v,0);
   const pA=kA.reduce((a,r)=>a+r.q,0),pB=kB.reduce((a,r)=>a+r.q,0);
   const bf=ST.magBrand!=="all";
@@ -3231,9 +3247,8 @@ function rMag(){
       ${MARCHI_ALL().map(m=>`<option value="${m}"${ST.magBrand===m?" selected":""}>${m}</option>`).join("")}
     </select>
     <select class="sel" onchange="ST.magSed=this.value;ST.magPage=0;renderPage()">
-      <option value="all"${ST.magSed==="all"?" selected":""}>Sedi A+B</option>
-      <option value="A"${ST.magSed==="A"?" selected":""}>Sede A</option>
-      <option value="B"${ST.magSed==="B"?" selected":""}>Sede B</option>
+      <option value="all"${ST.magSed==="all"?" selected":""}>Tutte le sedi</option>
+      ${sediMag.map(f=>`<option value="${f}"${ST.magSed===f?" selected":""}>Sede ${f}</option>`).join("")}
     </select>
     <select class="sel" onchange="ST.magCat=this.value;ST.magPage=0;renderPage()">
       <option value="all"${ST.magCat==="all"?" selected":""}>Vista + Sole</option>
@@ -3292,10 +3307,8 @@ ${magIns?`
 </div>
 ${activeFilters.length?`<div class="filter-pills fi">${activeFilters.map(f=>`<span class="fp">${f}</span>`).join("")}<button class="pbtn" onclick="resetMagFilters()">Azzera filtri</button></div>`:""}
 <div class="kg k4 fi">
-  <div class="g kc"><div class="ki">💰</div><div class="kl">Valore A+B</div><div class="kv gcy">${fmt(vA+vB)}</div><div class="ks">${fmtN(pA+pB)} pz · ${fmtN(totR)} ref.</div></div>
-  <div class="g kc" style="border-left:3px solid rgba(90,200,250,.4)"><div class="kl">Sede A</div><div class="kv gem">${fmt(vA)}</div><div class="ks">${fmtN(pA)} pz</div></div>
-  <div class="g kc" style="border-left:3px solid rgba(48,209,88,.4)"><div class="kl">Sede B</div><div class="kv gam">${fmt(vB)}</div><div class="ks">${fmtN(pB)} pz</div></div>
-  <div class="g kc" style="border-left:3px solid rgba(251,191,36,.3)"><div class="kl">Sede C</div><div class="kv gro">€ 0</div><div class="ks">da popolare</div></div>
+  <div class="g kc"><div class="ki">💰</div><div class="kl">Valore magazzino</div><div class="kv gcy">${fmt(vTot)}</div><div class="ks">${fmtN(pTot)} pz · ${fmtN(totR)} ref.</div></div>
+  ${(sediMag.length?sediMag:['A','B']).slice(0,3).map((f,i)=>{const t=sedeTot(f);return`<div class="g kc" style="border-left:3px solid ${['rgba(90,200,250,.4)','rgba(48,209,88,.4)','rgba(251,191,36,.4)'][i]}"><div class="kl">Sede ${f}</div><div class="kv ${['gem','gam','gro'][i]}">${fmt(t.v)}</div><div class="ks">${fmtN(t.q)} pz</div></div>`;}).join('')}
 </div>
 <div class="g card fi" style="margin-bottom:12px">
   <div class="ch"><div class="ct"><span class="dot dem"></span>Aggregati per fornitore</div><div style="font-size:11px;color:var(--m)">${fmtN(supplierAgg.length)} fornitori</div></div>
@@ -3432,10 +3445,9 @@ ${(()=>{
     <option value="O"${ST.agPri==="O"?" selected":""}>✅ OK (&lt; 24 mesi)</option>
   </select>
   <select class="sel" onchange="ST.agSed=this.value;ST.agPage=0;renderPage()">
-    <option value="all"${ST.agSed==="all"?" selected":""}>Sedi A+B</option>
-    <option value="A"${ST.agSed==="A"?" selected":""}>Sede A</option>
-    <option value="B"${ST.agSed==="B"?" selected":""}>Sede B</option>
-  </select>
+    <option value="all"${ST.agSed==="all"?" selected":""}>Tutte le sedi</option>
+    ${[...new Set(curMAG().rows.map(r=>r.f).filter(Boolean))].sort().map(f=>`<option value="${f}"${ST.agSed===f?" selected":""}>Sede ${f}</option>`).join("")}
+    </select>
   <input id="srch-ag" class="srch" placeholder="Cerca marchio / modello / fornitore…" value="${ST.agSearch}" oninput="ST.agSearch=this.value;ST.agPage=0;renderPage()">
   <span style="margin-left:auto;font-size:12px;color:var(--m)">${fmtN(agRows.length)} ref. · ${fmt(agValTot)}</span>
 </div>
@@ -3985,7 +3997,7 @@ function rLenti(){
   return`
 <div class="topbar fi" style="flex-wrap:wrap;gap:8px">
   <div class="page-title">Lenti <span class="pt-badge">${hasDate?'YTD '+CY:'Totale'}</span></div>
-  <div class="tpill" style="gap:0">${filBtn('all')}${filBtn('A')}${filBtn('B')}</div>
+  <div class="tpill" style="gap:0">${filBtn('all')}${filBtn('A')}${filBtn('B')}${filBtn('C')}</div>
 </div>
 
 ${lentiHeadline?`
