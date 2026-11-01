@@ -15,6 +15,6 @@ directory = "public"
 #   2. decommenta e incolla l'id generato qui sotto
 #   3. wrangler deploy
 #
-# [[kv_namespaces]]
-# binding = "DATA"
-# id = "INCOLLA_QUI_ID_NAMESPACE"
+[[kv_namespaces]]
+binding = "DATA"
+id = "f2681793db664aa195a07b141621edc0"
