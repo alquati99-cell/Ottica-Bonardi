@@ -708,7 +708,20 @@ const MESI=["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","D
 const PAG=["Contanti","Carta","Bancomat","Finanziamento","Misto"];
 const CAT_V=["Montature","Lenti Vista","Occhiali Sole","Lenti Contatto","Accessori"];
 const BK=["B1","B2","B3"];
-const NOW=new Date(),CY=NOW.getFullYear(),CM=NOW.getMonth();
+// Data di riferimento: oggi, oppure l'ultimo giorno presente nelle vendite se
+// i dati si fermano prima (es. export al 31/10 guardato il 1/11). Così "mese
+// corrente", "anno", "settimana" non escono a zero solo perché il calendario
+// è andato avanti rispetto ai dati.
+let NOW=new Date(),CY=NOW.getFullYear(),CM=NOW.getMonth(),REF_SRC=null,REF_IS_DATA=false;
+function updateRefDate(){
+  if(typeof LIVE_VEND==='undefined'||LIVE_VEND===REF_SRC)return;
+  REF_SRC=LIVE_VEND;
+  const real=new Date(),t=real.toISOString().slice(0,10);
+  let last='';
+  if(LIVE_VEND&&LIVE_VEND.rows)for(const r of LIVE_VEND.rows){const d=r.dt;if(d&&d>last&&d<=t)last=d;}
+  if(last&&last<t){NOW=new Date(last+'T12:00:00');REF_IS_DATA=true;}else{NOW=real;REF_IS_DATA=false;}
+  CY=NOW.getFullYear();CM=NOW.getMonth();
+}
 
 function rng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;}}
 function genStorico(){
@@ -1863,7 +1876,7 @@ function statusWord(d){
 // in base a quanto tempo è passato dall'ultima visita, con soglia in giorni.
 function computeRetention(retDays,sedeFilter){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return {retClients:[],nAttivi:0,nRischio:0,nPersi:0,nNuovi:0,nTot:0};
-  const now=new Date();
+  const now=new Date(NOW);
   const srcRows=(sedeFilter&&sedeFilter!=='agg'&&sedeFilter!=='split')?LIVE_VEND.rows.filter(r=>r.fil===sedeFilter):LIVE_VEND.rows;
   const byCode={};
   srcRows.forEach(r=>{
@@ -1916,7 +1929,7 @@ function isoWeekKey(dtStr){
 function acqKPIs(){
   if(!LIVE_ACQ||!LIVE_ACQ.rows) return null;
   const rows=sedeRows(LIVE_ACQ.rows);
-  const now=new Date();
+  const now=new Date(NOW);
   const today=toISO(now);
   const moNum=CM+1; // 1-indexed
   const moStr=String(moNum).padStart(2,'0');
@@ -1946,7 +1959,7 @@ function acqTrend(step,range){
   if(!LIVE_ACQ||!LIVE_ACQ.rows) return{labels:[],vals:[],pzs:[]};
   const rows=sedeRows(LIVE_ACQ.rows);
   const agg={};
-  const now=new Date();
+  const now=new Date(NOW);
   if(step==='A'){
     rows.forEach(r=>{const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
@@ -1987,7 +2000,7 @@ function vendRange(rows, from, to){
 function vendKPIs(){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
   const frRows=sedeRows(LIVE_VEND.rows).filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
-  const now=new Date(); const today=toISO(now);
+  const now=new Date(NOW); const today=toISO(now);
   const moNum=CM+1; const moStr=String(moNum).padStart(2,'0');
   const daysInMoPY=new Date(CY-1,moNum,0).getDate();
   const daysInMoCY=new Date(CY,moNum,0).getDate();
@@ -2024,7 +2037,7 @@ function vendKPIs(){
 function vendTrend(step,range){
   if(!LIVE_VEND||!LIVE_VEND.hasDate) return null;
   const rows=sedeRows(LIVE_VEND.rows).filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole');
-  const agg={}; const now=new Date();
+  const agg={}; const now=new Date(NOW);
   if(step==='A'){
     rows.forEach(r=>{if(!r.yr)return;const k=String(r.yr);if(!agg[k])agg[k]={val:0,pz:0};agg[k].val+=r.val;agg[k].pz+=r.pz;});
     const keys=Object.keys(agg).sort();
@@ -2296,6 +2309,7 @@ function setSede(mode){
   renderPage();
 }
 function renderPage(){
+  updateRefDate();
   destroyCharts();
   const r=document.getElementById("root");
   // renderPage sostituisce tutto l'HTML della pagina, quindi ogni <input>
@@ -2688,7 +2702,7 @@ function rOv(){
 
   // ── Insight: top brand del periodo + confronto sedi (sostituisce l'obiettivo) ──
   const perRowsIns=hasVendDate?(()=>{
-    const now2=new Date();
+    const now2=new Date(NOW);
     let from;
     if(ST.ovPeriodo==='MTD')from=`${CY}-${String(CM+1).padStart(2,'0')}-01`;
     else if(['Q1','Q2','Q3','Q4'].includes(ST.ovPeriodo)){const qs={Q1:1,Q2:4,Q3:7,Q4:10};from=`${CY}-${String(qs[ST.ovPeriodo]).padStart(2,'0')}-01`;}
@@ -2735,7 +2749,7 @@ function rOv(){
   // Lenti panel (pezzi only, no costs)
   const lentiPanel=()=>{
     if(!hasVend) return`<div style="color:var(--d);font-size:12px">Carica vendite.xlsx</div>`;
-    const now=new Date(); const today=toISO(now);
+    const now=new Date(NOW); const today=toISO(now);
     const ytdFrom=`${CY}-01-01`;
     const lentiTypes=['Lenti monofocali','Lenti progressive','Lenti occupazionali','Lenti bifocali','Lenti a supporto accomodativo','Lenti a profondità di campo'];
     // Count pz per tipo (YTD if dates, else all)
@@ -2896,7 +2910,7 @@ ${(headlineDelta||topAction)?`
         <div style="font-size:20px;font-weight:700;color:var(--t)">${(hasVendDate||hasAcq)?fmt(moVal):'—'}</div>
         <div style="font-size:13px;color:var(--m)">${(hasVendDate||hasAcq)?fmtN(moPz)+' pz':'—'}</div>
       </div>
-      ${moFullPY.val>0?`<div style="font-size:11px;color:var(--m);margin-top:6px">vs ${MESI[CM]} ${CY-1}: <b style="color:${moVal>=moFullPY.val?'var(--em)':'var(--ro)'}">${moVal>=moFullPY.val?'↑':'↓'}${Math.abs(Math.round((moVal-moFullPY.val)/moFullPY.val*100))}%</b> · ${daysLeft} giorni rimanenti</div>`:`<div style="font-size:11px;color:var(--d);margin-top:6px">${daysLeft} giorni rimanenti nel mese</div>`}
+      ${moFullPY.val>0?`<div style="font-size:11px;color:var(--m);margin-top:6px">vs ${MESI[CM]} ${CY-1}: <b style="color:${moVal>=moFullPY.val?'var(--em)':'var(--ro)'}">${moVal>=moFullPY.val?'↑':'↓'}${Math.abs(Math.round((moVal-moFullPY.val)/moFullPY.val*100))}%</b> · ${REF_IS_DATA?'dati fino al '+fmtD(toISO(NOW)):daysLeft+' giorni rimanenti'}</div>`:`<div style="font-size:11px;color:var(--d);margin-top:6px">${REF_IS_DATA?'dati fino al '+fmtD(toISO(NOW)):daysLeft+' giorni rimanenti'} nel mese</div>`}
     </div>
     <div class="g" style="padding:14px 16px;border-radius:var(--r);background:var(--gl);border:0.5px solid var(--b)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--d);margin-bottom:8px">Brand top · ${perLabel}</div>
@@ -3847,7 +3861,7 @@ function rLenti(){
   <div style="font-size:12px">Carica <b style="color:var(--ac);cursor:pointer" onclick="nav('dati')">vendite.xlsx</b> per vedere l'analisi lenti</div>
 </div>`;
   }
-  const now=new Date();const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const now=new Date(NOW);const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const hasDate=LIVE_VEND.hasDate;
   const allL=LIVE_VEND.rows.filter(r=>r.tp&&r.tp.startsWith('Lenti'));
   const rows=ST.lentiFil==='all'?allL:allL.filter(r=>r.fil===ST.lentiFil);
