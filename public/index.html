@@ -90,6 +90,8 @@ html{scroll-behavior:smooth}
 .sp.s-b1.on{background:rgba(236,123,160,.15);border-color:rgba(236,123,160,.35);color:var(--ac)}
 .sp.s-b2.on{background:rgba(48,209,88,.15);border-color:rgba(48,209,88,.35);color:var(--em)}
 .sp.s-b3.on{background:rgba(255,159,10,.15);border-color:rgba(255,159,10,.35);color:var(--am)}
+.sp.s-b4.on{background:rgba(192,132,252,.15);border-color:rgba(192,132,252,.38);color:var(--vi)}
+.sp.s-b5.on{background:rgba(103,232,249,.15);border-color:rgba(103,232,249,.38);color:var(--cy)}
 .main{flex:1;padding:26px 26px 60px;min-width:0;overflow-x:hidden}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px;flex-wrap:wrap}
 .page-title{font-size:19px;font-weight:600;letter-spacing:-.3px;display:flex;align-items:center;gap:10px}
@@ -811,9 +813,9 @@ function stockSalesCore(period){
   const per=acqPeriodInfo(period||'l12',anchor);
   const sm=ST.sedeMode;
   let magRows=curMAG().rows.map(enrichMagRow);
-  if(sm==='A'||sm==='B'||sm==='C')magRows=magRows.filter(r=>r.f===sm);
+  if(isOneSede())magRows=magRows.filter(r=>r.f===sm);
   const B={};
-  const get=(k,raw)=>{const b=B[k]||(B[k]={key:k,labels:{},grp:{},soldPz:0,soldVal:0,soldAcq:0,soldAcqPz:0,vistaPz:0,solePz:0,stockPz:0,stockVal:0,stockVista:0,stockSole:0,staleVal:0,agePz:[0,0,0,0,0],ageVal:[0,0,0,0,0],oldest:null,mods:{},stockA:0,stockB:0,soldA:0,soldB:0});if(raw)b.labels[raw]=(b.labels[raw]||0)+1;return b;};
+  const get=(k,raw)=>{const b=B[k]||(B[k]={key:k,labels:{},grp:{},soldPz:0,soldVal:0,soldAcq:0,soldAcqPz:0,vistaPz:0,solePz:0,stockPz:0,stockVal:0,stockVista:0,stockSole:0,staleVal:0,agePz:[0,0,0,0,0],ageVal:[0,0,0,0,0],oldest:null,mods:{},stockA:0,stockB:0,soldA:0,soldB:0,stockF:{},soldF:{}});if(raw)b.labels[raw]=(b.labels[raw]||0)+1;return b;};
   magRows.forEach(r=>{
     const k=acqBrandKey(r.m);if(!k)return;
     const b=get(k,String(r.m).trim());
@@ -825,6 +827,7 @@ function stockSalesCore(period){
     b.agePz[ai]+=r.q;b.ageVal[ai]+=r.v;
     if(typeof r.mesi==='number'&&(b.oldest==null||r.mesi>b.oldest))b.oldest=r.mesi;
     if(r.f==='A')b.stockA+=r.q;else if(r.f==='B')b.stockB+=r.q;
+    if(r.f)b.stockF[r.f]=(b.stockF[r.f]||0)+r.q;
     const mk=aiNorm(r.mod||'')||'—';
     const mm=b.mods[mk]||(b.mods[mk]={mod:String(r.mod||'—').trim(),soldPz:0,stockPz:0,stockVal:0,oldest:null});
     mm.stockPz+=r.q;mm.stockVal+=r.v;
@@ -838,6 +841,7 @@ function stockSalesCore(period){
     if(r.acq>0&&r.val>0){b.soldAcq+=r.acq;b.soldAcqPz+=r.val;}
     if(r.tp==='Montature vista')b.vistaPz+=r.pz;else b.solePz+=r.pz;
     if(r.fil==='A')b.soldA+=r.pz;else if(r.fil==='B')b.soldB+=r.pz;
+    if(r.fil)b.soldF[r.fil]=(b.soldF[r.fil]||0)+r.pz;
     const mk=aiNorm(r.mod||'')||'—';
     const mm=b.mods[mk]||(b.mods[mk]={mod:String(r.mod||'—').trim(),soldPz:0,stockPz:0,stockVal:0,oldest:null});
     mm.soldPz+=r.pz;
@@ -954,7 +958,7 @@ function acqDetailHtml(b){
   const li=(arr,fn)=>arr.length?arr.map(fn).join(''):'<div style="color:var(--d);font-size:12px">nessun dato</div>';
   return`<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:22px;padding:6px 4px" class="acq-det">
     <div><div class="kl">Numeri del marchio</div>
-      <div style="font-size:12px;color:var(--m);line-height:1.8">Prezzo medio venduto <b style="color:var(--t)">${b.soldPz>0?fmt(b.avgPrice):'—'}</b> · margine <b style="color:var(--t)">${b.margPct==null?'—':b.margPct+'%'}</b><br>Vista ${fmtN(b.vistaPz)} / Sole ${fmtN(b.solePz)} venduti · Vista ${fmtN(b.stockVista)} / Sole ${fmtN(b.stockSole)} in stock<br>Sede A: ${fmtN(b.stockA)} in stock, ${fmtN(b.soldA)} venduti · Sede B: ${fmtN(b.stockB)} in stock, ${fmtN(b.soldB)} venduti<br>Per ${ST.acqTarget||6} mesi di copertura servirebbero <b style="color:var(--t)">${b.need>0?'+'+fmtN(b.need)+' pz':'nessun pezzo'}</b> · quota d'acquisto consigliata <b style="color:var(--t)">${Math.round(b.quota*100)}%</b></div>
+      <div style="font-size:12px;color:var(--m);line-height:1.8">Prezzo medio venduto <b style="color:var(--t)">${b.soldPz>0?fmt(b.avgPrice):'—'}</b> · margine <b style="color:var(--t)">${b.margPct==null?'—':b.margPct+'%'}</b><br>Vista ${fmtN(b.vistaPz)} / Sole ${fmtN(b.solePz)} venduti · Vista ${fmtN(b.stockVista)} / Sole ${fmtN(b.stockSole)} in stock<br>${[...new Set([...Object.keys(b.stockF),...Object.keys(b.soldF)])].sort().map(f=>`Sede ${f}: ${fmtN(b.stockF[f]||0)} in stock, ${fmtN(b.soldF[f]||0)} venduti`).join(' · ')||'—'}<br>Per ${ST.acqTarget||6} mesi di copertura servirebbero <b style="color:var(--t)">${b.need>0?'+'+fmtN(b.need)+' pz':'nessun pezzo'}</b> · quota d'acquisto consigliata <b style="color:var(--t)">${Math.round(b.quota*100)}%</b></div>
       <div class="kl" style="margin-top:12px">Da quanto sono in magazzino</div>${ageBars||'<div style="color:var(--d);font-size:12px">Nessun pezzo</div>'}</div>
     <div><div class="kl">Modelli più venduti</div>${li(topSold,m=>`<div class="srow" style="padding:5px 0"><div class="slb" style="min-width:0;flex:1">${m.mod}</div><div class="sv" style="min-width:110px">${fmtN(m.soldPz)} venduti · ${fmtN(m.stockPz)} stock</div></div>`)}</div>
     <div><div class="kl">Fermi da più tempo</div>${li(oldest,m=>`<div class="srow" style="padding:5px 0"><div class="slb" style="min-width:0;flex:1">${m.mod}</div><div class="sv" style="min-width:110px">${fmtN(m.stockPz)} pz · ${fmtAge(m.oldest)}</div></div>`)}</div>
@@ -1432,7 +1436,7 @@ function parseExcel(file){
 
 function processUpload(raw, name){
   scanDateOrder(raw);
-  const VALID_TYPES = ["Montature vista","Occhiali sole","montature vista","occhiali sole"];
+  const VALID_TYPES = ["Montature vista","Occhiali sole","Occhiali premontati"];
   // Filtra e normalizza
   const rows = raw.filter(r => {
     const tp = String(r['Tipo prodotto']||r['tipo prodotto']||'').trim();
@@ -1456,7 +1460,7 @@ function processUpload(raw, name){
     if(dt instanceof Date) dt = dt.toISOString().slice(0,10);
     else if(typeof dt === 'number') dt = excelSerialToISO(dt);
     else if(typeof dt === 'string') dt = normalizeDateValue(dt);
-    const cat = tp.toLowerCase().includes('vista') ? 'M' : 'S';
+    const cat = /vista|premont/i.test(tp) ? 'M' : 'S';
     // Se barcode presente lo usa come chiave univoca (1 SKU = 1 riga per filiale)
     const key = bc ? `${bc}|${fil}` : `${fil}|${mar}|${mod}|${cat}|${forn}`;
     if(!agg[key]) agg[key]={f:fil,m:mar.slice(0,22),mod:mod.slice(0,18),cat,forn:forn||'Senza fornitore',bc,q:0,v:0,c:0,cn:0,d:'',mesi:0,anno:0,pri:'O'};
@@ -2131,10 +2135,10 @@ function normalizeDateValue(v){
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   // dd/mm/yyyy o mm/dd/yyyy (vedi scanDateOrder)
   const mIT=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
-  if(mIT){const[d,m]=dayMonth(mIT[1],mIT[2]);return `${mIT[3]}-${m}-${d}`;}
+  if(mIT){const[d,m]=dayMonth(mIT[1],mIT[2]);if(d==='00'||m==='00'||+m>12)return '';return `${mIT[3]}-${m}-${d}`;}
   // formato corto dd/mm/yy
   const mIT2=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
-  if(mIT2){const yr=parseInt(mIT2[3])+(parseInt(mIT2[3])<=30?2000:1900);const[d,m]=dayMonth(mIT2[1],mIT2[2]);return `${yr}-${m}-${d}`;}
+  if(mIT2){const yr=parseInt(mIT2[3])+(parseInt(mIT2[3])<=30?2000:1900);const[d,m]=dayMonth(mIT2[1],mIT2[2]);if(d==='00'||m==='00'||+m>12)return '';return `${yr}-${m}-${d}`;}
   // serial number Excel come stringa
   if(/^\d+(\.\d*)?$/.test(s)){const iso=excelSerialToISO(parseFloat(s));if(iso)return iso;}
   // yyyy-mm senza giorno
@@ -2313,15 +2317,35 @@ function toggleMobileSheet(force){
 }
 // Naviga da dentro il foglio mobile e lo richiude.
 function mnav(p){ toggleMobileSheet(false); nav(p); }
+// Sedi presenti nei dati (A, B, C, D…): niente elenchi fissi nel codice
+let SEDI_SRC=null,SEDI_CACHE=['A','B','C'];
+function allSedi(){
+  const key=[typeof LIVE_MAG!=='undefined'?LIVE_MAG:null,typeof LIVE_VEND!=='undefined'?LIVE_VEND:null,typeof LIVE_ACQ!=='undefined'?LIVE_ACQ:null];
+  if(SEDI_SRC&&key.every((x,i)=>x===SEDI_SRC[i]))return SEDI_CACHE;
+  SEDI_SRC=key;
+  const c={};
+  (curMAG().rows||[]).forEach(r=>{if(r.f)c[r.f]=(c[r.f]||0)+1;});
+  (LIVE_VEND?.rows||[]).forEach(r=>{if(r.fil)c[r.fil]=(c[r.fil]||0)+1;});
+  (LIVE_ACQ?.rows||[]).forEach(r=>{if(r.fil)c[r.fil]=(c[r.fil]||0)+1;});
+  const l=Object.keys(c).filter(k=>k&&k.length<=12).sort();
+  SEDI_CACHE=l.length?l:['A','B','C'];
+  return SEDI_CACHE;
+}
+const isOneSede=()=>ST.sedeMode&&ST.sedeMode!=='agg'&&ST.sedeMode!=='split';
+const SEDE_CLS=['s-b1','s-b2','s-b3','s-b4','s-b5'];
+function renderSedePills(){
+  const html=`<button class="sp s-agg${ST.sedeMode==='agg'?' on':''}" onclick="setSede('agg')">Aggregate</button><button class="sp s-spl${ST.sedeMode==='split'?' on':''}" onclick="setSede('split')">Per sede</button>`+
+    allSedi().map((f,i)=>`<button class="sp ${SEDE_CLS[i%SEDE_CLS.length]}${ST.sedeMode===f?' on':''}" onclick="setSede('${f}')">${f}</button>`).join('');
+  ['sedePills','sedePillsM'].forEach(id=>{const el=document.getElementById(id);if(el&&el.innerHTML!==html)el.innerHTML=html;});
+}
 function setSede(mode){
   ST.sedeMode=mode;
-  const mp={agg:"s-agg",split:"s-spl",A:"s-b1",B:"s-b2",C:"s-b3"};
-  document.querySelectorAll(".sp").forEach(b=>b.classList.remove("on"));
-  document.querySelectorAll("."+mp[mode]).forEach(b=>b.classList.add("on"));
   renderPage();
 }
 function renderPage(){
   updateRefDate();
+  if(isOneSede()&&!allSedi().includes(ST.sedeMode))ST.sedeMode='agg';
+  renderSedePills();
   destroyCharts();
   const r=document.getElementById("root");
   // renderPage sostituisce tutto l'HTML della pagina, quindi ogni <input>
@@ -3028,7 +3052,7 @@ ${vendHeadline?`
     ${anniDisponibili.map(y=>`<option value="${y}"${ST.vendAnno===String(y)?' selected':''}>${y}</option>`).join('')}
   </select>
   <div class="tpill" style="gap:0">${tpBtn('all','Tutto')}${tpBtn('MV','Vista')}${tpBtn('OS','Sole')}${tpBtn('FR','Frame')}${tpBtn('LE','Lenti')}</div>
-  <div class="tpill" style="gap:0">${filBtn('all','Tutte')}${filBtn('A','Sede A')}${filBtn('B','Sede B')}${filBtn('C','Sede C')}</div>
+  <div class="tpill" style="gap:0">${filBtn('all','Tutte')}${allSedi().map(f=>filBtn(f,'Sede '+f)).join('')}</div>
   <select class="sel sel-brand" onchange="ST.vendMar=this.value;renderPage()">
     <option value="all"${ST.vendMar==='all'?' selected':''}>— Tutti i marchi —</option>
     ${allMarchi.map(m=>`<option value="${m}"${ST.vendMar===m?' selected':''}>${m}</option>`).join('')}
@@ -3087,7 +3111,7 @@ ${vendHeadline?`
 function magFilter(){
   let r=applySharedMagFilters(curMAG().rows.map(enrichMagRow));
   if(ST.magSed!=="all")r=r.filter(x=>x.f===ST.magSed);
-  else if(["A","B","C"].includes(ST.sedeMode))r=r.filter(x=>x.f===ST.sedeMode); // segue anche la sede scelta nel menu
+  else if(isOneSede())r=r.filter(x=>x.f===ST.sedeMode); // segue anche la sede scelta nel menu
   if(ST.magSearch){const s=ST.magSearch.toLowerCase();r=r.filter(x=>x.m.toLowerCase().includes(s)||x.mod.toLowerCase().includes(s)||x.forn.toLowerCase().includes(s)||(x.bc&&x.bc.toLowerCase().includes(s)));}
   return r;
 }
@@ -3174,13 +3198,13 @@ function rMag(){
 
   // Grafici
   const topBrand=Object.entries(rows.reduce((o,r)=>{o[r.m]=(o[r.m]||0)+r.v;return o;},{})).sort((a,b)=>b[1]-a[1]).slice(0,bf?10:10);
-  const catA={},catB={};
-  rows.forEach(r=>{const k=r.cat==="M"?"Montature":"Sole";if(r.f==="A")catA[k]=(catA[k]||0)+r.v;else catB[k]=(catB[k]||0)+r.v;});
+  const catA={},catB={},catF={};
+  rows.forEach(r=>{const k=r.cat==="M"?"Montature":"Sole";if(r.f==="A")catA[k]=(catA[k]||0)+r.v;else catB[k]=(catB[k]||0)+r.v;const f=r.f||"?";catF[f]=catF[f]||{};catF[f][k]=(catF[f][k]||0)+r.v;});
   let agPool=baseRows.filter(r=>r.anno>0);
   if(ST.agSed!=="all")agPool=agPool.filter(r=>r.f===ST.agSed);
   if(ST.agSearch){const s=ST.agSearch.toLowerCase();agPool=agPool.filter(r=>r.m.toLowerCase().includes(s)||r.mod.toLowerCase().includes(s)||r.forn.toLowerCase().includes(s)||(r.bc&&r.bc.toLowerCase().includes(s)));}
   const agSummary=buildAgingSummary(agPool);
-  window.__mag={rows,topBrand,catA,catB,bf,aging:agSummary};
+  window.__mag={rows,topBrand,catA,catB,catF,bf,aging:agSummary};
 
   // ── "SO WHAT" — quanto capitale è fermo in magazzino da anni, in una
   // frase sola. I bucket U(rgente)/A(lta) sono già quelli usati dal tab
@@ -3306,9 +3330,9 @@ ${magIns?`
   <button class="qbtn${ST.magSort==="mesi"&&!ST.magAsc?" on":""}" onclick="ST.magSort='mesi';ST.magAsc=false;ST.magTab='stock';renderPage()" title="Mostra prima gli occhiali più vecchi">📅 Più vecchi</button>
 </div>
 ${activeFilters.length?`<div class="filter-pills fi">${activeFilters.map(f=>`<span class="fp">${f}</span>`).join("")}<button class="pbtn" onclick="resetMagFilters()">Azzera filtri</button></div>`:""}
-<div class="kg k4 fi">
+<div class="kg fi" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
   <div class="g kc"><div class="ki">💰</div><div class="kl">Valore magazzino</div><div class="kv gcy">${fmt(vTot)}</div><div class="ks">${fmtN(pTot)} pz · ${fmtN(totR)} ref.</div></div>
-  ${(sediMag.length?sediMag:['A','B']).slice(0,3).map((f,i)=>{const t=sedeTot(f);return`<div class="g kc" style="border-left:3px solid ${['rgba(90,200,250,.4)','rgba(48,209,88,.4)','rgba(251,191,36,.4)'][i]}"><div class="kl">Sede ${f}</div><div class="kv ${['gem','gam','gro'][i]}">${fmt(t.v)}</div><div class="ks">${fmtN(t.q)} pz</div></div>`;}).join('')}
+  ${(sediMag.length?sediMag:['A','B']).map((f,i)=>{const t=sedeTot(f);return`<div class="g kc" style="border-left:3px solid ${['rgba(90,200,250,.4)','rgba(48,209,88,.4)','rgba(251,191,36,.4)','rgba(192,132,252,.4)','rgba(103,232,249,.4)'][i%5]}"><div class="kl">Sede ${f}</div><div class="kv ${['gem','gam','gro','gvi','gcy'][i%5]}">${fmt(t.v)}</div><div class="ks">${fmtN(t.q)} pz</div></div>`;}).join('')}
 </div>
 <div class="g card fi" style="margin-bottom:12px">
   <div class="ch"><div class="ct"><span class="dot dem"></span>Aggregati per fornitore</div><div style="font-size:11px;color:var(--m)">${fmtN(supplierAgg.length)} fornitori</div></div>
@@ -3940,8 +3964,8 @@ function rLenti(){
   const opSorted=Object.entries(byOp).sort((a,b)=>b[1].pz-a[1].pz).slice(0,8);
 
   // Per filiale
-  const byFil={A:{pz:0,val:0,acq:0},B:{pz:0,val:0,acq:0}};
-  ytdRows.forEach(r=>{const k=r.fil==='B'?'B':'A';byFil[k].pz+=r.pz;byFil[k].val+=r.val;byFil[k].acq+=r.acq;});
+  const byFil={};
+  ytdRows.forEach(r=>{const k=r.fil||'?';byFil[k]=byFil[k]||{pz:0,val:0,acq:0};byFil[k].pz+=r.pz;byFil[k].val+=r.val;byFil[k].acq+=r.acq;});
 
   // Tutti i tipi di lenti disponibili per selettore
   const allLentiTipi=[...new Set(allL.map(r=>r.tp).filter(Boolean))].sort();
@@ -3997,7 +4021,7 @@ function rLenti(){
   return`
 <div class="topbar fi" style="flex-wrap:wrap;gap:8px">
   <div class="page-title">Lenti <span class="pt-badge">${hasDate?'YTD '+CY:'Totale'}</span></div>
-  <div class="tpill" style="gap:0">${filBtn('all')}${filBtn('A')}${filBtn('B')}${filBtn('C')}</div>
+  <div class="tpill" style="gap:0">${filBtn('all')}${allSedi().map(f=>filBtn(f)).join('')}</div>
 </div>
 
 ${lentiHeadline?`
@@ -4101,9 +4125,9 @@ ${lentiHeadline?`
   <div style="display:flex;flex-direction:column;gap:14px">
     <!-- Filiale A vs B -->
     <div class="g card" style="padding:16px 18px">
-      <div class="ch" style="margin-bottom:12px"><div class="ct"><span class="dot dam"></span>Sede A vs Sede B</div></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        ${['A','B'].map(f=>{
+      <div class="ch" style="margin-bottom:12px"><div class="ct"><span class="dot dam"></span>Confronto sedi</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">
+        ${Object.keys(byFil).sort().map(f=>{
           const d=byFil[f];
           const marg=d.val>0?Math.round((d.val-d.acq)/d.val*100):0;
           return`<div style="padding:12px;background:rgba(255,255,255,.04);border-radius:12px;border:0.5px solid rgba(255,255,255,.08)">
@@ -4588,7 +4612,9 @@ function initCharts(){
       mkChart("ch_mag1","bar",mg.topBrand.map(x=>x[0]),[{data:mg.topBrand.map(x=>x[1]),backgroundColor:magBrandAlphas,borderColor:magBrandBorder,borderWidth:1.5,borderRadius:4}],{...CO,layout:{padding:{top:22}},plugins:{...CO.plugins,datalabels:{display:true,anchor:'end',align:'end',offset:2,color:'rgba(48,209,88,.9)',font:{family:"'DM Mono',monospace",size:9},formatter:v=>fmtShort(v)}}});
     }
     // Grafico 2 categorie
-    mkChart("ch_mag2","doughnut",["A · Montature","A · Sole","B · Montature","B · Sole"],[{data:[mg.catA["Montature"]||0,mg.catA["Sole"]||0,mg.catB["Montature"]||0,mg.catB["Sole"]||0],backgroundColor:["#30d158","rgba(48,209,88,.55)","rgba(16,185,129,.8)","rgba(16,185,129,.45)"],borderWidth:0,hoverOffset:6}],coDon);
+    {const sf=Object.keys(mg.catF||{}).sort(),lb=[],dt=[],cl=[];const pal=["#30d158","#5ac8fa","#fbbf24","#c084fc","#67e8f9"];
+     sf.forEach((f,i)=>{["Montature","Sole"].forEach((k,j)=>{lb.push(f+" · "+k);dt.push(Math.round(mg.catF[f][k]||0));cl.push(pal[i%pal.length]+(j?"88":""));});});
+     mkChart("ch_mag2","doughnut",lb,[{data:dt,backgroundColor:cl,borderWidth:0,hoverOffset:6}],coDon);}
     // Grafici aging
     if(ST.magTab==="aging"){
       const ag=mg.aging||{byAnno:{},stats:{U:{v:0},A:{v:0},M:{v:0},O:{v:0}}};
