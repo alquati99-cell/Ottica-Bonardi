@@ -1470,6 +1470,26 @@ function processVendite(raw, name){
     };
   });
 
+  // ── Propagazione prezzo vendita dalla Sede C ────────────────────────────────
+  // Se una lente ha il prezzo registrato in Sede C ma non nelle altre sedi,
+  // usa il prezzo di Sede C per le righe con stesso tipo+marchio+modello.
+  const lentiKey = r => `${r.tp}|${(r.mar||'').toLowerCase().trim()}|${(r.mod||'').toLowerCase().trim()}`;
+  const priceFromC = {};
+  compactRows.forEach(r => {
+    if(r.tp && r.tp.startsWith('Lenti') && r.fil && r.fil.includes('C') && r.val > 0) {
+      const k = lentiKey(r);
+      if(!priceFromC[k] || r.val > priceFromC[k]) priceFromC[k] = r.val;
+    }
+  });
+  if(Object.keys(priceFromC).length > 0) {
+    compactRows.forEach(r => {
+      if(r.tp && r.tp.startsWith('Lenti') && (!r.val || r.val === 0)) {
+        const p = priceFromC[lentiKey(r)];
+        if(p) r.val = p;
+      }
+    });
+  }
+
   const clienti = new Set(compactRows.map(r=>r.cli).filter(Boolean));
   const allMarchi = [...new Set(compactRows.filter(r=>r.tp==='Montature vista'||r.tp==='Occhiali sole').map(r=>r.mar).filter(Boolean))].sort();
   const allTipi   = [...new Set(compactRows.map(r=>r.tp).filter(Boolean))].sort();
