@@ -590,6 +590,9 @@ html.light .nb.active .nb-ic{filter:drop-shadow(0 0 5px rgba(141,4,57,.35))}
 .sb-search kbd{font:600 10px 'DM Mono',monospace;border:0.5px solid var(--bb);border-radius:6px;padding:2px 6px;color:var(--d)}
 .sb.collapsed .sb-search{justify-content:center;padding:10px 0;gap:0}
 .sb.collapsed .sb-search kbd{display:none}
+.fresh-chip{font-size:11px;font-weight:600;padding:5px 11px;border-radius:99px;cursor:pointer;background:rgba(74,222,128,.12);color:var(--em);border:0.5px solid rgba(74,222,128,.3);white-space:nowrap}
+.fresh-chip.warn{background:rgba(251,191,36,.14);color:var(--am);border-color:rgba(251,191,36,.4);animation:ping2 2.4s ease-in-out infinite}
+@keyframes ping2{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.35)}50%{box-shadow:0 0 0 6px rgba(251,191,36,0)}}
 /* Spaziatura uniforme tra i blocchi (prima molte righe di card erano incollate) */
 #root .kg,#root .g2,#root .g3,#root .g13,#root .op-ins-grid{gap:16px}
 #root .kg,#root .g2,#root .g3,#root .g13{margin-bottom:16px!important}
@@ -1150,12 +1153,16 @@ function applyDataset(key,v){
   if(key==='cliAnag'){LIVE_CLI_ANAG={...v,byName:Object.fromEntries(v.list.map(c=>[normName(c.cog,c.nom),c]))};return true;}
   return false;
 }
+// Quando è stato caricato ogni file e da dove arrivano i dati che vedi adesso
+let UPLOADED_AT={},DATA_SOURCE='';
 function snapshotMeta(){
-  return {v:2,savedAt:new Date().toISOString(),
+  return {v:2,savedAt:new Date().toISOString(),uploadedAt:{...UPLOADED_AT},
     names:{mag:UPLOAD_NAME,magShort:UPLOAD_NAME_SHORT,vend:UPLOAD_NAME_VEND,acq:UPLOAD_NAME_ACQ,cli:UPLOAD_NAME_CLI,cliAnag:UPLOAD_NAME_CLI_ANAG}};
 }
 function applyMeta(m){
-  if(!m||!m.names)return;
+  if(!m)return;
+  if(m.uploadedAt)UPLOADED_AT={...UPLOADED_AT,...m.uploadedAt};
+  if(!m.names)return;
   UPLOAD_NAME=m.names.mag||UPLOAD_NAME;UPLOAD_NAME_SHORT=m.names.magShort||UPLOAD_NAME_SHORT;
   UPLOAD_NAME_VEND=m.names.vend||UPLOAD_NAME_VEND;UPLOAD_NAME_ACQ=m.names.acq||UPLOAD_NAME_ACQ;
   UPLOAD_NAME_CLI=m.names.cli||UPLOAD_NAME_CLI;UPLOAD_NAME_CLI_ANAG=m.names.cliAnag||UPLOAD_NAME_CLI_ANAG;
@@ -1175,9 +1182,13 @@ function applySnapshot(s){
   return n;
 }
 let PERSIST_T=null,LAST_CHANGED_KEY=null;
-function persistData(silent){
+// toCloud=false: salva solo sul dispositivo. Il cloud viene aggiornato solo
+// dopo un tuo caricamento: mai con i dati predefiniti o appena scaricati dal
+// cloud, altrimenti un dispositivo "vecchio" poteva sovrascrivere i dati nuovi.
+function persistData(silent,toCloud=true){
   clearTimeout(PERSIST_T);
   const changedKey=LAST_CHANGED_KEY;LAST_CHANGED_KEY=null;
+  if(changedKey){UPLOADED_AT[changedKey]=new Date().toISOString();DATA_SOURCE='upload';if(ST.page==='dati')renderPage();}
   PERSIST_T=setTimeout(async()=>{
     try{
       const s=snapshotData();
@@ -1189,26 +1200,39 @@ function persistData(silent){
     // se il KV non è configurato (nessun fastidio finché non lo attivi). Se
     // sappiamo quale dataset è appena cambiato sincronizziamo solo quello
     // (molto più leggero), altrimenti risincronizziamo tutto.
+    if(!toCloud)return;
     if(changedKey) cloudSaveOne(changedKey,true); else cloudSaveAll(true);
   },400);
 }
+// Data dell'ultimo salvataggio sul cloud (null se cloud assente o non leggibile)
+async function cloudMetaSavedAt(){
+  try{
+    const r=await fetch('/api/data',{cache:'no-store'});
+    if(!r.ok)return null;
+    const j=await r.json();
+    return j&&j.meta&&j.meta.savedAt?j.meta.savedAt:null;
+  }catch(e){return null;}
+}
 async function restoreData(){
-  try{
-    const s=await idbGet('snapshot');
-    const n=applySnapshot(s);
-    if(n){
-      LOCAL_SAVED_AT=s.savedAt;renderPage();
-      toast(`✅ ${n} dataset ripristinati automaticamente (${fmtSavedAt(s.savedAt)})`,'ok',4500);
-      return;
-    }
-  }catch(e){console.warn('restore failed',e);}
-  // Nessun dato locale: prova il cloud, poi il dataset reale precaricato di fabbrica.
-  try{
-    const n=await cloudLoadAll(true);
-    if(n){persistData(true);renderPage();
-      toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(CLOUD_SAVED_AT)})`,'ok',4500);
-      return;}
-  }catch(e){console.warn('cloud restore skipped',e);}
+  let local=null;
+  try{local=await idbGet('snapshot');}catch(e){console.warn('restore failed',e);}
+  const cloudAt=await cloudMetaSavedAt();
+  const localAt=local&&local.savedAt||null;
+  // 1) cloud più recente del dispositivo (dati caricati da un altro PC/telefono)
+  if(cloudAt&&(!localAt||cloudAt>localAt)){
+    try{
+      const n=await cloudLoadAll(true);
+      if(n){DATA_SOURCE='cloud';persistData(true,false);renderPage();
+        toast(`☁️ Dati aggiornati dal cloud (${fmtSavedAt(cloudAt)})`,'ok',4500);return;}
+    }catch(e){console.warn('cloud restore failed',e);}
+  }
+  // 2) dati salvati su questo dispositivo
+  if(local){
+    const n=applySnapshot(local);
+    if(n){DATA_SOURCE='dispositivo';LOCAL_SAVED_AT=localAt;renderPage();
+      toast(`✅ ${n} dataset ripristinati (${fmtSavedAt(localAt)})`,'ok',4000);return;}
+  }
+  // 3) nessun dato tuo: dataset predefinito di fabbrica (NON va sul cloud)
   try{
     let n=0;
     const metaR=await fetch('default-data/meta.json');
@@ -1217,16 +1241,26 @@ async function restoreData(){
       const r=await fetch(`default-data/${k}.json`);
       if(r.ok && applyDataset(k, await r.json())) n++;
     }
-    if(n){renderPage();persistData(true);
-      toast(`✅ Dati reali precaricati (${fmtN(n)} dataset) — Ottica Bonardi 3 sedi`,'ok',4500);
-      cloudSaveAll(true); // semina il cloud al primo avvio, se il KV è configurato
+    if(n){DATA_SOURCE='predefiniti';UPLOADED_AT={};renderPage();
+      toast(`ℹ️ Stai vedendo i dati di esempio: carica i tuoi file in "Carica dati"`,'info',6000);
     }
   }catch(e){console.warn('default data load skipped',e);}
 }
+// Rientrando nell'app (cambio scheda/app) controllo se sul cloud ci sono dati più nuovi
+let LAST_CLOUD_CHECK=0;
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState!=='visible'||Date.now()-LAST_CLOUD_CHECK<30000)return;
+  LAST_CLOUD_CHECK=Date.now();
+  const cloudAt=await cloudMetaSavedAt();
+  let localAt=null;try{localAt=(await idbGet('snapshot'))?.savedAt||null;}catch(e){}
+  if(cloudAt&&localAt&&cloudAt>localAt){
+    try{const n=await cloudLoadAll(true);if(n){DATA_SOURCE='cloud';persistData(true,false);renderPage();toast('☁️ Dati aggiornati da un altro dispositivo','ok',4000);}}catch(e){}
+  }
+});
 async function clearSavedData(){
   try{await idbDel('snapshot');LOCAL_SAVED_AT=null;
     LIVE_MAG=LIVE_VEND=LIVE_ACQ=LIVE_CLI=LIVE_CLI_ANAG=null;
-    UPLOAD_NAME=UPLOAD_NAME_VEND=UPLOAD_NAME_ACQ=UPLOAD_NAME_CLI=UPLOAD_NAME_CLI_ANAG=null;UPLOAD_NAME_SHORT='';
+    UPLOAD_NAME=UPLOAD_NAME_VEND=UPLOAD_NAME_ACQ=UPLOAD_NAME_CLI=UPLOAD_NAME_CLI_ANAG=null;UPLOAD_NAME_SHORT='';UPLOADED_AT={};DATA_SOURCE='';
     renderPage();toast('🗑️ Dati locali eliminati','info');
   }catch(e){toast('Errore eliminazione: '+e.message,'err');}
 }
@@ -1293,7 +1327,7 @@ async function cloudLoad(){
     toast('☁️ Caricamento dal cloud…','info',2000);
     const n=await cloudLoadAll(false);
     if(!n)throw new Error('Nessun dataset trovato sul cloud');
-    persistData(true);
+    DATA_SOURCE='cloud';persistData(true,false);
     renderPage();
     toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(CLOUD_SAVED_AT)})`,'ok',4500);
   }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);}
@@ -1310,6 +1344,50 @@ window.cloudSave=()=>cloudSaveAll(false);window.cloudLoad=cloudLoad;window.cloud
 
 function curMAG(){ return LIVE_MAG || MAG; }
 function curAG(){ return LIVE_AG || AG; }
+
+
+// ═══ FRESCHEZZA DATI: cosa è caricato, fino a che data, da dove ═══════════
+const fmtD=iso=>iso?iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4):'—';
+function maxDate(rows,f){const t=toISO(new Date());let m='';(rows||[]).forEach(r=>{const d=r[f];if(d&&d.length>=10&&d>m&&d.slice(0,10)<=t)m=d;});return m.slice(0,10);}
+function minDate(rows,f){let m='';(rows||[]).forEach(r=>{const d=r[f];if(d&&d.length>=10&&(!m||d<m))m=d;});return m.slice(0,10);}
+function dataFreshness(){
+  const today=toISO(new Date());
+  const ageDays=iso=>iso?Math.round((new Date(today)-new Date(iso))/86400000):null;
+  const L=[
+    {k:'vend',lbl:'Vendite',has:!!LIVE_VEND,name:UPLOAD_NAME_VEND,rows:LIVE_VEND?.rows?.length,from:minDate(LIVE_VEND?.rows,'dt'),to:maxDate(LIVE_VEND?.rows,'dt')},
+    {k:'mag',lbl:'Magazzino',has:!!LIVE_MAG,name:UPLOAD_NAME,rows:LIVE_MAG?.rows?.length,from:'',to:maxDate(LIVE_MAG?.rows,'d'),toLbl:'ultimo acquisto'},
+    {k:'acq',lbl:'Acquisti',has:!!LIVE_ACQ,name:UPLOAD_NAME_ACQ,rows:LIVE_ACQ?.rows?.length,from:minDate(LIVE_ACQ?.rows,'dt'),to:maxDate(LIVE_ACQ?.rows,'dt')},
+    {k:'cli',lbl:'Storico clienti',has:!!LIVE_CLI,name:UPLOAD_NAME_CLI,rows:LIVE_CLI?.cliList?.length,from:'',to:''},
+    {k:'cliAnag',lbl:'Anagrafica età',has:!!LIVE_CLI_ANAG,name:UPLOAD_NAME_CLI_ANAG,rows:LIVE_CLI_ANAG?.list?.length,from:'',to:''}
+  ];
+  L.forEach(x=>{x.at=UPLOADED_AT[x.k]||null;x.ageTo=ageDays(x.to);x.ageAt=x.at?ageDays(x.at.slice(0,10)):null;});
+  return L;
+}
+// Avviso se i dati sono vecchi o non sono i tuoi
+function freshnessWarn(){
+  const F=dataFreshness(),v=F[0],m=F[1];
+  if(DATA_SOURCE==='predefiniti')return'Stai vedendo i dati di esempio: carica i tuoi file';
+  if(v.has&&v.ageTo!=null&&v.ageTo>40)return`Le vendite arrivano solo al ${fmtD(v.to)}: carica l'export aggiornato`;
+  if(m.has&&m.at&&m.ageAt>40)return`Il magazzino è stato caricato il ${fmtD(m.at.slice(0,10))}: carica l'inventario aggiornato`;
+  if(m.has&&!m.at&&v.has&&v.to&&m.to&&(new Date(v.to)-new Date(m.to))/86400000>60)return`Il magazzino sembra più vecchio delle vendite (ultimo acquisto ${fmtD(m.to)})`;
+  return'';
+}
+function freshnessChip(){
+  const F=dataFreshness(),v=F[0],w=freshnessWarn();
+  return`<span class="fresh-chip${w?' warn':''}" onclick="nav('dati')" title="${w||'Vedi i dati caricati'}">${w?'⚠️ ':'🟢 '}Dati al ${v.to?fmtD(v.to):'—'}</span>`;
+}
+function rFreshCard(){
+  const F=dataFreshness(),w=freshnessWarn();
+  const src={upload:'caricati da te su questo dispositivo',dispositivo:'salvati su questo dispositivo',cloud:'scaricati dal cloud',predefiniti:'dati di esempio (non i tuoi)'}[DATA_SOURCE]||'—';
+  return`<div class="g card fi" style="margin-bottom:14px;${w?'border-left:3px solid var(--am)':''}">
+  <div class="ch"><div class="ct"><span class="dot ${w?'dam':'dem'}"></span>Cosa stai vedendo adesso</div><span style="font-size:11px;color:var(--m)">Fonte: <b style="color:var(--t)">${src}</b></span></div>
+  ${w?`<div style="font-size:13px;color:var(--am);margin-bottom:10px">⚠️ ${w}</div>`:''}
+  <div style="overflow-x:auto"><table style="min-width:640px"><thead><tr><th>File</th><th>Nome file</th><th>Righe</th><th>Dati dal</th><th>Dati fino al</th><th>Caricato il</th></tr></thead><tbody>
+  ${F.map(x=>`<tr><td style="font-weight:600">${x.lbl}</td><td style="color:var(--m)">${x.has?(x.name||'—'):'<span style="color:var(--d)">non caricato</span>'}</td><td class="mn">${x.has&&x.rows!=null?fmtN(x.rows):'—'}</td><td class="mn">${fmtD(x.from)}</td><td class="mn" style="${x.ageTo!=null&&x.ageTo>40?'color:var(--am);font-weight:700':''}">${fmtD(x.to)}${x.toLbl&&x.to?` <span style="color:var(--d);font-size:10px">(${x.toLbl})</span>`:''}</td><td class="mn">${x.at?fmtSavedAt(x.at):'—'}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div style="font-size:11px;color:var(--d);margin-top:8px">Se qui vedi date vecchie, il file caricato non è l'export aggiornato oppure stai guardando da un dispositivo che non ha ancora i dati nuovi: ricarica la pagina (si aggiorna da solo dal cloud) o ricarica il file.</div>
+</div>`;
+}
 
 // ═══ EXCEL PARSER ═══════════════════════════════════════════════════════════
 function parseExcel(file){
@@ -1367,9 +1445,10 @@ function processUpload(raw, name){
     r.c = Math.round((r.c/r.cn)*100)/100;
     if(r.d){
       const yr=parseInt(r.d.slice(0,4)),mo=parseInt(r.d.slice(5,7))||1;
-      r.mesi = Math.max(0,(2026-yr)*12+(5-mo));
+      const am=ageMeta(r.d);
+      r.mesi = am.mesi==null?0:am.mesi;
       r.anno = yr;
-      r.pri = yr<2020?'U':yr<2023?'A':yr<2024?'M':'O';
+      r.pri = am.pri;
     }
     return r;
   });
@@ -2263,7 +2342,7 @@ function cardTitle(card){return (card.querySelector('.ct,.kl')?.innerText||'widg
 function decorateCards(){
   document.querySelectorAll('#root .g').forEach(c=>{
     if(c.dataset.deco||c.closest('#cardModal'))return;
-    if(c.querySelector('.g'))return;                       // contenitori di altri widget
+    if(c.querySelector('.g')||c.querySelector('.upload-zone,input[type=file]'))return; // contenitori o card di caricamento
     const r=c.getBoundingClientRect();if(r.width<150||r.height<70)return;
     c.dataset.deco='1';
     const ch=c.querySelector(':scope>.ch');
@@ -2735,7 +2814,7 @@ ${rows.map(([l,v,c])=>{const pct=nTot>0?Math.round(v/nTot*100):0;return`<div sty
 
   return`
 <div class="topbar fi" style="flex-wrap:wrap;gap:8px">
-  <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>
+  <div class="page-title">Overview <span class="pt-badge">${MESI[CM]} ${CY}</span></div>${freshnessChip()}
   <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
     <!-- Selettore periodo globale -->
     <div style="display:inline-block" id="ov-periodo-wrap">
@@ -3005,6 +3084,7 @@ function rDati(){
   </div>`;
   return`
 <div class="topbar fi"><div class="page-title">Carica dati <span class="pt-badge">5 file Excel</span></div></div>
+${rFreshCard()}
 <div class="g card fi" style="margin-bottom:14px">
   <div class="ch"><div class="ct"><span style="font-size:16px">💾</span>Salvataggio automatico &amp; Cloud</div>
     ${LOCAL_SAVED_AT?`<span style="font-size:11px;color:var(--em)">✅ salvato sul dispositivo · ${fmtSavedAt(LOCAL_SAVED_AT)}</span>`:`<span style="font-size:11px;color:var(--d)">nessun salvataggio locale</span>`}
@@ -3027,7 +3107,7 @@ function rDati(){
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
   ${mkZone("mag","Magazzino","📦","Stock, valore, anzianità per sede e brand",!!UPLOAD_NAME,UPLOAD_NAME_SHORT||"","parseExcel","Colonne: Filiale · Tipo prodotto · Fornitore · Marchio · Modello · Codice a barre · Costo medio (o Prezzo acquisto) · Quantità magazzino · Valore magazzino · Data ult. acq")}
   ${mkZone("vend","Vendite","◈","Pezzi venduti, top brand, operatori, clienti",!!UPLOAD_NAME_VEND,UPLOAD_NAME_VEND||"","parseVendite","Colonne: Tipo Prodotto · Marchio · Modello · Codice a barre · Filiale · Operatore · Codice cliente · Tipo operazione · Prezzo consigliato · Quantità · Data")}
-  ${mkZone("acq","Acquisti","🛒","Trend storico 2020–${CY}, valore per anno e filiale",!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"","parseAcquisti","Colonne: Filiale · Tipo Prodotto · Marchio · Modello · Codice a barre · Data movimento · Quantità · ValoreAcq")}
+  ${mkZone("acq","Acquisti","🛒",`Trend storico 2020–${CY}, valore per anno e filiale`,!!UPLOAD_NAME_ACQ,UPLOAD_NAME_ACQ||"","parseAcquisti","Colonne: Filiale · Tipo Prodotto · Marchio · Modello · Codice a barre · Data movimento · Quantità · ValoreAcq")}
   ${mkZone("cli","Storico clienti","👥","Ordini, brand preferiti, retention — unisce vendite per Codice cliente",!!UPLOAD_NAME_CLI,UPLOAD_NAME_CLI||"","parseCli","Colonne: codice scheda cliente · Cognome · Nome · Data consegna · Marca modello · Prodotto lente Dx/Sx · Marca lente Dx/Sx · Tipo fornitura · Totale")}
   ${mkZone("cliAnag","Anagrafica età","🎂","Età, indirizzo, telefono — abbinata per nome allo storico clienti per la clusterizzazione età",!!UPLOAD_NAME_CLI_ANAG,UPLOAD_NAME_CLI_ANAG||"","parseCliAnag","Colonne: Cognome · Nome · Eta (o Data nascita) · Filiale · Indirizzo · Cap · Città · Telefono")}
 </div>
@@ -3130,7 +3210,7 @@ function rMag(){
 
   return`
 <div class="topbar fi">
-  <div class="page-title">Magazzino <span class="pt-badge">${UPLOAD_NAME?"📂 "+UPLOAD_NAME.slice(0,20):"Inventario 15.05.2026"}</span></div>
+  <div class="page-title">Magazzino <span class="pt-badge">${UPLOAD_NAME?"📂 "+UPLOAD_NAME.slice(0,20):"Inventario"}</span></div>${freshnessChip()}
   <div class="controls">
     <select class="sel sel-brand" onchange="ST.magBrand=this.value;ST.magPage=0;ST.agPage=0;renderPage()">
       <option value="all">— Tutti i marchi —</option>
