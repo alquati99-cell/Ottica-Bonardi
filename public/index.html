@@ -1327,30 +1327,47 @@ async function cloudSaveOne(key,silent){
     if(!silent)toast('⚠️ Cloud: '+e.message,'err',5000);
   }
 }
+// Parsa la risposta come JSON usando text()+JSON.parse() invece di response.json()
+// per evitare il bug di Safari/WebKit che lancia "The string did not match the
+// expected pattern" su certi payload invece del normale SyntaxError.
+async function safeJson(resp){
+  const txt=await resp.text();
+  try{return JSON.parse(txt);}
+  catch(e){throw new Error('Risposta non valida dal server ('+resp.status+')');}
+}
 async function cloudLoadAll(quiet){
   const r=await fetch('/api/data');
   if(r.status===404) throw new Error('Nessun dato salvato sul cloud');
-  const j=await r.json();
+  const j=await safeJson(r);
   if(!r.ok) throw new Error(j.hint||j.error||('HTTP '+r.status));
   if(j.meta) applyMeta(j.meta);
   const present=DATASET_KEYS.filter(k=>j.present&&j.present[k]);
   let n=0;
+  // Ogni dataset viene caricato separatamente con il proprio try/catch: un
+  // errore su un singolo file non blocca il caricamento degli altri.
   await Promise.all(present.map(async k=>{
-    const kr=await fetch(`/api/data/${k}`);
-    if(kr.ok && applyDataset(k, await kr.json())) n++;
+    try{
+      const kr=await fetch(`/api/data/${k}`);
+      if(!kr.ok)return;
+      const data=await safeJson(kr);
+      if(applyDataset(k,data))n++;
+    }catch(e){console.warn('Errore caricamento dataset',k,e);}
   }));
   if(n) CLOUD_SAVED_AT=j.meta?.savedAt||new Date().toISOString();
   return n;
 }
 async function cloudLoad(){
+  let n=0;
   try{
     toast('☁️ Caricamento dal cloud…','info',2000);
-    const n=await cloudLoadAll(false);
+    n=await cloudLoadAll(false);
     if(!n)throw new Error('Nessun dataset trovato sul cloud');
-    DATA_SOURCE='cloud';persistData(true,false);
-    renderPage();
-    toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(CLOUD_SAVED_AT)})`,'ok',4500);
-  }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);}
+  }catch(e){toast('⚠️ Cloud: '+e.message,'err',5000);return;}
+  // DATA_SOURCE, persistData e renderPage fuori dal try cloud: un errore di
+  // rendering non deve essere confuso con un errore di caricamento dati.
+  DATA_SOURCE='cloud';persistData(true,false);
+  renderPage();
+  toast(`☁️ ${n} dataset caricati dal cloud (${fmtSavedAt(CLOUD_SAVED_AT)})`,'ok',4500);
 }
 async function cloudDelete(){
   try{
