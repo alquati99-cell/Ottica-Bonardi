@@ -69,7 +69,7 @@ async function _handleData(request, env, url) {
     const meta = await env.DATA.get(kvKey('meta'));
     const present = {};
     await Promise.all(DATASET_KEYS.filter(k => k !== 'meta').map(async k => {
-      present[k] = (await env.DATA.get(kvKey(k), { type: 'text', cacheTtl: 0 })) != null;
+      present[k] = (await env.DATA.get(kvKey(k))) != null;
     }));
     if (!meta && !Object.values(present).some(Boolean)) return json({ error: 'not_found' }, 404);
     // JSON.parse(meta) può lanciare se il valore in KV è corrotto — gestire esplicitamente.
