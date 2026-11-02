@@ -38,6 +38,14 @@ const kvKey = k => `ob-data-${k}`;
 const MAX_VALUE_BYTES = 24 * 1024 * 1024;
 
 async function handleData(request, env, url) {
+  try {
+    return await _handleData(request, env, url);
+  } catch (err) {
+    return json({ error: 'internal_error', hint: err.message || String(err) }, 500);
+  }
+}
+
+async function _handleData(request, env, url) {
   if (!env.DATA) {
     return json({ error: 'kv_not_configured', hint: 'Crea il namespace KV "DATA" (wrangler kv namespace create DATA) e aggiungilo a wrangler.toml' }, 501);
   }
@@ -53,6 +61,8 @@ async function handleData(request, env, url) {
     if (key) {
       const value = await env.DATA.get(kvKey(key));
       if (!value) return json({ error: 'not_found' }, 404);
+      // Valida che il valore sia JSON valido prima di restituirlo.
+      try { JSON.parse(value); } catch { return json({ error: 'corrupted_dataset', key }, 500); }
       return new Response(value, { headers: { ...cors(), 'Content-Type': 'application/json' } });
     }
     // Nessuna chiave: riassunto di cosa è presente in cloud.
@@ -62,7 +72,10 @@ async function handleData(request, env, url) {
       present[k] = (await env.DATA.get(kvKey(k), { type: 'text', cacheTtl: 0 })) != null;
     }));
     if (!meta && !Object.values(present).some(Boolean)) return json({ error: 'not_found' }, 404);
-    return json({ meta: meta ? JSON.parse(meta) : null, present });
+    // JSON.parse(meta) può lanciare se il valore in KV è corrotto — gestire esplicitamente.
+    let parsedMeta = null;
+    if (meta) { try { parsedMeta = JSON.parse(meta); } catch { parsedMeta = null; } }
+    return json({ meta: parsedMeta, present });
   }
 
   if (request.method === 'PUT' || request.method === 'POST') {
